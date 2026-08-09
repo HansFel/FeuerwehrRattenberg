@@ -29,10 +29,13 @@ pip install -r requirements.txt
 python run.py
 ```
 
-Dann im Browser öffnen: <http://127.0.0.1:5000>
+Dann im Browser öffnen: <http://127.0.0.1:8000>
 
-Für Zugriff vom Tablet/Handy: im selben WLAN `http://<PC-IP>:5000` öffnen
+Für Zugriff vom Tablet/Handy: im selben WLAN `http://<PC-IP>:8000` öffnen
 (IP per `ipconfig` ermitteln, ggf. Windows-Firewall für Python freigeben).
+
+> Hinweis: Port 8000 statt 5000, da 5000 unter Windows häufig von
+> Docker Desktop / WSL belegt ist.
 
 ## Tests
 
