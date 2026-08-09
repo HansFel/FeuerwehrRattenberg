@@ -13,6 +13,12 @@ Rattenberg. Verwaltet **Mannschaften**, **Disziplinen/Stationen**,
   danach Startnummer/-zeit/Heat anpassbar)
 - **Wertung** – Ergebnisse erfassen (Zeit + Fehlerpunkte), Einzelrangliste je
   Disziplin und Gesamtwertung nach Rangpunkten
+- **PDF-Ausdruck** – Gesamtwertung, Einzelranglisten und Startlisten als
+  druckfertige PDF-Dateien (für Aushang & Siegerehrung)
+- **CSV-Export** – Mannschaften, alle Ergebnisse und Gesamtwertung als CSV
+  (UTF-8 + Semikolon, öffnet direkt in deutschem Excel)
+- **Passwortsperre** – Ansehen ist frei; Anlegen/Ändern/Löschen und
+  Ergebnis­erfassung erfordern eine Bearbeiter-Anmeldung
 
 ## Einrichtung (Windows / PowerShell)
 
@@ -42,6 +48,17 @@ Für Zugriff vom Tablet/Handy: im selben WLAN `http://<PC-IP>:8000` öffnen
 ```powershell
 pip install pytest
 python -m pytest
+```
+
+## Bearbeiter-Passwort
+
+Ändernde Aktionen sind durch ein gemeinsames Passwort geschützt (Menü
+„🔒 Anmelden"). Standardwert ist `feuerwehr`. **Vor dem Eventtag ändern**, indem
+die App mit gesetzter Umgebungsvariable gestartet wird:
+
+```powershell
+$env:WETTBEWERB_PASSWORT = "GeheimesEventPasswort"
+python run.py
 ```
 
 ## Datenablage

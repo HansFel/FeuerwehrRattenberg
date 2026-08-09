@@ -4,6 +4,12 @@
   <h1>Gesamtwertung</h1>
   <p>Rangpunkte je Disziplin (1 = beste Platzierung). <strong>Weniger ist besser.</strong></p>
 
+  <div class="werkzeugleiste">
+    <a class="knopf klein" href="{{ url_for('pdf.gesamt') }}">📄 Gesamtwertung als PDF</a>
+    <a class="knopf klein grau" href="{{ url_for('export.gesamt') }}">⤓ Gesamtwertung CSV</a>
+    <a class="knopf klein grau" href="{{ url_for('export.ergebnisse') }}">⤓ Alle Ergebnisse CSV</a>
+  </div>
+
   {% if tabelle %}
   <table>
     <thead>

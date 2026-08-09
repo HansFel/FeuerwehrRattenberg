@@ -17,6 +17,9 @@ def create_app(test_config: dict | None = None) -> Flask:
         SECRET_KEY=os.environ.get("SECRET_KEY", "dev-nur-lokal"),
         SQLALCHEMY_DATABASE_URI=f"sqlite:///{db_path}",
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
+        # Passwort für Bearbeiter (Ergebnis-/Datenpflege). Am Eventtag per
+        # Umgebungsvariable WETTBEWERB_PASSWORT setzen.
+        WETTBEWERB_PASSWORT=os.environ.get("WETTBEWERB_PASSWORT", "feuerwehr"),
     )
     if test_config:
         app.config.update(test_config)
@@ -28,12 +31,20 @@ def create_app(test_config: dict | None = None) -> Flask:
     # Jinja-Filter für Zeitanzeige
     app.jinja_env.filters["zeit"] = format_zeit
 
-    from .blueprints import teams, disziplinen, wertung, zeitplan, start
+    # Anmeldestatus in allen Templates verfügbar machen (für die Navigation)
+    from .auth import ist_angemeldet
+    app.jinja_env.globals["ist_angemeldet"] = ist_angemeldet
+
+    from .blueprints import (teams, disziplinen, wertung, zeitplan, start,
+                             auth, export, pdf)
     app.register_blueprint(start.bp)
     app.register_blueprint(teams.bp)
     app.register_blueprint(disziplinen.bp)
     app.register_blueprint(wertung.bp)
     app.register_blueprint(zeitplan.bp)
+    app.register_blueprint(auth.bp)
+    app.register_blueprint(export.bp)
+    app.register_blueprint(pdf.bp)
 
     with app.app_context():
         db.create_all()

@@ -3,10 +3,15 @@
 {% block inhalt %}
   <h1>Startliste: {{ disziplin.name }}</h1>
 
-  <form class="inline" method="post">
-    <input type="hidden" name="aktion" value="auto">
-    <button class="knopf" type="submit">Alle Mannschaften übernehmen</button>
-  </form>
+  <div class="werkzeugleiste">
+    <form class="inline" method="post">
+      <input type="hidden" name="aktion" value="auto">
+      <button class="knopf" type="submit">Alle Mannschaften übernehmen</button>
+    </form>
+    {% if startplaetze %}
+    <a class="knopf grau" href="{{ url_for('pdf.startliste', disziplin_id=disziplin.id) }}">📄 Startliste als PDF</a>
+    {% endif %}
+  </div>
 
   {% if startplaetze %}
   <form method="post">

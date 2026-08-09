@@ -42,6 +42,12 @@ body {
   font-weight: 500;
 }
 .nav a:hover { background: var(--rot-dunkel); }
+.nav-knopf {
+  color: #fff; background: transparent; border: 1px solid rgba(255,255,255,0.5);
+  padding: 0.4rem 0.8rem; border-radius: 6px; font: inherit; font-weight: 500;
+  cursor: pointer;
+}
+.nav-knopf:hover { background: var(--rot-dunkel); }
 
 .inhalt { max-width: 960px; margin: 1.5rem auto; padding: 0 1rem; }
 

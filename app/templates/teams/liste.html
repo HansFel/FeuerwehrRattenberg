@@ -4,6 +4,7 @@
   <h1>Mannschaften</h1>
   <div class="werkzeugleiste">
     <a class="knopf" href="{{ url_for('teams.neu') }}">+ Neue Mannschaft</a>
+    <a class="knopf klein grau" href="{{ url_for('export.mannschaften') }}">⤓ CSV-Export</a>
   </div>
 
   {% if teams %}

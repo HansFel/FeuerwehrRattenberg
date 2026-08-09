@@ -4,6 +4,7 @@ from flask import (Blueprint, flash, redirect, render_template, request,
 
 from ..models import db, Team, Disziplin, Ergebnis, WERTUNG_ZEIT
 from ..wertung import rangliste_disziplin, gesamtwertung
+from ..auth import ist_angemeldet
 
 bp = Blueprint("wertung", __name__, url_prefix="/wertung")
 
@@ -23,6 +24,11 @@ def erfassen(disziplin_id: int):
     disziplin = db.get_or_404(Disziplin, disziplin_id)
 
     if request.method == "POST":
+        if not ist_angemeldet():
+            flash("Bitte zuerst als Bearbeiter anmelden.", "error")
+            return redirect(url_for("auth.login",
+                                    next=url_for("wertung.erfassen",
+                                                 disziplin_id=disziplin.id)))
         team_id = int(request.form["team_id"])
         erg = Ergebnis.query.filter_by(team_id=team_id,
                                        disziplin_id=disziplin.id).first()

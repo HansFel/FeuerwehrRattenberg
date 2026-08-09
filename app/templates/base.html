@@ -21,6 +21,13 @@
       <a href="{{ url_for('disziplinen.liste') }}">Disziplinen</a>
       <a href="{{ url_for('wertung.uebersicht') }}">Wertung</a>
       <a href="{{ url_for('zeitplan.uebersicht') }}">Zeitplan</a>
+      {% if ist_angemeldet() %}
+        <form class="inline" method="post" action="{{ url_for('auth.logout') }}">
+          <button class="nav-knopf" type="submit" title="Bearbeiter abmelden">🔓 Abmelden</button>
+        </form>
+      {% else %}
+        <a href="{{ url_for('auth.login') }}" title="Zum Bearbeiten anmelden">🔒 Anmelden</a>
+      {% endif %}
     </nav>
   </header>
 

@@ -40,6 +40,9 @@
   </form>
 
   <h2>Rangliste dieser Disziplin</h2>
+  <div class="werkzeugleiste">
+    <a class="knopf klein" href="{{ url_for('pdf.disziplin', disziplin_id=disziplin.id) }}">📄 Rangliste als PDF</a>
+  </div>
   {% if platzierungen %}
   <table>
     <thead>

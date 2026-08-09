@@ -3,6 +3,7 @@ from flask import (Blueprint, flash, redirect, render_template, request,
                    url_for)
 
 from ..models import db, Team, Disziplin, Startplatz
+from ..auth import ist_angemeldet
 
 bp = Blueprint("zeitplan", __name__, url_prefix="/zeitplan")
 
@@ -19,6 +20,11 @@ def disziplin(disziplin_id: int):
     disziplin = db.get_or_404(Disziplin, disziplin_id)
 
     if request.method == "POST":
+        if not ist_angemeldet():
+            flash("Bitte zuerst als Bearbeiter anmelden.", "error")
+            return redirect(url_for("auth.login",
+                                    next=url_for("zeitplan.disziplin",
+                                                 disziplin_id=disziplin.id)))
         aktion = request.form.get("aktion")
         if aktion == "auto":
             _startliste_automatisch(disziplin)
