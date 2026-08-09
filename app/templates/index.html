@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block titel %}Übersicht{% endblock %}
+{% block inhalt %}
+  <h1>Wettbewerb – Übersicht</h1>
+  <p>Werkzeug zur Organisation des Jubiläums-Wettbewerbs der Feuerwehr Rattenberg.</p>
+
+  <div class="karten">
+    <div class="karte">
+      <div class="zahl">{{ anzahl_teams }}</div>
+      <div>Mannschaften</div>
+      <a class="knopf klein" href="{{ url_for('teams.liste') }}">verwalten</a>
+    </div>
+    <div class="karte">
+      <div class="zahl">{{ anzahl_disziplinen }}</div>
+      <div>Disziplinen</div>
+      <a class="knopf klein" href="{{ url_for('disziplinen.liste') }}">verwalten</a>
+    </div>
+    <div class="karte">
+      <div class="zahl">{{ anzahl_ergebnisse }}</div>
+      <div>erfasste Ergebnisse</div>
+      <a class="knopf klein" href="{{ url_for('wertung.uebersicht') }}">Wertung</a>
+    </div>
+  </div>
+
+  <h2>Ablauf</h2>
+  <ol>
+    <li><strong>Mannschaften</strong> anlegen (Name, Wehr, Startnummer).</li>
+    <li><strong>Disziplinen</strong> definieren (Zeit- oder Punktewertung, Strafsekunden).</li>
+    <li><strong>Zeitplan</strong> je Disziplin erzeugen (Startlisten).</li>
+    <li>Am Eventtag <strong>Zeiten &amp; Fehlerpunkte</strong> erfassen.</li>
+    <li><strong>Wertung</strong> live verfolgen – Einzel- und Gesamtrangliste.</li>
+  </ol>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block titel %}{{ disziplin.name }} – Startliste{% endblock %}
+{% block inhalt %}
+  <h1>Startliste: {{ disziplin.name }}</h1>
+
+  <form class="inline" method="post">
+    <input type="hidden" name="aktion" value="auto">
+    <button class="knopf" type="submit">Alle Mannschaften übernehmen</button>
+  </form>
+
+  {% if startplaetze %}
+  <form method="post">
+    <input type="hidden" name="aktion" value="speichern">
+    <table style="margin-top:1rem">
+      <thead>
+        <tr><th>Start-Nr.</th><th>Mannschaft</th><th>Startzeit</th><th>Heat/Durchgang</th></tr>
+      </thead>
+      <tbody>
+        {% for sp in startplaetze %}
+        <tr>
+          <td><input type="number" name="nr_{{ sp.id }}" value="{{ sp.startnummer if sp.startnummer is not none else '' }}" style="width:5rem"></td>
+          <td>{{ sp.team.name }}{% if sp.team.wehr %} <small>({{ sp.team.wehr }})</small>{% endif %}</td>
+          <td><input type="text" name="zeit_{{ sp.id }}" value="{{ sp.startzeit }}" placeholder="10:30" style="width:6rem"></td>
+          <td><input type="text" name="heat_{{ sp.id }}" value="{{ sp.heat }}" style="width:8rem"></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="werkzeugleiste" style="margin-top:1rem">
+      <button class="knopf" type="submit">Startliste speichern</button>
+      <a class="knopf grau" href="{{ url_for('zeitplan.uebersicht') }}">Zurück</a>
+    </div>
+  </form>
+  {% else %}
+  <p class="leer" style="margin-top:1rem">Noch keine Startplätze. Nutze „Alle Mannschaften übernehmen".</p>
+  {% endif %}
+{% endblock %}

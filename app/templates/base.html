@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titel %}Wettbewerb{% endblock %} · FF Rattenberg 120 Jahre</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <header class="kopf">
+    <div class="marke">
+      <span class="logo">🚒</span>
+      <div>
+        <strong>120 Jahre Feuerwehr Rattenberg</strong>
+        <small>Wettbewerbs-Organisation</small>
+      </div>
+    </div>
+    <nav class="nav">
+      <a href="{{ url_for('start.index') }}">Übersicht</a>
+      <a href="{{ url_for('teams.liste') }}">Mannschaften</a>
+      <a href="{{ url_for('disziplinen.liste') }}">Disziplinen</a>
+      <a href="{{ url_for('wertung.uebersicht') }}">Wertung</a>
+      <a href="{{ url_for('zeitplan.uebersicht') }}">Zeitplan</a>
+    </nav>
+  </header>
+
+  <main class="inhalt">
+    {% with meldungen = get_flashed_messages(with_categories=true) %}
+      {% for kategorie, text in meldungen %}
+        <div class="meldung {{ kategorie }}">{{ text }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    {% block inhalt %}{% endblock %}
+  </main>
+
+  <footer class="fuss">
+    <small>Lokale App · keine Daten verlassen diesen Rechner</small>
+  </footer>
+</body>
+</html>

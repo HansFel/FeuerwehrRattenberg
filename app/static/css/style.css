@@ -1,0 +1,92 @@
+:root {
+  --rot: #c62828;
+  --rot-dunkel: #8e0000;
+  --grau: #37474f;
+  --hell: #f5f5f5;
+  --rand: #dcdcdc;
+  --ok: #2e7d32;
+  --fehler: #c62828;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  color: #222;
+  background: var(--hell);
+}
+
+.kopf {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.8rem 1.5rem;
+  background: var(--rot);
+  color: #fff;
+}
+
+.marke { display: flex; align-items: center; gap: 0.7rem; }
+.marke .logo { font-size: 1.8rem; }
+.marke strong { display: block; font-size: 1.05rem; }
+.marke small { opacity: 0.85; }
+
+.nav { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.nav a {
+  color: #fff;
+  text-decoration: none;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  font-weight: 500;
+}
+.nav a:hover { background: var(--rot-dunkel); }
+
+.inhalt { max-width: 960px; margin: 1.5rem auto; padding: 0 1rem; }
+
+h1 { color: var(--rot-dunkel); margin-top: 0; }
+h2 { color: var(--grau); }
+
+.meldung {
+  padding: 0.7rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  border-left: 4px solid;
+}
+.meldung.ok { background: #e8f5e9; border-color: var(--ok); }
+.meldung.error { background: #ffebee; border-color: var(--fehler); }
+
+table { width: 100%; border-collapse: collapse; background: #fff; }
+th, td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--rand); }
+th { background: var(--grau); color: #fff; }
+tr:hover td { background: #fafafa; }
+.rang { font-weight: 700; text-align: center; width: 3rem; }
+
+.karten { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
+.karte {
+  background: #fff; border: 1px solid var(--rand); border-radius: 8px;
+  padding: 1.2rem; text-align: center;
+}
+.karte .zahl { font-size: 2.4rem; font-weight: 700; color: var(--rot); }
+
+form.formular { background: #fff; padding: 1.2rem; border-radius: 8px; border: 1px solid var(--rand); max-width: 520px; }
+form.formular label { display: block; margin: 0.8rem 0 0.2rem; font-weight: 600; }
+form.formular input[type=text], form.formular input[type=number], form.formular textarea, form.formular select {
+  width: 100%; padding: 0.5rem; border: 1px solid var(--rand); border-radius: 6px; font: inherit;
+}
+form.formular textarea { min-height: 4rem; }
+
+.knopf, button.knopf, a.knopf {
+  display: inline-block; background: var(--rot); color: #fff; border: none;
+  padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none;
+  font: inherit; cursor: pointer;
+}
+.knopf:hover { background: var(--rot-dunkel); }
+.knopf.grau { background: var(--grau); }
+.knopf.klein { padding: 0.3rem 0.6rem; font-size: 0.85rem; }
+.knopf.gefahr { background: #fff; color: var(--fehler); border: 1px solid var(--fehler); }
+
+.werkzeugleiste { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; align-items: center; }
+.leer { color: #777; font-style: italic; }
+.inline { display: inline; }

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block titel %}Wertung{% endblock %}
+{% block inhalt %}
+  <h1>Gesamtwertung</h1>
+  <p>Rangpunkte je Disziplin (1 = beste Platzierung). <strong>Weniger ist besser.</strong></p>
+
+  {% if tabelle %}
+  <table>
+    <thead>
+      <tr><th class="rang">Rang</th><th>Mannschaft</th><th>Rangpunkte</th></tr>
+    </thead>
+    <tbody>
+      {% for zeile in tabelle %}
+      <tr>
+        <td class="rang">{{ zeile.rang }}</td>
+        <td>{{ zeile.team.name }}{% if zeile.team.wehr %} <small>({{ zeile.team.wehr }})</small>{% endif %}</td>
+        <td>{{ zeile.punkte }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="leer">Noch keine Mannschaften vorhanden.</p>
+  {% endif %}
+
+  <h2>Einzelwertung je Disziplin</h2>
+  {% if disziplinen %}
+  <div class="werkzeugleiste">
+    {% for d in disziplinen %}
+      <a class="knopf klein" href="{{ url_for('wertung.erfassen', disziplin_id=d.id) }}">{{ d.name }}</a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="leer">Noch keine Disziplinen angelegt.</p>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Virtuelle Umgebung
+.venv/
+venv/
+
+# Flask instance (enthält lokale SQLite-DB)
+instance/
+*.sqlite
+*.sqlite3
+*.db
+
+# Editor/OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

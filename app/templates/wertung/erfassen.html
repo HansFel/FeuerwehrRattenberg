@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block titel %}{{ disziplin.name }} – Ergebnisse{% endblock %}
+{% block inhalt %}
+  <h1>{{ disziplin.name }}</h1>
+  <p>{{ "Zeit-Wertung – schnellste Nettozeit gewinnt." if ist_zeit else "Punkte-Wertung – höchste Punktzahl gewinnt." }}
+     {% if ist_zeit and disziplin.strafsekunden_pro_fehler %}
+       Strafe: {{ "%g"|format(disziplin.strafsekunden_pro_fehler) }} s pro Fehlerpunkt.
+     {% endif %}</p>
+
+  <h2>Ergebnis erfassen / ändern</h2>
+  <form class="formular" method="post">
+    <label for="team_id">Mannschaft</label>
+    <select id="team_id" name="team_id" required>
+      {% for t in teams %}
+        <option value="{{ t.id }}">{{ t.name }}{% if t.startnummer is not none %} (Nr. {{ t.startnummer }}){% endif %}
+          {%- if erfasste.get(t.id) %} — bereits erfasst{% endif %}</option>
+      {% endfor %}
+    </select>
+
+    {% if ist_zeit %}
+    <label for="zeit_sekunden">Zeit in Sekunden</label>
+    <input type="text" id="zeit_sekunden" name="zeit_sekunden" placeholder="z.B. 84,5">
+    {% else %}
+    <label for="punkte">Punkte</label>
+    <input type="text" id="punkte" name="punkte" placeholder="z.B. 95">
+    {% endif %}
+
+    <label for="fehlerpunkte">Fehlerpunkte</label>
+    <input type="number" id="fehlerpunkte" name="fehlerpunkte" value="0">
+
+    <label><input type="checkbox" name="disqualifiziert"> Disqualifiziert</label>
+
+    <label for="notiz">Notiz</label>
+    <input type="text" id="notiz" name="notiz">
+
+    <div class="werkzeugleiste" style="margin-top:1rem">
+      <button class="knopf" type="submit">Ergebnis speichern</button>
+      <a class="knopf grau" href="{{ url_for('disziplinen.liste') }}">Zurück</a>
+    </div>
+  </form>
+
+  <h2>Rangliste dieser Disziplin</h2>
+  {% if platzierungen %}
+  <table>
+    <thead>
+      <tr><th class="rang">Rang</th><th>Mannschaft</th>
+          <th>{{ "Nettozeit" if ist_zeit else "Punkte" }}</th>
+          <th>Fehler</th><th>Notiz</th></tr>
+    </thead>
+    <tbody>
+      {% for p in platzierungen %}
+      <tr>
+        <td class="rang">{{ p.rang if p.rang else "–" }}</td>
+        <td>{{ p.team.name }}</td>
+        <td>
+          {% if p.ergebnis and p.ergebnis.disqualifiziert %}<span class="leer">DSQ</span>
+          {% elif ist_zeit %}{{ p.wert | zeit }}
+          {% else %}{{ p.wert if p.wert is not none else "–" }}{% endif %}
+        </td>
+        <td>{{ p.ergebnis.fehlerpunkte if p.ergebnis else 0 }}</td>
+        <td>{{ p.ergebnis.notiz if p.ergebnis else "" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="leer">Noch keine Ergebnisse für diese Disziplin.</p>
+  {% endif %}
+{% endblock %}

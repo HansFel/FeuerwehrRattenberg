@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block titel %}{{ "Disziplin bearbeiten" if disziplin else "Neue Disziplin" }}{% endblock %}
+{% block inhalt %}
+  <h1>{{ "Disziplin bearbeiten" if disziplin else "Neue Disziplin" }}</h1>
+
+  <form class="formular" method="post">
+    <label for="name">Name der Disziplin *</label>
+    <input type="text" id="name" name="name" required
+           value="{{ disziplin.name if disziplin else '' }}">
+
+    <label for="beschreibung">Beschreibung</label>
+    <textarea id="beschreibung" name="beschreibung">{{ disziplin.beschreibung if disziplin else '' }}</textarea>
+
+    <label for="wertungsart">Wertungsart</label>
+    <select id="wertungsart" name="wertungsart">
+      <option value="zeit" {{ 'selected' if not disziplin or disziplin.wertungsart == 'zeit' else '' }}>
+        Zeit – schnellste gewinnt
+      </option>
+      <option value="punkte" {{ 'selected' if disziplin and disziplin.wertungsart == 'punkte' else '' }}>
+        Punkte – höchste gewinnt
+      </option>
+    </select>
+
+    <label for="strafsekunden_pro_fehler">Strafsekunden pro Fehlerpunkt (nur Zeit-Wertung)</label>
+    <input type="number" step="0.1" id="strafsekunden_pro_fehler" name="strafsekunden_pro_fehler"
+           value="{{ '%g'|format(disziplin.strafsekunden_pro_fehler) if disziplin else '0' }}">
+
+    <label for="reihenfolge">Reihenfolge im Ablauf</label>
+    <input type="number" id="reihenfolge" name="reihenfolge"
+           value="{{ disziplin.reihenfolge if disziplin else '0' }}">
+
+    <div class="werkzeugleiste" style="margin-top:1rem">
+      <button class="knopf" type="submit">Speichern</button>
+      <a class="knopf grau" href="{{ url_for('disziplinen.liste') }}">Abbrechen</a>
+    </div>
+  </form>
+{% endblock %}

@@ -1,0 +1,15 @@
+[project]
+name = "feuerwehr-rattenberg"
+version = "0.1.0"
+description = "Wettbewerbs-Organisation für das 120-Jahr-Jubiläum der Feuerwehr Rattenberg"
+requires-python = ">=3.11"
+dependencies = [
+    "Flask>=3.0",
+    "Flask-SQLAlchemy>=3.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

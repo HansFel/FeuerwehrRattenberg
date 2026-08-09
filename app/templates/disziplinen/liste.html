@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block titel %}Disziplinen{% endblock %}
+{% block inhalt %}
+  <h1>Disziplinen / Stationen</h1>
+  <div class="werkzeugleiste">
+    <a class="knopf" href="{{ url_for('disziplinen.neu') }}">+ Neue Disziplin</a>
+  </div>
+
+  {% if disziplinen %}
+  <table>
+    <thead>
+      <tr><th>#</th><th>Name</th><th>Wertung</th><th>Strafsek./Fehler</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for d in disziplinen %}
+      <tr>
+        <td>{{ d.reihenfolge }}</td>
+        <td>{{ d.name }}</td>
+        <td>{{ "Zeit (schnellste gewinnt)" if d.wertungsart == "zeit" else "Punkte (höchste gewinnt)" }}</td>
+        <td>{{ "%g"|format(d.strafsekunden_pro_fehler) if d.wertungsart == "zeit" else "–" }}</td>
+        <td>
+          <a class="knopf klein" href="{{ url_for('wertung.erfassen', disziplin_id=d.id) }}">Ergebnisse</a>
+          <a class="knopf klein grau" href="{{ url_for('disziplinen.bearbeiten', disziplin_id=d.id) }}">Bearbeiten</a>
+          <form class="inline" method="post" action="{{ url_for('disziplinen.loeschen', disziplin_id=d.id) }}"
+                onsubmit="return confirm('Disziplin „{{ d.name }}“ mit allen Ergebnissen löschen?');">
+            <button class="knopf klein gefahr" type="submit">Löschen</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="leer">Noch keine Disziplinen angelegt.</p>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block titel %}Zeitplan{% endblock %}
+{% block inhalt %}
+  <h1>Zeitplan / Startlisten</h1>
+  <p>Startreihenfolge je Disziplin festlegen.</p>
+
+  {% if disziplinen %}
+  <table>
+    <thead>
+      <tr><th>#</th><th>Disziplin</th><th>Startplätze</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for d in disziplinen %}
+      <tr>
+        <td>{{ d.reihenfolge }}</td>
+        <td>{{ d.name }}</td>
+        <td>{{ d.startplaetze | length }}</td>
+        <td><a class="knopf klein" href="{{ url_for('zeitplan.disziplin', disziplin_id=d.id) }}">Startliste</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="leer">Noch keine Disziplinen angelegt.</p>
+  {% endif %}
+{% endblock %}

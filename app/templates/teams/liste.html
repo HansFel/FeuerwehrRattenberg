@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block titel %}Mannschaften{% endblock %}
+{% block inhalt %}
+  <h1>Mannschaften</h1>
+  <div class="werkzeugleiste">
+    <a class="knopf" href="{{ url_for('teams.neu') }}">+ Neue Mannschaft</a>
+  </div>
+
+  {% if teams %}
+  <table>
+    <thead>
+      <tr><th>Nr.</th><th>Name</th><th>Wehr / Ort</th><th>Kontakt</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for team in teams %}
+      <tr>
+        <td>{{ team.startnummer if team.startnummer is not none else "–" }}</td>
+        <td>{{ team.name }}</td>
+        <td>{{ team.wehr or "–" }}</td>
+        <td>{{ team.kontakt or "–" }}</td>
+        <td>
+          <a class="knopf klein grau" href="{{ url_for('teams.bearbeiten', team_id=team.id) }}">Bearbeiten</a>
+          <form class="inline" method="post" action="{{ url_for('teams.loeschen', team_id=team.id) }}"
+                onsubmit="return confirm('Mannschaft „{{ team.name }}“ wirklich löschen?');">
+            <button class="knopf klein gefahr" type="submit">Löschen</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="leer">Noch keine Mannschaften angelegt.</p>
+  {% endif %}
+{% endblock %}
