@@ -122,6 +122,29 @@ def test_letzte_admin_rolle_geschuetzt(client):
     assert admin.ist_admin()
 
 
+def test_dashboard_punkterichter_sieht_nur_seine_rolle(client):
+    _login(client, "punkt", "pw")
+    r = client.get("/")
+    assert "Deine Rollen".encode() in r.data
+    assert "Ergebnisse erfassen".encode() in r.data      # Punkterichter-Karte
+    assert "Verwaltung".encode() not in r.data           # keine Admin-Karte
+    assert "🎯 Disziplinen".encode() not in r.data        # keine Organisator-Karte
+
+
+def test_dashboard_admin_sieht_alles(client):
+    _login(client, "admin", "admin")
+    r = client.get("/")
+    assert "Ergebnisse erfassen".encode() in r.data
+    assert "Verwaltung".encode() in r.data
+    assert "Mannschaften".encode() in r.data
+
+
+def test_dashboard_oeffentlich_ohne_login(client):
+    r = client.get("/")
+    assert "Deine Rollen".encode() not in r.data
+    assert "Anmelden".encode() in r.data
+
+
 def test_benutzerverwaltung_nur_admin(client):
     # Punkterichter kommt nicht in die Benutzerverwaltung
     _login(client, "punkt", "pw")

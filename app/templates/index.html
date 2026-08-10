@@ -1,6 +1,88 @@
 {% extends "base.html" %}
 {% block titel %}Übersicht{% endblock %}
 {% block inhalt %}
+
+{% if current_user.is_authenticated %}
+  {# ── Persönliches, rollenabhängiges Dashboard ────────────────────────── #}
+  <h1>Hallo {{ current_user.name or current_user.username }}</h1>
+  <p>
+    Deine Rollen:
+    {% for r in current_user.rollen_namen %}
+      <span class="tag {{ 'admin' if r == 'administrator' else '' }}">{{ ROLLEN.get(r, r) }}</span>
+    {% else %}
+      <span class="leer">keine Rolle zugewiesen – melde dich beim Administrator</span>
+    {% endfor %}
+  </p>
+
+  <div class="dash">
+
+    {% if darf('punkterichter') %}
+    <section class="dash-karte">
+      <h2>🏁 Ergebnisse erfassen</h2>
+      <p class="leer">Zeiten &amp; Fehlerpunkte je Disziplin eintragen.</p>
+      {% if disziplinen %}
+      <div class="werkzeugleiste">
+        {% for d in disziplinen %}
+          <a class="knopf klein" href="{{ url_for('wertung.erfassen', disziplin_id=d.id) }}">{{ d.name }}</a>
+        {% endfor %}
+      </div>
+      {% else %}<p class="leer">Noch keine Disziplinen angelegt.</p>{% endif %}
+    </section>
+    {% endif %}
+
+    {% if darf('startrichter', 'organisator') %}
+    <section class="dash-karte">
+      <h2>🕒 Startlisten &amp; Zeitplan</h2>
+      <p class="leer">Startreihenfolge und Startzeiten je Disziplin festlegen.</p>
+      <div class="werkzeugleiste">
+        <a class="knopf" href="{{ url_for('zeitplan.uebersicht') }}">Zum Zeitplan</a>
+      </div>
+    </section>
+    {% endif %}
+
+    {% if darf('organisator') %}
+    <section class="dash-karte">
+      <h2>👥 Mannschaften</h2>
+      <p class="leer">{{ anzahl_teams }} Mannschaften – anlegen &amp; bearbeiten.</p>
+      <div class="werkzeugleiste">
+        <a class="knopf" href="{{ url_for('teams.liste') }}">Mannschaften</a>
+        <a class="knopf grau" href="{{ url_for('teams.neu') }}">+ Neu</a>
+      </div>
+    </section>
+    <section class="dash-karte">
+      <h2>🎯 Disziplinen</h2>
+      <p class="leer">{{ anzahl_disziplinen }} Disziplinen/Stationen verwalten.</p>
+      <div class="werkzeugleiste">
+        <a class="knopf" href="{{ url_for('disziplinen.liste') }}">Disziplinen</a>
+        <a class="knopf grau" href="{{ url_for('disziplinen.neu') }}">+ Neu</a>
+      </div>
+    </section>
+    {% endif %}
+
+    {% if current_user.ist_admin() %}
+    <section class="dash-karte">
+      <h2>🛡️ Verwaltung</h2>
+      <p class="leer">Personen der Organisator-Mannschaft und ihre Rollen.</p>
+      <div class="werkzeugleiste">
+        <a class="knopf" href="{{ url_for('benutzer.liste') }}">Personen</a>
+        <a class="knopf" href="{{ url_for('benutzer.rollen') }}">Rollen</a>
+      </div>
+    </section>
+    {% endif %}
+
+    {# Für alle angemeldeten Rollen sichtbar #}
+    <section class="dash-karte">
+      <h2>🏆 Wertung</h2>
+      <p class="leer">Einzel- und Gesamtrangliste ansehen, PDF/CSV exportieren.</p>
+      <div class="werkzeugleiste">
+        <a class="knopf" href="{{ url_for('wertung.uebersicht') }}">Zur Wertung</a>
+      </div>
+    </section>
+
+  </div>
+
+{% else %}
+  {# ── Öffentliche Ansicht (nicht angemeldet) ──────────────────────────── #}
   <h1>Wettbewerb – Übersicht</h1>
   <p>Werkzeug zur Organisation des Jubiläums-Wettbewerbs der Feuerwehr Rattenberg.</p>
 
@@ -8,26 +90,25 @@
     <div class="karte">
       <div class="zahl">{{ anzahl_teams }}</div>
       <div>Mannschaften</div>
-      <a class="knopf klein" href="{{ url_for('teams.liste') }}">verwalten</a>
     </div>
     <div class="karte">
       <div class="zahl">{{ anzahl_disziplinen }}</div>
       <div>Disziplinen</div>
-      <a class="knopf klein" href="{{ url_for('disziplinen.liste') }}">verwalten</a>
     </div>
     <div class="karte">
       <div class="zahl">{{ anzahl_ergebnisse }}</div>
       <div>erfasste Ergebnisse</div>
-      <a class="knopf klein" href="{{ url_for('wertung.uebersicht') }}">Wertung</a>
     </div>
   </div>
 
-  <h2>Ablauf</h2>
-  <ol>
-    <li><strong>Mannschaften</strong> anlegen (Name, Wehr, Startnummer).</li>
-    <li><strong>Disziplinen</strong> definieren (Zeit- oder Punktewertung, Strafsekunden).</li>
-    <li><strong>Zeitplan</strong> je Disziplin erzeugen (Startlisten).</li>
-    <li>Am Eventtag <strong>Zeiten &amp; Fehlerpunkte</strong> erfassen.</li>
-    <li><strong>Wertung</strong> live verfolgen – Einzel- und Gesamtrangliste.</li>
-  </ol>
+  <div class="werkzeugleiste" style="margin-top:1.2rem">
+    <a class="knopf" href="{{ url_for('wertung.uebersicht') }}">🏆 Ranglisten ansehen</a>
+    <a class="knopf grau" href="{{ url_for('auth.login') }}">🔒 Anmelden (Organisator-Mannschaft)</a>
+  </div>
+
+  <p style="margin-top:1rem"><small class="leer">
+    Nach der Anmeldung siehst du hier dein persönliches Dashboard mit genau den
+    Aufgaben deiner Rolle.</small></p>
+{% endif %}
+
 {% endblock %}
