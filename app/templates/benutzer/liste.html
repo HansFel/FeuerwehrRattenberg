@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% block titel %}Benutzer{% endblock %}
 {% block inhalt %}
-  <h1>Benutzer der Organisator-Mannschaft</h1>
+  <h1>Personen der Organisator-Mannschaft</h1>
   <div class="werkzeugleiste">
-    <a class="knopf" href="{{ url_for('benutzer.neu') }}">+ Neuer Benutzer</a>
+    <a class="knopf" href="{{ url_for('benutzer.neu') }}">+ Neue Person</a>
+    <a class="knopf grau" href="{{ url_for('benutzer.rollen') }}">Rollen verwalten</a>
   </div>
 
   <table>

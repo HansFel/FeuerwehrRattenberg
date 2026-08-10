@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block titel %}Rollen{% endblock %}
+{% block inhalt %}
+  <h1>Rollen-Verwaltung</h1>
+  <p>Weise den Personen der Organisator-Mannschaft ihre Rollen zu. Eine Person
+     kann mehrere Rollen haben; der Administrator hat alle Rechte.</p>
+
+  <div class="werkzeugleiste">
+    <a class="knopf grau" href="{{ url_for('benutzer.liste') }}">← Personen verwalten</a>
+  </div>
+
+  <h2>Rolle zuweisen</h2>
+  <form method="post" action="{{ url_for('benutzer.rolle_zuweisen') }}"
+        class="zuweis-form">
+    <select name="benutzer_id" required>
+      <option value="">Person wählen …</option>
+      {% for p in personen %}
+        <option value="{{ p.id }}">{{ p.username }}{% if p.name %} – {{ p.name }}{% endif %}
+          {%- if not p.aktiv %} (inaktiv){% endif %}</option>
+      {% endfor %}
+    </select>
+    <select name="rolle" required>
+      <option value="">Rolle wählen …</option>
+      {% for key, bezeichnung in ROLLEN.items() %}
+        <option value="{{ key }}">{{ bezeichnung }}</option>
+      {% endfor %}
+    </select>
+    <button class="knopf" type="submit">+ Zuweisen</button>
+  </form>
+
+  <h2>Zugewiesene Rollen</h2>
+  {% if zuweisungen %}
+  <table>
+    <thead><tr><th>Person</th><th>Rolle</th><th></th></tr></thead>
+    <tbody>
+      {% for z in zuweisungen %}
+      <tr>
+        <td>{{ z.benutzer.username }}{% if z.benutzer.name %} <small class="leer">({{ z.benutzer.name }})</small>{% endif %}</td>
+        <td><span class="tag {{ 'admin' if z.rolle == 'administrator' else '' }}">{{ ROLLEN.get(z.rolle, z.rolle) }}</span></td>
+        <td>
+          <form class="inline" method="post"
+                action="{{ url_for('benutzer.rolle_entfernen', rolle_id=z.id) }}"
+                onsubmit="return confirm('Rolle „{{ ROLLEN.get(z.rolle, z.rolle) }}“ von {{ z.benutzer.username }} entfernen?');">
+            <button class="knopf klein gefahr" type="submit">Entfernen</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="leer">Noch keine Rollen zugewiesen.</p>
+  {% endif %}
+{% endblock %}

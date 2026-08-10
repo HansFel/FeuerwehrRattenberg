@@ -83,6 +83,45 @@ def test_punkterichter_darf_ergebnis_erfassen(client):
     assert Ergebnis.query.filter_by(team_id=team.id).first() is not None
 
 
+def test_person_anlegen_ohne_rollen(client):
+    _login(client, "admin", "admin")
+    client.post("/benutzer/neu", data={"username": "neu1", "name": "Neu Eins",
+                                       "passwort": "pw12", "aktiv": "on"})
+    b = Benutzer.query.filter_by(username="neu1").first()
+    assert b is not None
+    assert b.rollen_namen == []          # Rollen kommen separat per Dropdown
+
+
+def test_rolle_per_dropdown_zuweisen_und_entfernen(client):
+    _login(client, "admin", "admin")
+    ziel = Benutzer.query.filter_by(username="punkt").first()
+    # zuweisen: startrichter
+    client.post("/benutzer/rollen/neu",
+                data={"benutzer_id": ziel.id, "rolle": "startrichter"})
+    assert "startrichter" in ziel.rollen_namen
+    # doppelte Zuweisung wird abgelehnt
+    client.post("/benutzer/rollen/neu",
+                data={"benutzer_id": ziel.id, "rolle": "startrichter"})
+    assert ziel.rollen_namen.count("startrichter") == 1
+    # entfernen
+    from app.models import BenutzerRolle
+    zuw = BenutzerRolle.query.filter_by(benutzer_id=ziel.id,
+                                        rolle="startrichter").first()
+    client.post(f"/benutzer/rollen/{zuw.id}/loeschen")
+    assert "startrichter" not in ziel.rollen_namen
+
+
+def test_letzte_admin_rolle_geschuetzt(client):
+    _login(client, "admin", "admin")
+    from app.models import BenutzerRolle
+    admin = Benutzer.query.filter_by(username="admin").first()
+    zuw = BenutzerRolle.query.filter_by(benutzer_id=admin.id,
+                                        rolle="administrator").first()
+    client.post(f"/benutzer/rollen/{zuw.id}/loeschen")
+    # letzte Admin-Rolle bleibt bestehen
+    assert admin.ist_admin()
+
+
 def test_benutzerverwaltung_nur_admin(client):
     # Punkterichter kommt nicht in die Benutzerverwaltung
     _login(client, "punkt", "pw")

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block titel %}{{ "Benutzer bearbeiten" if benutzer else "Neuer Benutzer" }}{% endblock %}
+{% block titel %}{{ "Person bearbeiten" if benutzer else "Neue Person" }}{% endblock %}
 {% block inhalt %}
-  <h1>{{ "Benutzer bearbeiten" if benutzer else "Neuer Benutzer" }}</h1>
+  <h1>{{ "Person bearbeiten" if benutzer else "Neue Person" }}</h1>
 
   <form class="formular" method="post">
     <label for="username">Benutzername *</label>
@@ -18,17 +18,6 @@
     <label for="passwort">Passwort {{ "(leer lassen = unverändert)" if benutzer else "*" }}</label>
     <input type="password" id="passwort" name="passwort" {{ "required" if not benutzer else "" }}>
 
-    <label>Rollen</label>
-    <div class="rollen-tags">
-      {% for key, bezeichnung in ROLLEN.items() %}
-      <label>
-        <input type="checkbox" name="rollen" value="{{ key }}"
-               {{ 'checked' if benutzer and key in benutzer.rollen_namen else '' }}>
-        {{ bezeichnung }}
-      </label>
-      {% endfor %}
-    </div>
-
     <label style="margin-top:0.8rem">
       <input type="checkbox" name="aktiv" {{ 'checked' if not benutzer or benutzer.aktiv else '' }}>
       aktiv (darf sich anmelden)
@@ -41,7 +30,6 @@
   </form>
 
   <p style="margin-top:1rem"><small class="leer">
-    Der <strong>Administrator</strong> hat alle Rechte. Organisator: Mannschaften,
-    Disziplinen, Startlisten. Startrichter: Startlisten/Zeitplan.
-    Punkterichter: Ergebnisse erfassen.</small></p>
+    Rollen werden nicht hier, sondern unter
+    <a href="{{ url_for('benutzer.rollen') }}">Rollen</a> zugewiesen.</small></p>
 {% endblock %}
