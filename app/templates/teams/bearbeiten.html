@@ -14,6 +14,15 @@
     <input type="number" id="startnummer" name="startnummer"
            value="{{ team.startnummer if team and team.startnummer is not none else '' }}">
 
+    <fieldset style="margin-top:1rem; border:1px solid var(--rand); border-radius:6px; padding:0.5rem 1rem 1rem;">
+      <legend style="font-weight:600;">Mannschaft (4 Personen)</legend>
+      {% for i in range(1, 5) %}
+      <label for="person_{{ i }}">Person {{ i }}</label>
+      <input type="text" id="person_{{ i }}" name="person_{{ i }}"
+             value="{{ personen[i-1] if personen and personen|length >= i else '' }}">
+      {% endfor %}
+    </fieldset>
+
     <label for="kontakt">Kontakt (Name / Telefon)</label>
     <input type="text" id="kontakt" name="kontakt" value="{{ team.kontakt if team else '' }}">
 

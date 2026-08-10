@@ -28,9 +28,13 @@ def _csv_antwort(zeilen: list[list], dateiname: str) -> Response:
 
 @bp.route("/mannschaften.csv")
 def mannschaften():
-    zeilen = [["Startnummer", "Name", "Wehr/Ort", "Kontakt", "Notiz"]]
+    zeilen = [["Startnummer", "Name", "Person 1", "Person 2", "Person 3",
+               "Person 4", "Wehr/Ort", "Kontakt", "Notiz"]]
     for t in Team.query.order_by(Team.startnummer, Team.name):
-        zeilen.append([t.startnummer, t.name, t.wehr, t.kontakt, t.notiz])
+        personen = [m.name for m in t.mitglieder]
+        personen += [""] * (4 - len(personen))
+        zeilen.append([t.startnummer, t.name, *personen[:4],
+                       t.wehr, t.kontakt, t.notiz])
     return _csv_antwort(zeilen, "mannschaften.csv")
 
 

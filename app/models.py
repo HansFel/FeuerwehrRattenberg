@@ -39,9 +39,27 @@ class Team(db.Model):
                                  cascade="all, delete-orphan")
     startplaetze = db.relationship("Startplatz", back_populates="team",
                                    cascade="all, delete-orphan")
+    mitglieder = db.relationship("Mitglied", back_populates="team",
+                                 cascade="all, delete-orphan",
+                                 order_by="Mitglied.position")
 
     def __repr__(self) -> str:
         return f"<Team {self.name!r}>"
+
+
+class Mitglied(db.Model):
+    """Eine Person eines Teams. Ein Team hat bis zu 4 Mitglieder."""
+    __tablename__ = "mitglied"
+
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("team.id"), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
+    position = db.Column(db.Integer, default=1)   # 1..4
+
+    team = db.relationship("Team", back_populates="mitglieder")
+
+    def __repr__(self) -> str:
+        return f"<Mitglied {self.name!r}>"
 
 
 class Disziplin(db.Model):

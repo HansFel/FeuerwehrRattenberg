@@ -10,13 +10,21 @@
   {% if teams %}
   <table>
     <thead>
-      <tr><th>Nr.</th><th>Name</th><th>Wehr / Ort</th><th>Kontakt</th><th></th></tr>
+      <tr><th>Nr.</th><th>Name</th><th>Personen</th><th>Wehr / Ort</th><th>Kontakt</th><th></th></tr>
     </thead>
     <tbody>
       {% for team in teams %}
       <tr>
         <td>{{ team.startnummer if team.startnummer is not none else "–" }}</td>
         <td>{{ team.name }}</td>
+        <td>
+          {% if team.mitglieder %}
+            {{ team.mitglieder | map(attribute='name') | join(', ') }}
+            {% if team.mitglieder | length < 4 %}
+              <small class="leer">({{ team.mitglieder | length }}/4)</small>
+            {% endif %}
+          {% else %}<span class="leer">–</span>{% endif %}
+        </td>
         <td>{{ team.wehr or "–" }}</td>
         <td>{{ team.kontakt or "–" }}</td>
         <td>

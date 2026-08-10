@@ -33,6 +33,27 @@ def test_seiten_laden(client):
         assert client.get(pfad).status_code == 200
 
 
+def test_team_mit_vier_personen(client):
+    client.post("/anmelden", data={"passwort": "feuerwehr"})
+    client.post("/teams/neu", data={
+        "name": "FF Rattenberg 1",
+        "person_1": "Anna", "person_2": "Bernd",
+        "person_3": "Clara", "person_4": "Dieter",
+    })
+    from app.models import Team
+    team = Team.query.filter_by(name="FF Rattenberg 1").first()
+    assert team is not None
+    assert [m.name for m in team.mitglieder] == ["Anna", "Bernd", "Clara", "Dieter"]
+
+    # Bearbeiten: Person 2 leeren -> nur noch 3 Mitglieder
+    client.post(f"/teams/{team.id}/bearbeiten", data={
+        "name": "FF Rattenberg 1",
+        "person_1": "Anna", "person_2": "",
+        "person_3": "Clara", "person_4": "Dieter",
+    })
+    assert [m.name for m in team.mitglieder] == ["Anna", "Clara", "Dieter"]
+
+
 def test_zeitwertung_mit_strafsekunden(app):
     with app.app_context():
         d = Disziplin(name="Löschangriff", wertungsart=WERTUNG_ZEIT,

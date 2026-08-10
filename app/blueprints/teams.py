@@ -2,10 +2,12 @@
 from flask import (Blueprint, flash, redirect, render_template, request,
                    url_for)
 
-from ..models import db, Team
+from ..models import db, Team, Mitglied
 from ..auth import bearbeiter_noetig
 
 bp = Blueprint("teams", __name__, url_prefix="/teams")
+
+MAX_PERSONEN = 4
 
 
 @bp.route("/")
@@ -28,12 +30,15 @@ def neu():
         )
         if not team.name:
             flash("Name der Mannschaft fehlt.", "error")
-        else:
-            db.session.add(team)
-            db.session.commit()
-            flash(f"Mannschaft „{team.name}“ angelegt.", "ok")
-            return redirect(url_for("teams.liste"))
-    return render_template("teams/bearbeiten.html", team=None)
+            return render_template("teams/bearbeiten.html", team=None,
+                                   personen=_personen_aus_formular())
+        _mitglieder_uebernehmen(team)
+        db.session.add(team)
+        db.session.commit()
+        flash(f"Mannschaft „{team.name}“ angelegt.", "ok")
+        return redirect(url_for("teams.liste"))
+    return render_template("teams/bearbeiten.html", team=None,
+                           personen=[""] * MAX_PERSONEN)
 
 
 @bp.route("/<int:team_id>/bearbeiten", methods=["GET", "POST"])
@@ -46,10 +51,14 @@ def bearbeiten(team_id: int):
         team.kontakt = request.form.get("kontakt", "").strip()
         team.notiz = request.form.get("notiz", "").strip()
         team.startnummer = _int_or_none(request.form.get("startnummer"))
+        _mitglieder_uebernehmen(team)
         db.session.commit()
         flash("Mannschaft gespeichert.", "ok")
         return redirect(url_for("teams.liste"))
-    return render_template("teams/bearbeiten.html", team=team)
+    personen = [m.name for m in team.mitglieder]
+    personen += [""] * (MAX_PERSONEN - len(personen))
+    return render_template("teams/bearbeiten.html", team=team,
+                           personen=personen[:MAX_PERSONEN])
 
 
 @bp.route("/<int:team_id>/loeschen", methods=["POST"])
@@ -60,6 +69,19 @@ def loeschen(team_id: int):
     db.session.commit()
     flash("Mannschaft gelöscht.", "ok")
     return redirect(url_for("teams.liste"))
+
+
+def _personen_aus_formular() -> list[str]:
+    return [request.form.get(f"person_{i}", "").strip()
+            for i in range(1, MAX_PERSONEN + 1)]
+
+
+def _mitglieder_uebernehmen(team: Team) -> None:
+    """Setzt die (bis zu 4) Team-Mitglieder aus dem Formular neu."""
+    team.mitglieder.clear()   # cascade delete-orphan entfernt alte Einträge
+    for pos, name in enumerate(_personen_aus_formular(), start=1):
+        if name:
+            team.mitglieder.append(Mitglied(name=name, position=pos))
 
 
 def _int_or_none(wert):
