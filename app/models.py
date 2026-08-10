@@ -159,13 +159,28 @@ class Mitglied(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     team_id = db.Column(db.Integer, db.ForeignKey("team.id"), nullable=False)
-    name = db.Column(db.String(120), nullable=False)
-    position = db.Column(db.Integer, default=1)   # 1..4
+    name = db.Column(db.String(200), default="")      # Anzeigename (auto)
+    vorname = db.Column(db.String(120), default="")
+    nachname = db.Column(db.String(120), default="")
+    spitzname = db.Column(db.String(120), default="")
+    telefon = db.Column(db.String(60), default="")
+    alter = db.Column("alter", db.Integer)            # Lebensalter in Jahren
+    position = db.Column(db.Integer, default=1)       # 1..4
 
     team = db.relationship("Team", back_populates="mitglieder")
 
+    def voller_name(self) -> str:
+        return f"{self.vorname} {self.nachname}".strip() or self.name
+
+    def anzeige(self) -> str:
+        """Anzeigename inkl. Spitzname, falls vorhanden."""
+        voll = self.voller_name()
+        if self.spitzname and voll:
+            return f"{voll} „{self.spitzname}“"
+        return self.spitzname or voll
+
     def __repr__(self) -> str:
-        return f"<Mitglied {self.name!r}>"
+        return f"<Mitglied {self.voller_name()!r}>"
 
 
 class Disziplin(db.Model):

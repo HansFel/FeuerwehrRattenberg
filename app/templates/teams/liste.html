@@ -21,7 +21,7 @@
         <td>{{ team.name }}</td>
         <td>
           {% if team.mitglieder %}
-            {{ team.mitglieder | map(attribute='name') | join(', ') }}
+            {% for m in team.mitglieder %}{{ m.anzeige() }}{% if not loop.last %}, {% endif %}{% endfor %}
             {% if team.mitglieder | length < 4 %}
               <small class="leer">({{ team.mitglieder | length }}/4)</small>
             {% endif %}

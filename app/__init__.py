@@ -62,9 +62,31 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     with app.app_context():
         db.create_all()
+        _migriere_mitglied()
         _standard_admin_anlegen(app)
 
     return app
+
+
+def _migriere_mitglied() -> None:
+    """Ergänzt fehlende Mitglied-Spalten in einer bestehenden SQLite-DB.
+
+    (Für Postgres/fresh DB legt create_all die Spalten bereits an.)
+    """
+    from sqlalchemy import text
+    if db.engine.dialect.name != "sqlite":
+        return
+    vorhanden = {row[1] for row in db.session.execute(
+        text("PRAGMA table_info(mitglied)"))}
+    if not vorhanden:
+        return
+    neue = {"vorname": "TEXT", "nachname": "TEXT", "spitzname": "TEXT",
+            "telefon": "TEXT", "alter": "INTEGER"}
+    for spalte, typ in neue.items():
+        if spalte not in vorhanden:
+            db.session.execute(
+                text(f'ALTER TABLE mitglied ADD COLUMN "{spalte}" {typ}'))
+    db.session.commit()
 
 
 def _standard_admin_anlegen(app: Flask) -> None:

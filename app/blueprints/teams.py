@@ -38,7 +38,7 @@ def neu():
         flash(f"Mannschaft „{team.name}“ angelegt.", "ok")
         return redirect(url_for("teams.liste"))
     return render_template("teams/bearbeiten.html", team=None,
-                           personen=[""] * MAX_PERSONEN)
+                           personen=_leere_personen())
 
 
 @bp.route("/<int:team_id>/bearbeiten", methods=["GET", "POST"])
@@ -55,8 +55,8 @@ def bearbeiten(team_id: int):
         db.session.commit()
         flash("Mannschaft gespeichert.", "ok")
         return redirect(url_for("teams.liste"))
-    personen = [m.name for m in team.mitglieder]
-    personen += [""] * (MAX_PERSONEN - len(personen))
+    personen = [_person_dict(m) for m in team.mitglieder]
+    personen += _leere_personen()[len(personen):]
     return render_template("teams/bearbeiten.html", team=team,
                            personen=personen[:MAX_PERSONEN])
 
@@ -71,17 +71,37 @@ def loeschen(team_id: int):
     return redirect(url_for("teams.liste"))
 
 
-def _personen_aus_formular() -> list[str]:
-    return [request.form.get(f"person_{i}", "").strip()
-            for i in range(1, MAX_PERSONEN + 1)]
+FELDER = ("vorname", "nachname", "spitzname", "telefon", "alter")
+
+
+def _leere_personen() -> list[dict]:
+    return [{f: "" for f in FELDER} for _ in range(MAX_PERSONEN)]
+
+
+def _person_dict(m: Mitglied) -> dict:
+    return {"vorname": m.vorname or "", "nachname": m.nachname or "",
+            "spitzname": m.spitzname or "", "telefon": m.telefon or "",
+            "alter": m.alter if m.alter is not None else ""}
+
+
+def _personen_aus_formular() -> list[dict]:
+    personen = []
+    for i in range(1, MAX_PERSONEN + 1):
+        personen.append({f: request.form.get(f"person_{i}_{f}", "").strip()
+                         for f in FELDER})
+    return personen
 
 
 def _mitglieder_uebernehmen(team: Team) -> None:
     """Setzt die (bis zu 4) Team-Mitglieder aus dem Formular neu."""
     team.mitglieder.clear()   # cascade delete-orphan entfernt alte Einträge
-    for pos, name in enumerate(_personen_aus_formular(), start=1):
-        if name:
-            team.mitglieder.append(Mitglied(name=name, position=pos))
+    for pos, p in enumerate(_personen_aus_formular(), start=1):
+        if p["vorname"] or p["nachname"] or p["spitzname"]:
+            team.mitglieder.append(Mitglied(
+                vorname=p["vorname"], nachname=p["nachname"],
+                spitzname=p["spitzname"], telefon=p["telefon"],
+                alter=_int_or_none(p["alter"]), position=pos,
+                name=f"{p['vorname']} {p['nachname']}".strip()))
 
 
 def _int_or_none(wert):

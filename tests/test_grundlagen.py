@@ -37,21 +37,30 @@ def test_team_mit_vier_personen(client):
     client.post("/anmelden", data={"username": "admin", "passwort": "admin"})
     client.post("/teams/neu", data={
         "name": "FF Rattenberg 1",
-        "person_1": "Anna", "person_2": "Bernd",
-        "person_3": "Clara", "person_4": "Dieter",
+        "person_1_vorname": "Anna", "person_1_nachname": "Huber",
+        "person_1_spitzname": "Anni", "person_1_telefon": "0660 1",
+        "person_1_alter": "22",
+        "person_2_vorname": "Bernd", "person_2_nachname": "Maier",
+        "person_3_vorname": "Clara", "person_3_nachname": "Gruber",
+        "person_4_vorname": "Dieter", "person_4_nachname": "Bauer",
     })
     from app.models import Team
     team = Team.query.filter_by(name="FF Rattenberg 1").first()
     assert team is not None
-    assert [m.name for m in team.mitglieder] == ["Anna", "Bernd", "Clara", "Dieter"]
+    assert [m.voller_name() for m in team.mitglieder] == [
+        "Anna Huber", "Bernd Maier", "Clara Gruber", "Dieter Bauer"]
+    anna = team.mitglieder[0]
+    assert anna.spitzname == "Anni" and anna.telefon == "0660 1" and anna.alter == 22
 
     # Bearbeiten: Person 2 leeren -> nur noch 3 Mitglieder
     client.post(f"/teams/{team.id}/bearbeiten", data={
         "name": "FF Rattenberg 1",
-        "person_1": "Anna", "person_2": "",
-        "person_3": "Clara", "person_4": "Dieter",
+        "person_1_vorname": "Anna", "person_1_nachname": "Huber",
+        "person_3_vorname": "Clara", "person_3_nachname": "Gruber",
+        "person_4_vorname": "Dieter", "person_4_nachname": "Bauer",
     })
-    assert [m.name for m in team.mitglieder] == ["Anna", "Clara", "Dieter"]
+    assert [m.voller_name() for m in team.mitglieder] == [
+        "Anna Huber", "Clara Gruber", "Dieter Bauer"]
 
 
 def test_zeitwertung_mit_strafsekunden(app):

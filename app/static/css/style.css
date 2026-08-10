@@ -81,6 +81,12 @@ body {
 .anforderung-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
   justify-content: space-between; }
 
+.person-block { padding: 0.6rem 0; border-top: 1px dashed var(--rand); }
+.person-block:first-of-type { border-top: none; }
+.person-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem; margin-top: 0.3rem; }
+.person-grid label { display: flex; flex-direction: column; font-size: 0.85rem; font-weight: 600; gap: 0.2rem; margin: 0; }
+.person-grid input { font-weight: normal; }
+
 .inhalt { max-width: 960px; margin: 1.5rem auto; padding: 0 1rem; }
 
 h1 { color: var(--rot-dunkel); margin-top: 0; }

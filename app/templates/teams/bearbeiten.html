@@ -17,9 +17,22 @@
     <fieldset style="margin-top:1rem; border:1px solid var(--rand); border-radius:6px; padding:0.5rem 1rem 1rem;">
       <legend style="font-weight:600;">Mannschaft (4 Personen)</legend>
       {% for i in range(1, 5) %}
-      <label for="person_{{ i }}">Person {{ i }}</label>
-      <input type="text" id="person_{{ i }}" name="person_{{ i }}"
-             value="{{ personen[i-1] if personen and personen|length >= i else '' }}">
+      {% set p = personen[i-1] if personen and personen|length >= i else {} %}
+      <div class="person-block">
+        <strong>Person {{ i }}</strong>
+        <div class="person-grid">
+          <label>Vorname
+            <input type="text" name="person_{{ i }}_vorname" value="{{ p.vorname }}"></label>
+          <label>Nachname
+            <input type="text" name="person_{{ i }}_nachname" value="{{ p.nachname }}"></label>
+          <label>Spitzname
+            <input type="text" name="person_{{ i }}_spitzname" value="{{ p.spitzname }}"></label>
+          <label>Telefon
+            <input type="text" name="person_{{ i }}_telefon" value="{{ p.telefon }}"></label>
+          <label>Alter
+            <input type="number" min="0" max="120" name="person_{{ i }}_alter" value="{{ p.alter }}"></label>
+        </div>
+      </div>
       {% endfor %}
     </fieldset>
 
