@@ -22,7 +22,8 @@
       <a href="{{ url_for('wertung.uebersicht') }}">Wertung</a>
       <a href="{{ url_for('zeitplan.uebersicht') }}">Zeitplan</a>
       {% if current_user.is_authenticated and current_user.ist_admin() %}
-        <a href="{{ url_for('benutzer.liste') }}">Benutzer</a>
+        <a href="{{ url_for('benutzer.liste') }}">Personen</a>
+        <a href="{{ url_for('benutzer.rollen') }}">Rollen</a>
       {% endif %}
       {% if current_user.is_authenticated %}
         <span class="nav-info" title="Rollen: {{ current_user.rollen_namen | map('capitalize') | join(', ') or 'keine' }}">
