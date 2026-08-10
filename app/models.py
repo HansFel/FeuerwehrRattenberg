@@ -71,6 +71,31 @@ class Benutzer(UserMixin, db.Model):
         return f"<Benutzer {self.username!r}>"
 
 
+class Sicherung(db.Model):
+    """Metadaten einer Datensicherung (gzip-Kopie der SQLite-Datenbank)."""
+    __tablename__ = "sicherung"
+
+    id = db.Column(db.Integer, primary_key=True)
+    dateiname = db.Column(db.String(200), nullable=False)
+    dateigroesse = db.Column(db.Integer, default=0)
+    checksum = db.Column(db.String(64))               # SHA-256
+    typ = db.Column(db.String(30), default="manuell")  # manuell/vor-wiederherstellung/upload
+    erstellt_von = db.Column(db.String(80), default="")  # Benutzername
+    erstellt = db.Column(db.DateTime, default=_jetzt)
+
+    @property
+    def groesse_formatiert(self) -> str:
+        größe = self.dateigroesse or 0
+        if größe < 1024:
+            return f"{größe} B"
+        if größe < 1024 * 1024:
+            return f"{größe / 1024:.1f} KB"
+        return f"{größe / (1024 * 1024):.1f} MB"
+
+    def __repr__(self) -> str:
+        return f"<Sicherung {self.dateiname!r}>"
+
+
 class BenutzerRolle(db.Model):
     __tablename__ = "benutzer_rolle"
 

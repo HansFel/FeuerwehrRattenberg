@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block titel %}Datensicherung{% endblock %}
+{% block inhalt %}
+  <h1>Datensicherung</h1>
+  <p>Sichere den gesamten Datenbestand (Mannschaften, Disziplinen, Ergebnisse,
+     Startlisten, Benutzer &amp; Rollen) und stelle ihn bei Bedarf wieder her.</p>
+
+  <div class="werkzeugleiste">
+    <form class="inline" method="post" action="{{ url_for('sicherung.erstellen') }}">
+      <button class="knopf" type="submit">🛟 Jetzt sichern</button>
+    </form>
+    <form class="inline" method="post" action="{{ url_for('sicherung.hochladen') }}"
+          enctype="multipart/form-data">
+      <input type="file" name="datei" accept=".gz" required>
+      <button class="knopf grau" type="submit">⤒ Sicherung hochladen</button>
+    </form>
+  </div>
+
+  {% if sicherungen %}
+  <table>
+    <thead>
+      <tr><th>Datum</th><th>Datei</th><th>Größe</th><th>Typ</th><th>Von</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for s in sicherungen %}
+      <tr>
+        <td>{{ s.erstellt.strftime('%d.%m.%Y %H:%M') }}</td>
+        <td>{{ s.dateiname }}</td>
+        <td>{{ s.groesse_formatiert }}</td>
+        <td>{{ s.typ }}</td>
+        <td>{{ s.erstellt_von or '–' }}</td>
+        <td>
+          <a class="knopf klein grau" href="{{ url_for('sicherung.download', sicherung_id=s.id) }}">⤓ Download</a>
+          <form class="inline" method="post" action="{{ url_for('sicherung.wiederherstellen', sicherung_id=s.id) }}"
+                onsubmit="return confirm('Diese Sicherung wiederherstellen? Der aktuelle Stand wird vorher automatisch gesichert.');">
+            <button class="knopf klein" type="submit">↩ Wiederherstellen</button>
+          </form>
+          <form class="inline" method="post" action="{{ url_for('sicherung.loeschen', sicherung_id=s.id) }}"
+                onsubmit="return confirm('Sicherung „{{ s.dateiname }}“ löschen?');">
+            <button class="knopf klein gefahr" type="submit">Löschen</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p style="margin-top:0.8rem"><small class="leer">
+    Es werden automatisch die neuesten {{ 30 }} Sicherungen behalten; ältere
+    werden beim Erstellen entfernt. Vor jeder Wiederherstellung wird der
+    aktuelle Stand als Sicherung „vor-wiederherstellung" abgelegt.</small></p>
+  {% else %}
+  <p class="leer">Noch keine Sicherungen vorhanden.</p>
+  {% endif %}
+{% endblock %}

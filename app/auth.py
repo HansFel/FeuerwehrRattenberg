@@ -13,7 +13,7 @@ from functools import wraps
 from flask import flash, redirect, request, session, url_for
 from flask_login import LoginManager, current_user
 
-from .models import Benutzer
+from .models import db, Benutzer
 
 login_manager = LoginManager()
 login_manager.login_view = "auth.login"
@@ -27,7 +27,7 @@ def _benutzer_laden(benutzer_id: str):
 
 
 def db_get_benutzer(benutzer_id: int):
-    return Benutzer.query.get(benutzer_id)
+    return db.session.get(Benutzer, benutzer_id)
 
 
 def authentifiziere(username: str, passwort: str):

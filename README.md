@@ -21,7 +21,12 @@ Rattenberg. Verwaltet **Mannschaften**, **Disziplinen/Stationen**,
   Aktionen erfordern Login mit passender Rolle:
   **Administrator** (alle Rechte), **Organisator** (Mannschaften, Disziplinen,
   Startlisten), **Startrichter** (Startlisten/Zeitplan),
-  **Punkterichter** (Ergebnisse erfassen)
+  **Punkterichter** (Ergebnisse erfassen). Mitarbeiter mit mehreren Rollen
+  wählen beim Login ihre aktive Rolle (rollenabhängiges Dashboard).
+- **Datensicherung** – vollständige Sicherung des Datenbestands, herunterladen,
+  hochladen, wiederherstellen (mit Prüfsummen-Check und automatischer
+  Vorher-Sicherung). Funktioniert mit PostgreSQL (`pg_dump`/`psql`) und
+  SQLite (gzip-Dateikopie).
 
 ## Einrichtung (Windows / PowerShell)
 
@@ -31,6 +36,19 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
+
+## Datenbank
+
+Standard ist eine lokale **SQLite**-Datei (`instance/wettbewerb.sqlite`).
+Für den Produktionsbetrieb (wie die MGRSoftware-Instanz `mgr-test1`) wird
+**PostgreSQL 17** über die Umgebungsvariable `DATABASE_URL` verwendet:
+
+```powershell
+$env:DATABASE_URL = "postgresql://user:passwort@host:5432/feuerwehr"
+python run.py
+```
+
+Für Datensicherung mit PostgreSQL müssen `pg_dump` und `psql` im PATH sein.
 
 ## Starten
 

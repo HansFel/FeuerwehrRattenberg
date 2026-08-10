@@ -13,9 +13,14 @@ def create_app(test_config: dict | None = None) -> Flask:
     app = Flask(__name__, instance_relative_config=True)
 
     db_path = os.path.join(app.instance_path, "wettbewerb.sqlite")
+    # Produktion: PostgreSQL 17 via DATABASE_URL (wie mgr-test1);
+    # lokal ohne Variable: SQLite-Datei als Fallback.
+    db_url = os.environ.get("DATABASE_URL", f"sqlite:///{db_path}")
+    if db_url.startswith("postgres://"):        # alte Schreibweise normalisieren
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
     app.config.from_mapping(
         SECRET_KEY=os.environ.get("SECRET_KEY", "dev-nur-lokal"),
-        SQLALCHEMY_DATABASE_URI=f"sqlite:///{db_path}",
+        SQLALCHEMY_DATABASE_URI=db_url,
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         # Startpasswort des Standard-Administrators (nur beim ersten Anlegen).
         ADMIN_STARTPASSWORT=os.environ.get("ADMIN_STARTPASSWORT", "admin"),
@@ -41,7 +46,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.jinja_env.globals["ROLLEN"] = ROLLEN
 
     from .blueprints import (teams, disziplinen, wertung, zeitplan, start,
-                             auth, export, pdf, benutzer)
+                             auth, export, pdf, benutzer, sicherung)
     app.register_blueprint(start.bp)
     app.register_blueprint(teams.bp)
     app.register_blueprint(disziplinen.bp)
@@ -51,6 +56,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(export.bp)
     app.register_blueprint(pdf.bp)
     app.register_blueprint(benutzer.bp)
+    app.register_blueprint(sicherung.bp)
 
     with app.app_context():
         db.create_all()

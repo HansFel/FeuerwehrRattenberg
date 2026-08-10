@@ -24,6 +24,7 @@
       {% if current_user.is_authenticated and current_user.ist_admin() %}
         <a href="{{ url_for('benutzer.liste') }}">Personen</a>
         <a href="{{ url_for('benutzer.rollen') }}">Rollen</a>
+        <a href="{{ url_for('sicherung.index') }}">Sicherung</a>
       {% endif %}
       {% if current_user.is_authenticated %}
         <span class="nav-info" title="Zugewiesene Rollen: {{ current_user.rollen_namen | map('capitalize') | join(', ') or 'keine' }}">
