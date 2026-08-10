@@ -37,4 +37,62 @@
   {% else %}
     <p class="leer">Noch nichts erledigt.</p>
   {% endif %}
+
+  <hr style="margin:2rem 0; border:none; border-top:1px solid var(--rand);">
+
+  <h1>Nachricht an andere Personen</h1>
+  <p>Schick den Personen der Organisator-Mannschaft eine Mitteilung – z. B.
+     worüber sie nachdenken sollen. Sie sehen sie oben auf ihrem Dashboard,
+     bis sie als gelesen markiert wird.</p>
+
+  <form class="formular" method="post" action="{{ url_for('nachrichten.senden') }}"
+        style="max-width:100%;">
+    <label for="nachricht_text">Nachricht</label>
+    <textarea id="nachricht_text" name="text" style="min-height:5rem;"
+              placeholder="z. B.: Bitte überlegt euch bis morgen, wie wir die Getränke-Wertung zählen wollen." required></textarea>
+
+    <label for="nachricht_ziel">An wen?</label>
+    <select id="nachricht_ziel" name="ziel">
+      <option value="alle">Alle Personen</option>
+      <optgroup label="Nach Rolle">
+        {% for key, bezeichnung in ROLLEN.items() %}
+        <option value="rolle:{{ key }}">Alle mit Rolle „{{ bezeichnung }}“</option>
+        {% endfor %}
+      </optgroup>
+      <optgroup label="Einzelne Person">
+        {% for p in personen %}
+        <option value="person:{{ p.id }}">{{ p.username }}{% if p.name %} – {{ p.name }}{% endif %}</option>
+        {% endfor %}
+      </optgroup>
+    </select>
+
+    <div class="werkzeugleiste" style="margin-top:0.8rem">
+      <button class="knopf" type="submit">Senden</button>
+    </div>
+  </form>
+
+  <h2>Gesendete Nachrichten</h2>
+  {% if nachrichten %}
+    {% for n in nachrichten %}
+    <div class="anforderung">
+      <div class="anforderung-text">{{ n.text }}</div>
+      <div class="anforderung-meta">
+        <span class="leer">
+          {{ n.absender or '?' }} · {{ n.erstellt.strftime('%d.%m.%Y %H:%M') if n.erstellt else '' }} ·
+          an:
+          {%- if n.ziel_benutzer %} {{ n.ziel_benutzer.username }}
+          {%- elif n.ziel_rolle %} Rolle „{{ ROLLEN.get(n.ziel_rolle, n.ziel_rolle) }}“
+          {%- else %} alle{% endif %}
+          · gelesen von {{ n.gelesen_von | length }}
+        </span>
+        <form class="inline" method="post" action="{{ url_for('nachrichten.loeschen', nachricht_id=n.id) }}"
+              onsubmit="return confirm('Nachricht löschen?');">
+          <button class="knopf klein gefahr" type="submit">Löschen</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <p class="leer">Noch keine Nachrichten gesendet.</p>
+  {% endif %}
 {% endblock %}

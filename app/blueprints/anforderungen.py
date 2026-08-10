@@ -12,7 +12,7 @@ from flask import (Blueprint, current_app, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user
 
-from ..models import db, Anforderung
+from ..models import db, Anforderung, Benutzer, Nachricht, ROLLEN
 from ..auth import rolle_noetig
 
 bp = Blueprint("anforderungen", __name__, url_prefix="/anforderungen")
@@ -26,7 +26,11 @@ def _eintraege():
 @bp.route("/")
 @rolle_noetig("administrator")
 def index():
-    return render_template("anforderungen/index.html", eintraege=_eintraege())
+    personen = Benutzer.query.order_by(Benutzer.username).all()
+    nachrichten = Nachricht.query.order_by(Nachricht.erstellt.desc()).all()
+    return render_template("anforderungen/index.html", eintraege=_eintraege(),
+                           personen=personen, nachrichten=nachrichten,
+                           ROLLEN=ROLLEN)
 
 
 @bp.route("/neu", methods=["POST"])

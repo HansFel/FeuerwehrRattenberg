@@ -87,6 +87,16 @@ body {
 .person-grid label { display: flex; flex-direction: column; font-size: 0.85rem; font-weight: 600; gap: 0.2rem; margin: 0; }
 .person-grid input { font-weight: normal; }
 
+.nachricht {
+  background: #fff8e1; border: 1px solid #ffe082; border-left: 4px solid #f9a825;
+  border-radius: 6px; padding: 0.8rem 1rem; margin-bottom: 0.7rem;
+}
+
+.nav-badge {
+  background: #fff; color: var(--rot); border-radius: 999px;
+  font-size: 0.75rem; font-weight: 700; padding: 0.05rem 0.45rem; margin-left: 0.25rem;
+}
+
 .inhalt { max-width: 960px; margin: 1.5rem auto; padding: 0 1rem; }
 
 h1 { color: var(--rot-dunkel); margin-top: 0; }

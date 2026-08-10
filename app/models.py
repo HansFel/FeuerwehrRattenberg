@@ -85,6 +85,56 @@ class Anforderung(db.Model):
         return f"<Anforderung {self.id} erledigt={self.erledigt}>"
 
 
+class Nachricht(db.Model):
+    """Mitteilung eines Administrators an andere Personen der
+    Organisator-Mannschaft (z.B. worüber sie nachdenken sollen)."""
+    __tablename__ = "nachricht"
+
+    id = db.Column(db.Integer, primary_key=True)
+    text = db.Column(db.Text, nullable=False)
+    absender = db.Column(db.String(80), default="")
+    # Ziel: entweder eine Rolle (an alle mit dieser Rolle), eine bestimmte
+    # Person, oder beides leer = an alle.
+    ziel_rolle = db.Column(db.String(40))
+    ziel_benutzer_id = db.Column(db.Integer, db.ForeignKey("benutzer.id"))
+    erstellt = db.Column(db.DateTime, default=_jetzt)
+
+    ziel_benutzer = db.relationship("Benutzer", foreign_keys=[ziel_benutzer_id])
+    gelesen_von = db.relationship("NachrichtGelesen", back_populates="nachricht",
+                                  cascade="all, delete-orphan")
+
+    def richtet_sich_an(self, benutzer: "Benutzer") -> bool:
+        if self.ziel_benutzer_id:
+            return self.ziel_benutzer_id == benutzer.id
+        if self.ziel_rolle:
+            return self.ziel_rolle in benutzer.rollen_namen
+        return True   # kein Ziel gesetzt = an alle
+
+    def ist_gelesen_von(self, benutzer_id: int) -> bool:
+        return any(g.benutzer_id == benutzer_id for g in self.gelesen_von)
+
+    def __repr__(self) -> str:
+        return f"<Nachricht {self.id} von {self.absender!r}>"
+
+
+class NachrichtGelesen(db.Model):
+    __tablename__ = "nachricht_gelesen"
+
+    id = db.Column(db.Integer, primary_key=True)
+    nachricht_id = db.Column(db.Integer, db.ForeignKey("nachricht.id"),
+                             nullable=False)
+    benutzer_id = db.Column(db.Integer, db.ForeignKey("benutzer.id"),
+                            nullable=False)
+    gelesen_am = db.Column(db.DateTime, default=_jetzt)
+
+    nachricht = db.relationship("Nachricht", back_populates="gelesen_von")
+
+    __table_args__ = (
+        db.UniqueConstraint("nachricht_id", "benutzer_id",
+                            name="uq_nachricht_gelesen"),
+    )
+
+
 class Sicherung(db.Model):
     """Metadaten einer Datensicherung (gzip-Kopie der SQLite-Datenbank)."""
     __tablename__ = "sicherung"

@@ -47,7 +47,17 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     from .blueprints import (teams, disziplinen, wertung, zeitplan, start,
                              auth, export, pdf, benutzer, sicherung,
-                             anforderungen)
+                             anforderungen, nachrichten)
+
+    from flask_login import current_user as _current_user
+
+    def _ungelesene_nachrichten():
+        if not _current_user.is_authenticated:
+            return []
+        return nachrichten.fuer_benutzer(_current_user, nur_ungelesen=True)
+
+    app.jinja_env.globals["ungelesene_nachrichten"] = _ungelesene_nachrichten
+    app.jinja_env.globals["nachrichten_fuer_benutzer"] = nachrichten.fuer_benutzer
     app.register_blueprint(start.bp)
     app.register_blueprint(teams.bp)
     app.register_blueprint(disziplinen.bp)
@@ -59,6 +69,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(benutzer.bp)
     app.register_blueprint(sicherung.bp)
     app.register_blueprint(anforderungen.bp)
+    app.register_blueprint(nachrichten.bp)
 
     with app.app_context():
         db.create_all()

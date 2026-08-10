@@ -28,8 +28,12 @@
         <a href="{{ url_for('anforderungen.index') }}">Anforderungen</a>
       {% endif %}
       {% if current_user.is_authenticated %}
-        <span class="nav-info" title="Zugewiesene Rollen: {{ current_user.rollen_namen | map('capitalize') | join(', ') or 'keine' }}">
-          👤 {{ current_user.name or current_user.username }}{% if aktive_rolle() %} · {{ ROLLEN.get(aktive_rolle(), aktive_rolle()) }}{% endif %}</span>
+        <a href="{{ url_for('start.index') }}" class="nav-info" style="text-decoration:none"
+           title="Zugewiesene Rollen: {{ current_user.rollen_namen | map('capitalize') | join(', ') or 'keine' }}">
+          👤 {{ current_user.name or current_user.username }}{% if aktive_rolle() %} · {{ ROLLEN.get(aktive_rolle(), aktive_rolle()) }}{% endif %}
+          {%- set anzahl_ungelesen = ungelesene_nachrichten() | length %}
+          {%- if anzahl_ungelesen %}<span class="nav-badge">{{ anzahl_ungelesen }}</span>{% endif -%}
+        </a>
         {% if current_user.rollen_namen | length > 1 %}
           <a class="nav-knopf" href="{{ url_for('auth.rolle_waehlen') }}" title="Aktive Rolle wechseln">🔁 Rolle</a>
         {% endif %}
