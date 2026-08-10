@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block titel %}Anforderungen an die App{% endblock %}
+{% block inhalt %}
+  <h1>Anforderungen an die App</h1>
+  <p>Hier tragen Administratoren Wünsche, Regeln und Ideen für die
+     Weiterentwicklung ein. Die Einträge werden gespeichert und automatisch in
+     die Datei <code>ANFORDERUNGEN.md</code> exportiert, damit die Entwicklung
+     sie direkt lesen kann.</p>
+
+  <form class="formular" method="post" action="{{ url_for('anforderungen.neu') }}"
+        style="max-width:100%;">
+    <label for="text">Neue Anforderung / Wunsch / Regel</label>
+    <textarea id="text" name="text" style="min-height:6rem;"
+              placeholder="z. B.: Bei der Getränke-Wertung zählt jedes Getränk 1 Punkt …"
+              autofocus required></textarea>
+    <div class="werkzeugleiste" style="margin-top:0.8rem">
+      <button class="knopf" type="submit">Eintragen</button>
+    </div>
+  </form>
+
+  <h2>Offen</h2>
+  {% set offene = eintraege | rejectattr('erledigt') | list %}
+  {% if offene %}
+    {% for e in offene %}
+      {% include "anforderungen/_eintrag.html" %}
+    {% endfor %}
+  {% else %}
+    <p class="leer">Keine offenen Anforderungen.</p>
+  {% endif %}
+
+  <h2>Erledigt</h2>
+  {% set fertige = eintraege | selectattr('erledigt') | list %}
+  {% if fertige %}
+    {% for e in fertige %}
+      {% include "anforderungen/_eintrag.html" %}
+    {% endfor %}
+  {% else %}
+    <p class="leer">Noch nichts erledigt.</p>
+  {% endif %}
+{% endblock %}

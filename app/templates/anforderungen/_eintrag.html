@@ -1,0 +1,16 @@
+<div class="anforderung {{ 'fertig' if e.erledigt else '' }}">
+  <div class="anforderung-text">{{ e.text }}</div>
+  <div class="anforderung-meta">
+    <span class="leer">{{ e.autor or '?' }} · {{ e.erstellt.strftime('%d.%m.%Y %H:%M') if e.erstellt else '' }}</span>
+    <span class="werkzeugleiste inline">
+      <form class="inline" method="post" action="{{ url_for('anforderungen.erledigt', anforderung_id=e.id) }}">
+        <button class="knopf klein {{ 'grau' if e.erledigt else '' }}" type="submit">
+          {{ '↩ wieder offen' if e.erledigt else '✓ erledigt' }}</button>
+      </form>
+      <form class="inline" method="post" action="{{ url_for('anforderungen.loeschen', anforderung_id=e.id) }}"
+            onsubmit="return confirm('Diese Anforderung löschen?');">
+        <button class="knopf klein gefahr" type="submit">Löschen</button>
+      </form>
+    </span>
+  </div>
+</div>

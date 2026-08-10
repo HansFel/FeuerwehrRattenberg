@@ -71,6 +71,20 @@ class Benutzer(UserMixin, db.Model):
         return f"<Benutzer {self.username!r}>"
 
 
+class Anforderung(db.Model):
+    """Wunsch/Regel/Anforderung der Administratoren für die Weiterentwicklung."""
+    __tablename__ = "anforderung"
+
+    id = db.Column(db.Integer, primary_key=True)
+    text = db.Column(db.Text, nullable=False)
+    autor = db.Column(db.String(80), default="")
+    erledigt = db.Column(db.Boolean, default=False)
+    erstellt = db.Column(db.DateTime, default=_jetzt)
+
+    def __repr__(self) -> str:
+        return f"<Anforderung {self.id} erledigt={self.erledigt}>"
+
+
 class Sicherung(db.Model):
     """Metadaten einer Datensicherung (gzip-Kopie der SQLite-Datenbank)."""
     __tablename__ = "sicherung"

@@ -46,7 +46,8 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.jinja_env.globals["ROLLEN"] = ROLLEN
 
     from .blueprints import (teams, disziplinen, wertung, zeitplan, start,
-                             auth, export, pdf, benutzer, sicherung)
+                             auth, export, pdf, benutzer, sicherung,
+                             anforderungen)
     app.register_blueprint(start.bp)
     app.register_blueprint(teams.bp)
     app.register_blueprint(disziplinen.bp)
@@ -57,6 +58,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(pdf.bp)
     app.register_blueprint(benutzer.bp)
     app.register_blueprint(sicherung.bp)
+    app.register_blueprint(anforderungen.bp)
 
     with app.app_context():
         db.create_all()
