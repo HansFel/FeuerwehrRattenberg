@@ -139,6 +139,39 @@ def test_dashboard_admin_sieht_alles(client):
     assert "Mannschaften".encode() in r.data
 
 
+def test_mehrrollen_login_fuehrt_zur_rollenwahl(client, app):
+    with app.app_context():
+        from app.models import BenutzerRolle
+        u = Benutzer(username="multi", name="Multi", aktiv=True)
+        u.set_password("pw")
+        u.rollen.append(BenutzerRolle(rolle="organisator"))
+        u.rollen.append(BenutzerRolle(rolle="punkterichter"))
+        db.session.add(u)
+        db.session.commit()
+
+    # Login mit mehreren Rollen -> Auswahlseite
+    r = client.post("/anmelden", data={"username": "multi", "passwort": "pw"},
+                    follow_redirects=True)
+    assert "Rolle wählen".encode() in r.data
+
+    # Aktive Rolle: Punkterichter -> nur dessen Karte
+    r = client.post("/rolle-setzen", data={"rolle": "punkterichter"},
+                    follow_redirects=True)
+    assert "Ergebnisse erfassen".encode() in r.data
+    assert "Stationen verwalten".encode() not in r.data      # keine Organisator-Karte
+
+    # Wechsel auf Organisator -> dessen Karten, keine Erfassen-Karte
+    r = client.post("/rolle-setzen", data={"rolle": "organisator"},
+                    follow_redirects=True)
+    assert "Stationen verwalten".encode() in r.data
+    assert "Ergebnisse erfassen".encode() not in r.data
+
+    # Fremde Rolle lässt sich nicht setzen
+    client.post("/rolle-setzen", data={"rolle": "administrator"})
+    r = client.get("/")
+    assert "🛡️ Verwaltung".encode() not in r.data
+
+
 def test_dashboard_oeffentlich_ohne_login(client):
     r = client.get("/")
     assert "Deine Rollen".encode() not in r.data

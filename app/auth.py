@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from functools import wraps
 
-from flask import flash, redirect, request, url_for
+from flask import flash, redirect, request, session, url_for
 from flask_login import LoginManager, current_user
 
 from .models import Benutzer
@@ -43,8 +43,50 @@ def ist_angemeldet() -> bool:
 
 
 def darf(*erlaubte_rollen: str) -> bool:
-    """True, wenn angemeldet und Administrator oder eine erlaubte Rolle."""
+    """True, wenn angemeldet und Administrator oder eine erlaubte Rolle.
+
+    Prüft die tatsächlich zugewiesenen Rollen (nicht die aktive) – ein
+    Rollenwechsel ändert die Dashboard-Ansicht, nicht die Berechtigungen.
+    """
     return current_user.is_authenticated and current_user.darf(*erlaubte_rollen)
+
+
+SESSION_ROLLE = "aktive_rolle"
+
+
+def aktive_rolle() -> str | None:
+    """Die aktuell gewählte Rolle des Benutzers (steuert das Dashboard).
+
+    Fällt auf die einzige Rolle zurück, wenn der Benutzer nur eine hat.
+    """
+    if not current_user.is_authenticated:
+        return None
+    gewaehlt = session.get(SESSION_ROLLE)
+    rollen = current_user.rollen_namen
+    if gewaehlt in rollen:
+        return gewaehlt
+    if len(rollen) == 1:
+        return rollen[0]
+    return None
+
+
+def setze_aktive_rolle(rolle: str) -> bool:
+    """Setzt die aktive Rolle, wenn sie dem Benutzer zugewiesen ist."""
+    if current_user.is_authenticated and rolle in current_user.rollen_namen:
+        session[SESSION_ROLLE] = rolle
+        return True
+    return False
+
+
+def dashboard_zeigt(*rollen: str) -> bool:
+    """True, wenn die aktive Rolle das Dashboard-Element sehen soll.
+
+    Administrator sieht als aktive Rolle alle Bereiche.
+    """
+    aktiv = aktive_rolle()
+    if aktiv == "administrator":
+        return True
+    return aktiv in rollen
 
 
 def rolle_noetig(*erlaubte_rollen: str):

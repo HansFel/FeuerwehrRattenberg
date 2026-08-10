@@ -8,15 +8,23 @@
   <p>
     Deine Rollen:
     {% for r in current_user.rollen_namen %}
-      <span class="tag {{ 'admin' if r == 'administrator' else '' }}">{{ ROLLEN.get(r, r) }}</span>
+      <span class="tag {{ 'admin' if r == 'administrator' else '' }}{{ ' aktiv' if r == aktive_rolle() else '' }}">{{ ROLLEN.get(r, r) }}</span>
     {% else %}
       <span class="leer">keine Rolle zugewiesen – melde dich beim Administrator</span>
     {% endfor %}
+    {% if current_user.rollen_namen | length > 1 %}
+      <a class="knopf klein grau" href="{{ url_for('auth.rolle_waehlen') }}">Rolle wechseln</a>
+    {% endif %}
   </p>
+  {% if aktive_rolle() %}
+    <p class="leer">Aktives Dashboard: <strong>{{ ROLLEN.get(aktive_rolle(), aktive_rolle()) }}</strong></p>
+  {% elif current_user.rollen_namen | length > 1 %}
+    <p class="meldung error">Bitte wähle oben eine <a href="{{ url_for('auth.rolle_waehlen') }}">aktive Rolle</a>.</p>
+  {% endif %}
 
   <div class="dash">
 
-    {% if darf('punkterichter') %}
+    {% if dashboard_zeigt('punkterichter') %}
     <section class="dash-karte">
       <h2>🏁 Ergebnisse erfassen</h2>
       <p class="leer">Zeiten &amp; Fehlerpunkte je Disziplin eintragen.</p>
@@ -30,7 +38,7 @@
     </section>
     {% endif %}
 
-    {% if darf('startrichter', 'organisator') %}
+    {% if dashboard_zeigt('startrichter', 'organisator') %}
     <section class="dash-karte">
       <h2>🕒 Startlisten &amp; Zeitplan</h2>
       <p class="leer">Startreihenfolge und Startzeiten je Disziplin festlegen.</p>
@@ -40,7 +48,7 @@
     </section>
     {% endif %}
 
-    {% if darf('organisator') %}
+    {% if dashboard_zeigt('organisator') %}
     <section class="dash-karte">
       <h2>👥 Mannschaften</h2>
       <p class="leer">{{ anzahl_teams }} Mannschaften – anlegen &amp; bearbeiten.</p>
@@ -59,7 +67,7 @@
     </section>
     {% endif %}
 
-    {% if current_user.ist_admin() %}
+    {% if aktive_rolle() == 'administrator' %}
     <section class="dash-karte">
       <h2>🛡️ Verwaltung</h2>
       <p class="leer">Personen der Organisator-Mannschaft und ihre Rollen.</p>

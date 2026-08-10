@@ -26,8 +26,11 @@
         <a href="{{ url_for('benutzer.rollen') }}">Rollen</a>
       {% endif %}
       {% if current_user.is_authenticated %}
-        <span class="nav-info" title="Rollen: {{ current_user.rollen_namen | map('capitalize') | join(', ') or 'keine' }}">
-          👤 {{ current_user.name or current_user.username }}</span>
+        <span class="nav-info" title="Zugewiesene Rollen: {{ current_user.rollen_namen | map('capitalize') | join(', ') or 'keine' }}">
+          👤 {{ current_user.name or current_user.username }}{% if aktive_rolle() %} · {{ ROLLEN.get(aktive_rolle(), aktive_rolle()) }}{% endif %}</span>
+        {% if current_user.rollen_namen | length > 1 %}
+          <a class="nav-knopf" href="{{ url_for('auth.rolle_waehlen') }}" title="Aktive Rolle wechseln">🔁 Rolle</a>
+        {% endif %}
         <form class="inline" method="post" action="{{ url_for('auth.logout') }}">
           <button class="nav-knopf" type="submit">🔓 Abmelden</button>
         </form>

@@ -28,13 +28,16 @@ def create_app(test_config: dict | None = None) -> Flask:
     db.init_app(app)
 
     # flask-login initialisieren
-    from .auth import login_manager, ist_angemeldet, darf
+    from .auth import (login_manager, ist_angemeldet, darf, aktive_rolle,
+                       dashboard_zeigt)
     login_manager.init_app(app)
 
     # Jinja-Filter/-Globals
     app.jinja_env.filters["zeit"] = format_zeit
     app.jinja_env.globals["ist_angemeldet"] = ist_angemeldet
     app.jinja_env.globals["darf"] = darf
+    app.jinja_env.globals["aktive_rolle"] = aktive_rolle
+    app.jinja_env.globals["dashboard_zeigt"] = dashboard_zeigt
     app.jinja_env.globals["ROLLEN"] = ROLLEN
 
     from .blueprints import (teams, disziplinen, wertung, zeitplan, start,

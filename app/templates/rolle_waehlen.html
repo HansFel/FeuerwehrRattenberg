@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block titel %}Rolle wählen{% endblock %}
+{% block inhalt %}
+  <h1>Rolle wählen</h1>
+  <p>Du hast mehrere Rollen. Wähle, in welcher Rolle du gerade arbeiten möchtest –
+     du kannst später jederzeit oben in der Menüleiste wechseln.</p>
+
+  <div class="dash">
+    {% for r in rollen %}
+    <form method="post" action="{{ url_for('auth.rolle_setzen') }}" class="dash-karte">
+      {% if ziel %}<input type="hidden" name="next" value="{{ ziel }}">{% endif %}
+      <input type="hidden" name="rolle" value="{{ r }}">
+      <h2>
+        {%- if r == 'administrator' %}🛡️
+        {%- elif r == 'organisator' %}🗂️
+        {%- elif r == 'startrichter' %}🕒
+        {%- elif r == 'punkterichter' %}🏁
+        {%- else %}👤{% endif %}
+        {{ ROLLEN.get(r, r) }}
+      </h2>
+      <p class="leer">
+        {%- if r == 'administrator' %}Alle Bereiche inkl. Personen &amp; Rollen.
+        {%- elif r == 'organisator' %}Mannschaften, Disziplinen, Startlisten.
+        {%- elif r == 'startrichter' %}Startlisten &amp; Zeitplan.
+        {%- elif r == 'punkterichter' %}Ergebnisse erfassen.
+        {%- else %}—{% endif %}
+      </p>
+      <button class="knopf" type="submit">In dieser Rolle arbeiten</button>
+    </form>
+    {% endfor %}
+  </div>
+{% endblock %}
