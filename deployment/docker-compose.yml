@@ -1,0 +1,69 @@
+# Deployment für die NAS (UGOS / Docker) hinter der bestehenden Traefik-
+# Instanz unter mgrattenberg.duckdns.org. Diese Datei liegt zusätzlich als
+# Kopie unter Z:\siloplanenrace\docker-compose.yml – dort wird sie tatsächlich
+# gestartet (Build-Context zeigt auf den NAS-Pfad des repo-Unterordners).
+#
+# Aufbau/Netzwerk folgen exakt dem bestehenden Muster der anderen Instanzen
+# auf diesem NAS (siehe z.B. mgr-test1, felfer): eigenes internes Netzwerk für
+# App<->DB, zusätzlich Beitritt zum bereits laufenden externen "traefik"-
+# Netzwerk. Traefik, DNS (duckdns) und Portfreigabe sind bereits für alle
+# anderen Instanzen eingerichtet und werden mitbenutzt – hier nur die Labels,
+# die diesen Container bei Traefik "anmelden".
+services:
+  db-silo:
+    image: postgres:17
+    container_name: db-silo
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wettbewerb
+      POSTGRES_USER: silo_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U silo_user -d wettbewerb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - db-silo-data:/var/lib/postgresql/data
+    networks:
+      - silo-internal
+
+  app-silo:
+    build:
+      context: /volume1/docker/instanzen/siloplanenrace/repo
+      dockerfile: deployment/Dockerfile
+    image: siloplanenrace:latest
+    pull_policy: build
+    container_name: app-silo
+    restart: unless-stopped
+    depends_on:
+      db-silo:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://silo_user:${DB_PASSWORD}@db-silo:5432/wettbewerb
+      SECRET_KEY: ${SECRET_KEY}
+      ADMIN_STARTPASSWORT: ${ADMIN_STARTPASSWORT}
+      FLASK_APP: run.py
+      FLASK_ENV: production
+      APPLICATION_PREFIX: /silo
+      INSTANCE_NAME: silo
+    networks:
+      - silo-internal
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.silo.rule=Host(`mgrattenberg.duckdns.org`) && PathPrefix(`/silo`)"
+      - "traefik.http.routers.silo.entrypoints=websecure"
+      - "traefik.http.routers.silo.tls.certresolver=duckdns"
+      - "traefik.http.services.silo.loadbalancer.server.port=8000"
+      - "traefik.http.middlewares.silo-headers.headers.customrequestheaders.X-Script-Name=/silo"
+      - "traefik.http.routers.silo.middlewares=silo-headers"
+
+volumes:
+  db-silo-data:
+
+networks:
+  silo-internal:
+  traefik:
+    external: true

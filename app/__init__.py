@@ -9,8 +9,35 @@ from .models import db, Benutzer, BenutzerRolle, ROLLEN
 from .wertung import format_zeit
 
 
+class PrefixMiddleware:
+    """WSGI-Middleware: setzt SCRIPT_NAME aus Header oder Umgebungsvariable.
+
+    Nötig, damit url_for() hinter einem Reverse-Proxy mit Pfad-Prefix
+    (z.B. Traefik PathPrefix("/silo")) weiterhin korrekte Links erzeugt.
+    Übernommen aus dem MGRSoftware-Deployment-Muster.
+    """
+
+    def __init__(self, app, prefix: str = ""):
+        self.app = app
+        self.prefix = prefix
+
+    def __call__(self, environ, start_response):
+        prefix = environ.get("HTTP_X_SCRIPT_NAME", self.prefix or "")
+        if prefix:
+            environ["SCRIPT_NAME"] = prefix
+            pfad = environ.get("PATH_INFO", "")
+            if pfad.startswith(prefix):
+                environ["PATH_INFO"] = pfad[len(prefix):]
+        return self.app(environ, start_response)
+
+
 def create_app(test_config: dict | None = None) -> Flask:
     app = Flask(__name__, instance_relative_config=True)
+
+    # Pfad-Prefix für Reverse-Proxy (z.B. /silo hinter Traefik)
+    prefix = os.environ.get("APPLICATION_PREFIX", "")
+    if prefix:
+        app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=prefix)
 
     db_path = os.path.join(app.instance_path, "wettbewerb.sqlite")
     # Produktion: PostgreSQL 17 via DATABASE_URL (wie mgr-test1);
