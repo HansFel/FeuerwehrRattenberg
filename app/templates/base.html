@@ -21,12 +21,17 @@
       <a href="{{ url_for('disziplinen.liste') }}">Disziplinen</a>
       <a href="{{ url_for('wertung.uebersicht') }}">Wertung</a>
       <a href="{{ url_for('zeitplan.uebersicht') }}">Zeitplan</a>
-      {% if ist_angemeldet() %}
+      {% if current_user.is_authenticated and current_user.ist_admin() %}
+        <a href="{{ url_for('benutzer.liste') }}">Benutzer</a>
+      {% endif %}
+      {% if current_user.is_authenticated %}
+        <span class="nav-info" title="Rollen: {{ current_user.rollen_namen | map('capitalize') | join(', ') or 'keine' }}">
+          👤 {{ current_user.name or current_user.username }}</span>
         <form class="inline" method="post" action="{{ url_for('auth.logout') }}">
-          <button class="nav-knopf" type="submit" title="Bearbeiter abmelden">🔓 Abmelden</button>
+          <button class="nav-knopf" type="submit">🔓 Abmelden</button>
         </form>
       {% else %}
-        <a href="{{ url_for('auth.login') }}" title="Zum Bearbeiten anmelden">🔒 Anmelden</a>
+        <a href="{{ url_for('auth.login') }}" title="Anmelden">🔒 Anmelden</a>
       {% endif %}
     </nav>
   </header>

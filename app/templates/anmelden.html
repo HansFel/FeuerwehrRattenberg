@@ -1,14 +1,18 @@
 {% extends "base.html" %}
 {% block titel %}Anmelden{% endblock %}
 {% block inhalt %}
-  <h1>Bearbeiter-Anmeldung</h1>
-  <p>Zum Anlegen und Ändern von Daten ist das Wettbewerbs-Passwort nötig.
-     Ansehen der Ranglisten ist ohne Anmeldung möglich.</p>
+  <h1>Anmeldung Organisator-Mannschaft</h1>
+  <p>Ansehen der Ranglisten ist ohne Anmeldung möglich. Zum Anlegen und Ändern
+     von Daten ist eine Anmeldung mit der passenden Rolle nötig.</p>
 
   <form class="formular" method="post" action="{{ url_for('auth.login') }}">
     {% if ziel %}<input type="hidden" name="next" value="{{ ziel }}">{% endif %}
+    <label for="username">Benutzername</label>
+    <input type="text" id="username" name="username" autofocus required>
+
     <label for="passwort">Passwort</label>
-    <input type="password" id="passwort" name="passwort" autofocus required>
+    <input type="password" id="passwort" name="passwort" required>
+
     <div class="werkzeugleiste" style="margin-top:1rem">
       <button class="knopf" type="submit">Anmelden</button>
       <a class="knopf grau" href="{{ url_for('start.index') }}">Abbrechen</a>

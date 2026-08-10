@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block titel %}Benutzer{% endblock %}
+{% block inhalt %}
+  <h1>Benutzer der Organisator-Mannschaft</h1>
+  <div class="werkzeugleiste">
+    <a class="knopf" href="{{ url_for('benutzer.neu') }}">+ Neuer Benutzer</a>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>Benutzername</th><th>Name</th><th>Rollen</th><th>Status</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for b in benutzer %}
+      <tr>
+        <td>{{ b.username }}</td>
+        <td>{{ b.name or "–" }}</td>
+        <td>
+          {% for r in b.rollen_namen %}
+            <span class="tag {{ 'admin' if r == 'administrator' else '' }}">{{ ROLLEN.get(r, r) }}</span>
+          {% else %}<span class="leer">keine</span>{% endfor %}
+        </td>
+        <td>{% if b.aktiv %}aktiv{% else %}<span class="inaktiv">inaktiv</span>{% endif %}</td>
+        <td>
+          <a class="knopf klein grau" href="{{ url_for('benutzer.bearbeiten', benutzer_id=b.id) }}">Bearbeiten</a>
+          <form class="inline" method="post" action="{{ url_for('benutzer.loeschen', benutzer_id=b.id) }}"
+                onsubmit="return confirm('Benutzer „{{ b.username }}“ wirklich löschen?');">
+            <button class="knopf klein gefahr" type="submit">Löschen</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

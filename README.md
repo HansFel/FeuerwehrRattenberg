@@ -17,8 +17,11 @@ Rattenberg. Verwaltet **Mannschaften**, **Disziplinen/Stationen**,
   druckfertige PDF-Dateien (für Aushang & Siegerehrung)
 - **CSV-Export** – Mannschaften, alle Ergebnisse und Gesamtwertung als CSV
   (UTF-8 + Semikolon, öffnet direkt in deutschem Excel)
-- **Passwortsperre** – Ansehen ist frei; Anlegen/Ändern/Löschen und
-  Ergebnis­erfassung erfordern eine Bearbeiter-Anmeldung
+- **Benutzer & Rollen** (Konzept aus MGRSoftware) – Ansehen ist frei; ändernde
+  Aktionen erfordern Login mit passender Rolle:
+  **Administrator** (alle Rechte), **Organisator** (Mannschaften, Disziplinen,
+  Startlisten), **Startrichter** (Startlisten/Zeitplan),
+  **Punkterichter** (Ergebnisse erfassen)
 
 ## Einrichtung (Windows / PowerShell)
 
@@ -50,16 +53,36 @@ pip install pytest
 python -m pytest
 ```
 
-## Bearbeiter-Passwort
+## Benutzer, Rollen & Login
 
-Ändernde Aktionen sind durch ein gemeinsames Passwort geschützt (Menü
-„🔒 Anmelden"). Standardwert ist `feuerwehr`. **Vor dem Eventtag ändern**, indem
-die App mit gesetzter Umgebungsvariable gestartet wird:
+Das Rollenkonzept ist von MGRSoftware übernommen: echte Benutzer mit
+Benutzername + Passwort (gehasht via werkzeug), Anmeldung über flask-login,
+Rechte über benannte Rollen. Der **Administrator** hat implizit alle Rechte.
+
+Beim ersten Start wird automatisch ein Administrator angelegt:
+
+- Benutzername: `admin`
+- Startpasswort: `admin` (bzw. Umgebungsvariable `ADMIN_STARTPASSWORT`)
+
+**Nach dem ersten Login unbedingt ändern** (Menü „Benutzer" → admin → neues
+Passwort) und die weiteren Rollen-Benutzer für die Organisator-Mannschaft
+anlegen. Startpasswort beim allerersten Start alternativ setzen:
 
 ```powershell
-$env:WETTBEWERB_PASSWORT = "GeheimesEventPasswort"
+$env:ADMIN_STARTPASSWORT = "StartPasswortAdmin"
 python run.py
 ```
+
+Rollen und ihre Rechte:
+
+| Rolle | Darf ändern |
+|---|---|
+| Administrator | alles inkl. Benutzerverwaltung |
+| Organisator | Mannschaften, Disziplinen, Startlisten/Zeitplan |
+| Startrichter | Startlisten/Zeitplan |
+| Punkterichter | Ergebnisse erfassen |
+
+Ein Benutzer kann mehrere Rollen haben.
 
 ## Datenablage
 

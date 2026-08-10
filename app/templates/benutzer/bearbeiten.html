@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block titel %}{{ "Benutzer bearbeiten" if benutzer else "Neuer Benutzer" }}{% endblock %}
+{% block inhalt %}
+  <h1>{{ "Benutzer bearbeiten" if benutzer else "Neuer Benutzer" }}</h1>
+
+  <form class="formular" method="post">
+    <label for="username">Benutzername *</label>
+    {% if benutzer %}
+      <input type="text" id="username" value="{{ benutzer.username }}" disabled>
+      <small class="leer">Benutzername kann nicht geändert werden.</small>
+    {% else %}
+      <input type="text" id="username" name="username" required>
+    {% endif %}
+
+    <label for="name">Anzeigename</label>
+    <input type="text" id="name" name="name" value="{{ benutzer.name if benutzer else '' }}">
+
+    <label for="passwort">Passwort {{ "(leer lassen = unverändert)" if benutzer else "*" }}</label>
+    <input type="password" id="passwort" name="passwort" {{ "required" if not benutzer else "" }}>
+
+    <label>Rollen</label>
+    <div class="rollen-tags">
+      {% for key, bezeichnung in ROLLEN.items() %}
+      <label>
+        <input type="checkbox" name="rollen" value="{{ key }}"
+               {{ 'checked' if benutzer and key in benutzer.rollen_namen else '' }}>
+        {{ bezeichnung }}
+      </label>
+      {% endfor %}
+    </div>
+
+    <label style="margin-top:0.8rem">
+      <input type="checkbox" name="aktiv" {{ 'checked' if not benutzer or benutzer.aktiv else '' }}>
+      aktiv (darf sich anmelden)
+    </label>
+
+    <div class="werkzeugleiste" style="margin-top:1rem">
+      <button class="knopf" type="submit">Speichern</button>
+      <a class="knopf grau" href="{{ url_for('benutzer.liste') }}">Abbrechen</a>
+    </div>
+  </form>
+
+  <p style="margin-top:1rem"><small class="leer">
+    Der <strong>Administrator</strong> hat alle Rechte. Organisator: Mannschaften,
+    Disziplinen, Startlisten. Startrichter: Startlisten/Zeitplan.
+    Punkterichter: Ergebnisse erfassen.</small></p>
+{% endblock %}

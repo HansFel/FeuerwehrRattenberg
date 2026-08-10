@@ -34,7 +34,7 @@ def test_seiten_laden(client):
 
 
 def test_team_mit_vier_personen(client):
-    client.post("/anmelden", data={"passwort": "feuerwehr"})
+    client.post("/anmelden", data={"username": "admin", "passwort": "admin"})
     client.post("/teams/neu", data={
         "name": "FF Rattenberg 1",
         "person_1": "Anna", "person_2": "Bernd",

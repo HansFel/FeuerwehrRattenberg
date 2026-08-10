@@ -7,6 +7,7 @@
        Strafe: {{ "%g"|format(disziplin.strafsekunden_pro_fehler) }} s pro Fehlerpunkt.
      {% endif %}</p>
 
+  {% if darf('punkterichter') %}
   <h2>Ergebnis erfassen / ändern</h2>
   <form class="formular" method="post">
     <label for="team_id">Mannschaft</label>
@@ -38,6 +39,10 @@
       <a class="knopf grau" href="{{ url_for('disziplinen.liste') }}">Zurück</a>
     </div>
   </form>
+  {% else %}
+  <p class="leer">Nur die Rolle Punkterichter (oder Administrator) kann hier
+     Ergebnisse erfassen. Die Rangliste ist unten sichtbar.</p>
+  {% endif %}
 
   <h2>Rangliste dieser Disziplin</h2>
   <div class="werkzeugleiste">

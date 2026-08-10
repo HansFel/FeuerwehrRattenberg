@@ -1,4 +1,4 @@
-"""Tests für Passwortsperre, CSV- und PDF-Export."""
+"""Tests für CSV- und PDF-Export (öffentlich lesbar)."""
 import pytest
 
 from app import create_app
@@ -10,7 +10,6 @@ def app():
     app = create_app({
         "TESTING": True,
         "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
-        "WETTBEWERB_PASSWORT": "geheim",
     })
     with app.app_context():
         db.create_all()
@@ -28,33 +27,6 @@ def app():
 @pytest.fixture
 def client(app):
     return app.test_client()
-
-
-def _anmelden(client, passwort="geheim"):
-    return client.post("/anmelden", data={"passwort": passwort},
-                       follow_redirects=True)
-
-
-def test_sperre_blockt_ohne_anmeldung(client):
-    # Team anlegen ohne Anmeldung -> Umleitung zur Anmeldung, nichts gespeichert
-    antwort = client.post("/teams/neu", data={"name": "Heimlich"},
-                          follow_redirects=True)
-    assert "anmelden".encode() in antwort.data.lower()
-    assert Team.query.filter_by(name="Heimlich").first() is None
-
-
-def test_falsches_passwort(client):
-    antwort = _anmelden(client, "falsch")
-    assert "Falsches Passwort".encode() in antwort.data
-
-
-def test_anmeldung_schaltet_frei(client):
-    _anmelden(client)
-    antwort = client.post("/teams/neu",
-                          data={"name": "FF Neu", "wehr": "Ort"},
-                          follow_redirects=True)
-    assert antwort.status_code == 200
-    assert Team.query.filter_by(name="FF Neu").first() is not None
 
 
 def test_csv_export(client):

@@ -1,14 +1,16 @@
-"""Anmeldung / Abmeldung für Bearbeiter."""
+"""Anmeldung / Abmeldung für die Organisator-Mannschaft."""
 from flask import (Blueprint, flash, redirect, render_template, request,
-                   session, url_for)
+                   url_for)
+from flask_login import login_user, logout_user, login_required, current_user
 
-from ..auth import passwort_korrekt
+from ..models import db, _jetzt
+from ..auth import authentifiziere
 
 bp = Blueprint("auth", __name__)
 
 
 def _sicheres_ziel(ziel: str | None) -> str:
-    """Nur lokale Pfade als Weiterleitungsziel zulassen (kein Open-Redirect)."""
+    """Nur lokale Pfade zulassen (kein Open-Redirect)."""
     if ziel and ziel.startswith("/") and not ziel.startswith("//"):
         return ziel
     return url_for("start.index")
@@ -16,18 +18,26 @@ def _sicheres_ziel(ziel: str | None) -> str:
 
 @bp.route("/anmelden", methods=["GET", "POST"])
 def login():
+    if current_user.is_authenticated:
+        return redirect(url_for("start.index"))
+
     ziel = request.values.get("next")
     if request.method == "POST":
-        if passwort_korrekt(request.form.get("passwort", "")):
-            session["bearbeiter"] = True
-            flash("Angemeldet – Bearbeitung freigeschaltet.", "ok")
+        benutzer = authentifiziere(request.form.get("username", "").strip(),
+                                   request.form.get("passwort", ""))
+        if benutzer:
+            login_user(benutzer)
+            benutzer.letzter_login = _jetzt()
+            db.session.commit()
+            flash(f"Angemeldet als {benutzer.name or benutzer.username}.", "ok")
             return redirect(_sicheres_ziel(ziel))
-        flash("Falsches Passwort.", "error")
+        flash("Benutzername oder Passwort falsch.", "error")
     return render_template("anmelden.html", ziel=ziel)
 
 
 @bp.route("/abmelden", methods=["POST"])
+@login_required
 def logout():
-    session.pop("bearbeiter", None)
+    logout_user()
     flash("Abgemeldet.", "ok")
     return redirect(url_for("start.index"))

@@ -3,14 +3,16 @@
 {% block inhalt %}
   <h1>Mannschaften</h1>
   <div class="werkzeugleiste">
+    {% if darf('organisator') %}
     <a class="knopf" href="{{ url_for('teams.neu') }}">+ Neue Mannschaft</a>
+    {% endif %}
     <a class="knopf klein grau" href="{{ url_for('export.mannschaften') }}">⤓ CSV-Export</a>
   </div>
 
   {% if teams %}
   <table>
     <thead>
-      <tr><th>Nr.</th><th>Name</th><th>Personen</th><th>Wehr / Ort</th><th>Kontakt</th><th></th></tr>
+      <tr><th>Nr.</th><th>Name</th><th>Personen</th><th>Wehr / Ort</th><th>Kontakt</th>{% if darf('organisator') %}<th></th>{% endif %}</tr>
     </thead>
     <tbody>
       {% for team in teams %}
@@ -27,6 +29,7 @@
         </td>
         <td>{{ team.wehr or "–" }}</td>
         <td>{{ team.kontakt or "–" }}</td>
+        {% if darf('organisator') %}
         <td>
           <a class="knopf klein grau" href="{{ url_for('teams.bearbeiten', team_id=team.id) }}">Bearbeiten</a>
           <form class="inline" method="post" action="{{ url_for('teams.loeschen', team_id=team.id) }}"
@@ -34,6 +37,7 @@
             <button class="knopf klein gefahr" type="submit">Löschen</button>
           </form>
         </td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>

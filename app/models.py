@@ -10,13 +10,80 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
 
 
 def _jetzt() -> datetime:
     return datetime.now(timezone.utc)
+
+
+# Rollen der Organisator-Mannschaft (Konzept aus MGRSoftware übernommen).
+# Der Administrator hat implizit alle Rechte.
+ROLLEN = {
+    "administrator": "Administrator",
+    "organisator": "Organisator",
+    "startrichter": "Startrichter",
+    "punkterichter": "Punkterichter",
+}
+
+
+class Benutzer(UserMixin, db.Model):
+    """Mitglied der Organisator-Mannschaft mit Login und Rollen."""
+    __tablename__ = "benutzer"
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    name = db.Column(db.String(120), default="")      # Anzeigename
+    password_hash = db.Column(db.String(255))
+    aktiv = db.Column(db.Boolean, default=True)
+    erstellt = db.Column(db.DateTime, default=_jetzt)
+    letzter_login = db.Column(db.DateTime)
+
+    rollen = db.relationship("BenutzerRolle", back_populates="benutzer",
+                             cascade="all, delete-orphan")
+
+    def set_password(self, passwort: str) -> None:
+        self.password_hash = generate_password_hash(passwort)
+
+    def check_password(self, passwort: str) -> bool:
+        if not self.password_hash:
+            return False
+        return check_password_hash(self.password_hash, passwort)
+
+    @property
+    def rollen_namen(self) -> list[str]:
+        return [r.rolle for r in self.rollen]
+
+    def ist_admin(self) -> bool:
+        return "administrator" in self.rollen_namen
+
+    def darf(self, *erlaubte_rollen: str) -> bool:
+        """True, wenn Administrator oder eine der erlaubten Rollen vorhanden."""
+        if self.ist_admin():
+            return True
+        return any(r in self.rollen_namen for r in erlaubte_rollen)
+
+    def __repr__(self) -> str:
+        return f"<Benutzer {self.username!r}>"
+
+
+class BenutzerRolle(db.Model):
+    __tablename__ = "benutzer_rolle"
+
+    id = db.Column(db.Integer, primary_key=True)
+    benutzer_id = db.Column(db.Integer, db.ForeignKey("benutzer.id"),
+                            nullable=False)
+    rolle = db.Column(db.String(40), nullable=False)
+
+    benutzer = db.relationship("Benutzer", back_populates="rollen")
+
+    __table_args__ = (
+        db.UniqueConstraint("benutzer_id", "rolle", name="uq_benutzer_rolle"),
+    )
 
 
 # Wertungsart einer Disziplin

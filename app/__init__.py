@@ -5,7 +5,7 @@ import os
 
 from flask import Flask
 
-from .models import db
+from .models import db, Benutzer, BenutzerRolle, ROLLEN
 from .wertung import format_zeit
 
 
@@ -17,9 +17,8 @@ def create_app(test_config: dict | None = None) -> Flask:
         SECRET_KEY=os.environ.get("SECRET_KEY", "dev-nur-lokal"),
         SQLALCHEMY_DATABASE_URI=f"sqlite:///{db_path}",
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
-        # Passwort für Bearbeiter (Ergebnis-/Datenpflege). Am Eventtag per
-        # Umgebungsvariable WETTBEWERB_PASSWORT setzen.
-        WETTBEWERB_PASSWORT=os.environ.get("WETTBEWERB_PASSWORT", "feuerwehr"),
+        # Startpasswort des Standard-Administrators (nur beim ersten Anlegen).
+        ADMIN_STARTPASSWORT=os.environ.get("ADMIN_STARTPASSWORT", "admin"),
     )
     if test_config:
         app.config.update(test_config)
@@ -28,15 +27,18 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     db.init_app(app)
 
-    # Jinja-Filter für Zeitanzeige
-    app.jinja_env.filters["zeit"] = format_zeit
+    # flask-login initialisieren
+    from .auth import login_manager, ist_angemeldet, darf
+    login_manager.init_app(app)
 
-    # Anmeldestatus in allen Templates verfügbar machen (für die Navigation)
-    from .auth import ist_angemeldet
+    # Jinja-Filter/-Globals
+    app.jinja_env.filters["zeit"] = format_zeit
     app.jinja_env.globals["ist_angemeldet"] = ist_angemeldet
+    app.jinja_env.globals["darf"] = darf
+    app.jinja_env.globals["ROLLEN"] = ROLLEN
 
     from .blueprints import (teams, disziplinen, wertung, zeitplan, start,
-                             auth, export, pdf)
+                             auth, export, pdf, benutzer)
     app.register_blueprint(start.bp)
     app.register_blueprint(teams.bp)
     app.register_blueprint(disziplinen.bp)
@@ -45,8 +47,25 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(auth.bp)
     app.register_blueprint(export.bp)
     app.register_blueprint(pdf.bp)
+    app.register_blueprint(benutzer.bp)
 
     with app.app_context():
         db.create_all()
+        _standard_admin_anlegen(app)
 
     return app
+
+
+def _standard_admin_anlegen(app: Flask) -> None:
+    """Legt beim ersten Start einen Administrator an, falls keiner existiert."""
+    if Benutzer.query.count() > 0:
+        return
+    admin = Benutzer(username="admin", name="Administrator", aktiv=True)
+    admin.set_password(app.config["ADMIN_STARTPASSWORT"])
+    admin.rollen.append(BenutzerRolle(rolle="administrator"))
+    db.session.add(admin)
+    db.session.commit()
+    app.logger.warning(
+        "Standard-Administrator 'admin' angelegt – Startpasswort '%s'. "
+        "Bitte nach dem ersten Login unter Benutzer ändern.",
+        app.config["ADMIN_STARTPASSWORT"])

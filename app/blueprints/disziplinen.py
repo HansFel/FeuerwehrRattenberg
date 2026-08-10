@@ -3,7 +3,7 @@ from flask import (Blueprint, flash, redirect, render_template, request,
                    url_for)
 
 from ..models import db, Disziplin, WERTUNG_ZEIT, WERTUNG_PUNKTE
-from ..auth import bearbeiter_noetig
+from ..auth import rolle_noetig
 
 bp = Blueprint("disziplinen", __name__, url_prefix="/disziplinen")
 
@@ -16,7 +16,7 @@ def liste():
 
 
 @bp.route("/neu", methods=["GET", "POST"])
-@bearbeiter_noetig
+@rolle_noetig("organisator")
 def neu():
     if request.method == "POST":
         d = _aus_formular(Disziplin())
@@ -32,7 +32,7 @@ def neu():
 
 
 @bp.route("/<int:disziplin_id>/bearbeiten", methods=["GET", "POST"])
-@bearbeiter_noetig
+@rolle_noetig("organisator")
 def bearbeiten(disziplin_id: int):
     d = db.get_or_404(Disziplin, disziplin_id)
     if request.method == "POST":
@@ -44,7 +44,7 @@ def bearbeiten(disziplin_id: int):
 
 
 @bp.route("/<int:disziplin_id>/loeschen", methods=["POST"])
-@bearbeiter_noetig
+@rolle_noetig("organisator")
 def loeschen(disziplin_id: int):
     d = db.get_or_404(Disziplin, disziplin_id)
     db.session.delete(d)

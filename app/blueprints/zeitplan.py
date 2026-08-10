@@ -3,7 +3,7 @@ from flask import (Blueprint, flash, redirect, render_template, request,
                    url_for)
 
 from ..models import db, Team, Disziplin, Startplatz
-from ..auth import ist_angemeldet
+from ..auth import darf
 
 bp = Blueprint("zeitplan", __name__, url_prefix="/zeitplan")
 
@@ -20,8 +20,9 @@ def disziplin(disziplin_id: int):
     disziplin = db.get_or_404(Disziplin, disziplin_id)
 
     if request.method == "POST":
-        if not ist_angemeldet():
-            flash("Bitte zuerst als Bearbeiter anmelden.", "error")
+        if not darf("startrichter", "organisator"):
+            flash("Zum Ändern der Startliste brauchst du die Rolle "
+                  "Startrichter oder Organisator (oder Administrator).", "error")
             return redirect(url_for("auth.login",
                                     next=url_for("zeitplan.disziplin",
                                                  disziplin_id=disziplin.id)))
