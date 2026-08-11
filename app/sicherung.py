@@ -40,6 +40,18 @@ def _endung() -> str:
     return ".sql.gz" if _ist_postgres() else ".sqlite.gz"
 
 
+def _instanzname() -> str:
+    """Kurzname der Instanz für Sicherungsdateien (z.B. 'silo', 'ffrattenberg').
+
+    Mehrere Sicherungen aus verschiedenen Apps/Instanzen landen oft im selben
+    Download-Ordner – der Dateiname muss allein erkennen lassen, wozu sie
+    gehört. Konvention aus MGRSoftware übernommen (siehe globale CLAUDE.md).
+    """
+    roh = current_app.config.get("INSTANCE_NAME", "app")
+    sicher = "".join(c if c.isalnum() else "-" for c in roh.lower()).strip("-")
+    return sicher or "app"
+
+
 def _db_datei() -> str:
     """Pfad der aktiven SQLite-Datei."""
     return db.engine.url.database
@@ -70,7 +82,7 @@ def erstellen(typ: str = "manuell", von: str = "") -> Sicherung:
     db.session.commit()                       # offenen Stand festschreiben
     # Mikrosekunden, damit zwei Sicherungen derselben Sekunde nicht kollidieren
     zeitstempel = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    dateiname = f"sicherung_{zeitstempel}{_endung()}"
+    dateiname = f"{_instanzname()}_sicherung_{zeitstempel}{_endung()}"
     ziel = os.path.join(_verzeichnis(), dateiname)
 
     if _ist_postgres():
@@ -117,6 +129,13 @@ def wiederherstellen(sicherung_id: int) -> None:
         raise FileNotFoundError(f"Sicherungsdatei fehlt: {s.dateiname}")
     if s.checksum and _sha256(quelle) != s.checksum:
         raise RuntimeError("Prüfsumme stimmt nicht – Datei evtl. beschädigt.")
+    if s.dateiname.endswith(_endung()) is False:
+        erwartet = "PostgreSQL (.sql.gz)" if _ist_postgres() else "SQLite (.sqlite.gz)"
+        gefunden = "PostgreSQL (.sql.gz)" if s.dateiname.endswith(".sql.gz") else "SQLite (.sqlite.gz)"
+        raise RuntimeError(
+            f"Diese Sicherung ist im Format {gefunden}, diese Instanz "
+            f"nutzt aber {erwartet}. Wiederherstellung nicht möglich – "
+            "die Formate sind nicht kompatibel.")
 
     # Aktuellen Stand vor dem Zurückspielen sichern
     erstellen(typ="vor-wiederherstellung", von=s.erstellt_von)
@@ -141,7 +160,7 @@ def synchronisiere() -> None:
 
     for f in dateien - bekannt:                # fehlende Metadaten ergänzen
         pfad = os.path.join(verzeichnis, f)
-        typ = "upload" if f.startswith("upload_") else "manuell"
+        typ = "upload" if "_upload_" in f else "manuell"
         db.session.add(Sicherung(dateiname=f, dateigroesse=os.path.getsize(pfad),
                                  checksum=_sha256(pfad), typ=typ))
     for s in Sicherung.query.all():            # verwaiste Metadaten entfernen
@@ -214,7 +233,7 @@ def hochladen(datei, von: str = "") -> Sicherung:
 
     zeitstempel = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     endung = ".sql.gz" if datei.filename.endswith(".sql.gz") else ".sqlite.gz"
-    dateiname = f"upload_{zeitstempel}{endung}"
+    dateiname = f"{_instanzname()}_upload_{zeitstempel}{endung}"
     ziel = os.path.join(_verzeichnis(), dateiname)
     datei.save(ziel)
 

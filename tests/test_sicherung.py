@@ -70,6 +70,25 @@ def test_wiederherstellen_holt_geloeschte_daten_zurueck(app):
         assert len([d for d in dateien if d.endswith(".sqlite.gz")]) == 2
 
 
+def test_wiederherstellen_verweigert_falsches_format(app):
+    """Ein .sql.gz (Postgres-Dump) darf auf einer SQLite-Instanz nicht als
+    Wiederherstellung akzeptiert werden – klare Fehlermeldung statt Absturz."""
+    with app.app_context():
+        pfad = os.path.join(app.instance_path, "sicherungen")
+        os.makedirs(pfad, exist_ok=True)
+        fremd = os.path.join(pfad, "fremd.sql.gz")
+        with open(fremd, "wb") as f:
+            f.write(b"kein echtes gzip, nur zum Testen der Format-Pruefung")
+
+        s = Sicherung(dateiname="fremd.sql.gz", dateigroesse=10,
+                      checksum=dienst._sha256(fremd), typ="upload")
+        db.session.add(s)
+        db.session.commit()
+
+        with pytest.raises(RuntimeError, match="nicht kompatibel"):
+            dienst.wiederherstellen(s.id)
+
+
 def test_aufbewahrung_begrenzt_anzahl(app):
     with app.app_context():
         for _ in range(3):
@@ -81,3 +100,27 @@ def test_aufbewahrung_begrenzt_anzahl(app):
 def test_groesse_formatiert():
     s = Sicherung(dateigroesse=2048)
     assert s.groesse_formatiert == "2.0 KB"
+
+
+def test_dateiname_enthaelt_instanzname(client, app):
+    """Sicherungsdateien müssen den Instanznamen tragen, damit man bei vielen
+    Sicherungen aus verschiedenen Apps/Instanzen erkennt, wozu sie gehören."""
+    _login(client)
+    client.post("/sicherung/erstellen")
+    with app.app_context():
+        s = Sicherung.query.first()
+        assert s.dateiname.startswith("ffrattenberg_sicherung_")
+
+
+def test_instanzname_aus_umgebungsvariable(tmp_path):
+    dbdatei = tmp_path / "wettbewerb.sqlite"
+    app = create_app({
+        "TESTING": True,
+        "SQLALCHEMY_DATABASE_URI": f"sqlite:///{dbdatei}",
+        "ADMIN_STARTPASSWORT": "admin",
+        "INSTANCE_NAME": "Silo Test!",   # unsichere Zeichen müssen bereinigt werden
+    })
+    app.instance_path = str(tmp_path)
+    with app.app_context():
+        s = dienst.erstellen(typ="manuell", von="admin")
+        assert s.dateiname.startswith("silo-test_sicherung_")

@@ -51,6 +51,11 @@ def create_app(test_config: dict | None = None) -> Flask:
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         # Startpasswort des Standard-Administrators (nur beim ersten Anlegen).
         ADMIN_STARTPASSWORT=os.environ.get("ADMIN_STARTPASSWORT", "admin"),
+        # Instanzname für Sicherungsdateien (mehrere Instanzen dieser App
+        # können parallel laufen, z.B. "silo" auf dem NAS) – Konvention aus
+        # MGRSoftware übernommen: INSTANCE_NAME > HOSTNAME > Kurzname.
+        INSTANCE_NAME=(os.environ.get("INSTANCE_NAME")
+                      or os.environ.get("HOSTNAME") or "ffrattenberg"),
     )
     if test_config:
         app.config.update(test_config)
