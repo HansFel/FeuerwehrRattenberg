@@ -79,6 +79,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.jinja_env.globals["ROLLEN"] = ROLLEN
     app.jinja_env.globals["BUILD_NUMMER"] = BUILD_NUMMER
     app.jinja_env.globals["BUILD_ZEIT"] = BUILD_ZEIT
+    app.jinja_env.globals["INSTANZ_NAME"] = app.config["INSTANCE_NAME"]
 
     from .blueprints import (teams, disziplinen, wertung, zeitplan, start,
                              auth, export, pdf, benutzer, sicherung,

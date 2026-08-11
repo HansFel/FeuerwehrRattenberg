@@ -57,8 +57,10 @@
   </main>
 
   <footer class="fuss">
-    <small>Lokale App · keine Daten verlassen diesen Rechner ·
-      Build {{ BUILD_NUMMER }} ({{ BUILD_ZEIT }})</small>
+    <small>120 Jahre Feuerwehr Rattenberg – Wettbewerbs-Organisation
+      {%- if INSTANZ_NAME and INSTANZ_NAME != 'ffrattenberg' %} · Instanz: {{ INSTANZ_NAME }}{% endif %}</small>
+    <span class="build-badge" title="Zeigt, ob ein Deployment den neuesten Code enthält">
+      Build {{ BUILD_NUMMER }} · {{ BUILD_ZEIT }}</span>
   </footer>
 </body>
 </html>
