@@ -6,6 +6,7 @@ import os
 from flask import Flask
 
 from .models import db, Benutzer, BenutzerRolle, ROLLEN
+from .version import BUILD_NUMMER, BUILD_ZEIT
 from .wertung import format_zeit
 
 
@@ -76,6 +77,8 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.jinja_env.globals["aktive_rolle"] = aktive_rolle
     app.jinja_env.globals["dashboard_zeigt"] = dashboard_zeigt
     app.jinja_env.globals["ROLLEN"] = ROLLEN
+    app.jinja_env.globals["BUILD_NUMMER"] = BUILD_NUMMER
+    app.jinja_env.globals["BUILD_ZEIT"] = BUILD_ZEIT
 
     from .blueprints import (teams, disziplinen, wertung, zeitplan, start,
                              auth, export, pdf, benutzer, sicherung,

@@ -33,6 +33,14 @@ def test_seiten_laden(client):
         assert client.get(pfad).status_code == 200
 
 
+def test_build_kennung_im_footer(client):
+    """Build-Nummer/-Zeit müssen sichtbar sein, um Deployments zu prüfen."""
+    from app.version import BUILD_NUMMER, BUILD_ZEIT
+    antwort = client.get("/")
+    assert f"Build {BUILD_NUMMER}".encode() in antwort.data
+    assert BUILD_ZEIT.encode() in antwort.data
+
+
 def test_team_mit_vier_personen(client):
     client.post("/anmelden", data={"username": "admin", "passwort": "admin"})
     client.post("/teams/neu", data={
