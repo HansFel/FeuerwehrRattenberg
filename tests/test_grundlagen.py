@@ -33,6 +33,18 @@ def test_seiten_laden(client):
         assert client.get(pfad).status_code == 200
 
 
+def test_rechtliche_seiten_erreichbar(client):
+    """Impressum/Datenschutz müssen ohne Login erreichbar sein (Zwei-Klick-Regel)."""
+    for pfad, ueberschrift in (("/impressum", "Impressum"),
+                               ("/datenschutz", "Datenschutzerklärung")):
+        antwort = client.get(pfad)
+        assert antwort.status_code == 200
+        assert ueberschrift.encode() in antwort.data
+    startseite = client.get("/").data
+    assert b'href="/impressum"' in startseite
+    assert b'href="/datenschutz"' in startseite
+
+
 def test_build_kennung_im_footer(client):
     """Build-Nummer/-Zeit müssen sichtbar sein, um Deployments zu prüfen."""
     from app.version import BUILD_NUMMER, BUILD_ZEIT

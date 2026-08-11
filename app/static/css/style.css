@@ -162,3 +162,8 @@ form.formular textarea { min-height: 4rem; }
   font-family: "Consolas", monospace; font-size: 0.8rem;
   padding: 0.25rem 0.7rem; border-radius: 20px;
 }
+
+.platzhalter {
+  background: #fff3b0; padding: 0.05rem 0.4rem; border-radius: 4px;
+  font-style: italic;
+}

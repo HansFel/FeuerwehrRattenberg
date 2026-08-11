@@ -81,6 +81,9 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.jinja_env.globals["BUILD_ZEIT"] = BUILD_ZEIT
     app.jinja_env.globals["INSTANZ_NAME"] = app.config["INSTANCE_NAME"]
 
+    from datetime import date
+    app.jinja_env.globals["heutiges_jahr"] = lambda: date.today().year
+
     from .blueprints import (teams, disziplinen, wertung, zeitplan, start,
                              auth, export, pdf, benutzer, sicherung,
                              anforderungen, nachrichten)

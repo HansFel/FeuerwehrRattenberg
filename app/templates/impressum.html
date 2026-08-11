@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block titel %}Impressum{% endblock %}
+{% block inhalt %}
+  <h1>Impressum</h1>
+
+  <div class="meldung error">
+    <strong>Hinweis für die Feuerwehr Rattenberg:</strong> Dies ist ein
+    Entwurf mit Platzhaltern (<span class="platzhalter">gelb markiert</span>).
+    Bitte alle Platzhalter durch die tatsächlichen Angaben ersetzen und die
+    Seite von einer verantwortlichen Person (z. B. Kommandant/Obmann) prüfen
+    lassen, bevor die App für den echten Wettbewerb mit echten
+    Teilnehmerdaten genutzt wird. Diese Seite ersetzt keine Rechtsberatung.
+  </div>
+
+  <h2>Angaben gemäß § 5 ECG / § 25 Mediengesetz</h2>
+  <p>
+    <span class="platzhalter">Freiwillige Feuerwehr Rattenberg</span><br>
+    <span class="platzhalter">Straße Hausnummer</span><br>
+    <span class="platzhalter">PLZ Ort</span><br>
+    Österreich
+  </p>
+
+  <h2>Vertretungsberechtigte Person</h2>
+  <p><span class="platzhalter">Name des Kommandanten / Obmanns</span></p>
+
+  <h2>Kontakt</h2>
+  <p>
+    E-Mail: <span class="platzhalter">kontakt@example.at</span><br>
+    Telefon: <span class="platzhalter">+43 ...</span>
+  </p>
+
+  <h2>Vereinsregisterzahl (ZVR)</h2>
+  <p><span class="platzhalter">ZVR-Zahl eintragen, falls vorhanden</span></p>
+
+  <h2>Zweck dieser Website</h2>
+  <p>Organisation des Wettbewerbs zum 120-Jahr-Jubiläum der Feuerwehr
+     Rattenberg (Mannschafts-, Ergebnis- und Zeitplanverwaltung).</p>
+
+  <h2>Haftungsausschluss</h2>
+  <p>Trotz sorgfältiger inhaltlicher Kontrolle übernehmen wir keine Haftung
+     für die Richtigkeit, Vollständigkeit und Aktualität der bereitgestellten
+     Inhalte.</p>
+
+  <p style="margin-top:2rem"><small class="leer">
+    © {{ heutiges_jahr() }} Feuerwehr Rattenberg</small></p>
+{% endblock %}
