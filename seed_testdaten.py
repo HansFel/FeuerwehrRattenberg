@@ -1,13 +1,15 @@
-"""Legt 20 Test-Mannschaften mit je 4 Teilnehmern (Fantasienamen) an.
+"""Legt 20 Test-Mannschaften mit je 4 Teilnehmern (Fantasienamen) sowie eine
+Beispiel-Speisekarte (Essen &amp; Getränke) an.
 
 Aufruf:  python seed_testdaten.py
-Idempotent: bereits vorhandene Team-Namen werden übersprungen.
+Idempotent: bereits vorhandene Namen werden übersprungen.
 NUR für Test-/Demodaten gedacht – nicht in Produktion ausführen.
 """
 import random
 
 from app import create_app
-from app.models import db, Team, Mitglied
+from app.models import (db, Team, Mitglied, Artikel, KATEGORIE_ESSEN,
+                        KATEGORIE_GETRAENK)
 
 TEAM_NAMEN = [
     "Die Löschdrachen", "Feuerteufel Rattenberg", "Wasserratten",
@@ -37,12 +39,33 @@ SPITZNAMEN = [
 ]
 
 
+SPEISEKARTE = [
+    # (Name, Kategorie, Preis in €, Punkte fürs Team pro Einheit)
+    ("Bier (Krügerl)", KATEGORIE_GETRAENK, 4.00, 2),
+    ("Bier (Seidel)", KATEGORIE_GETRAENK, 2.50, 1),
+    ("Almdudler", KATEGORIE_GETRAENK, 2.50, 1),
+    ("Cola / Fanta / Sprite", KATEGORIE_GETRAENK, 2.50, 1),
+    ("Mineralwasser", KATEGORIE_GETRAENK, 2.00, 1),
+    ("Apfelsaft gespritzt", KATEGORIE_GETRAENK, 2.50, 1),
+    ("Roter Spritzer", KATEGORIE_GETRAENK, 3.00, 1),
+    ("Obstler (2cl)", KATEGORIE_GETRAENK, 2.00, 3),
+    ("Grillhendl (halb)", KATEGORIE_ESSEN, 8.00, 2),
+    ("Bratwurst mit Brot", KATEGORIE_ESSEN, 4.50, 1),
+    ("Leberkässemmel", KATEGORIE_ESSEN, 3.50, 1),
+    ("Gulasch mit Brot", KATEGORIE_ESSEN, 7.00, 1),
+    ("Käsekrainer", KATEGORIE_ESSEN, 4.00, 1),
+    ("Pommes", KATEGORIE_ESSEN, 3.00, 1),
+    ("Kuchen (Stück)", KATEGORIE_ESSEN, 2.50, 1),
+    ("Eis (Kugel)", KATEGORIE_ESSEN, 1.50, 0),
+]
+
+
 def _telefon(rng: random.Random) -> str:
     vorwahl = rng.choice(["0660", "0664", "0676", "0699"])
     return f"{vorwahl} {rng.randint(100, 999)} {rng.randint(1000, 9999)}"
 
 
-def hauptteil() -> None:
+def teams_anlegen() -> int:
     rng = random.Random(120)          # fester Seed → reproduzierbar
     angelegt = 0
     for nr, teamname in enumerate(TEAM_NAMEN, start=1):
@@ -61,7 +84,28 @@ def hauptteil() -> None:
         db.session.add(team)
         angelegt += 1
     db.session.commit()
-    print(f"{angelegt} Test-Teams angelegt. Teams gesamt: {Team.query.count()}")
+    return angelegt
+
+
+def speisekarte_anlegen() -> int:
+    angelegt = 0
+    for reihenfolge, (name, kategorie, preis, punkte) in enumerate(SPEISEKARTE):
+        if Artikel.query.filter_by(name=name).first():
+            continue
+        db.session.add(Artikel(name=name, kategorie=kategorie, preis=preis,
+                               punkte_pro_einheit=punkte, aktiv=True,
+                               reihenfolge=reihenfolge))
+        angelegt += 1
+    db.session.commit()
+    return angelegt
+
+
+def hauptteil() -> None:
+    teams = teams_anlegen()
+    print(f"{teams} Test-Teams angelegt. Teams gesamt: {Team.query.count()}")
+    artikel = speisekarte_anlegen()
+    print(f"{artikel} Speisekarten-Artikel angelegt. "
+         f"Artikel gesamt: {Artikel.query.count()}")
 
 
 if __name__ == "__main__":
