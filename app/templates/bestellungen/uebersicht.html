@@ -18,6 +18,20 @@
     </div>
   </div>
 
+  {% if team_punkte %}
+  <h2>🏆 Punkte aus Bestellungen je Team</h2>
+  <table>
+    <thead><tr><th>Team</th><th>Punkte</th></tr></thead>
+    <tbody>
+      {% for z in team_punkte %}
+      <tr><td>{{ z.team.name }}</td><td>{{ z.punkte }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p><small class="leer">Diese Punkte fließen aktuell nicht automatisch in
+     die Gesamtwertung der Disziplinen ein.</small></p>
+  {% endif %}
+
   <h2>Schnellzugriff: Tisch aufrufen</h2>
   <form method="post" action="{{ url_for('bestellung.tisch_suche') }}" class="zuweis-form">
     <input type="number" name="tisch" min="1" placeholder="Tischnummer" required>
@@ -37,14 +51,16 @@
   {% if bestellungen %}
   <table>
     <thead>
-      <tr><th>Zeit</th><th>Tisch</th><th>Artikel</th><th>Betrag</th><th>Erfasst von</th><th>Status</th><th></th></tr>
+      <tr><th>Zeit</th><th>Tisch</th><th>Artikel</th><th>Team</th><th>Betrag</th><th>Erfasst von</th><th>Status</th><th></th></tr>
     </thead>
     <tbody>
       {% for b in bestellungen %}
+      {% set team = b.positionen[0].team if b.positionen else none %}
       <tr>
         <td>{{ b.erstellt.strftime('%H:%M') if b.erstellt else '' }}</td>
         <td>{{ b.tisch_nummer }}</td>
         <td>{% for p in b.positionen %}{{ p.menge }}× {{ p.artikel_name }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+        <td>{% if team %}{{ team.name }} <small class="leer">({{ b.gesamtpunkte }} Pkt.)</small>{% else %}<span class="leer">–</span>{% endif %}</td>
         <td>{{ "%.2f"|format(b.gesamtbetrag) }} €</td>
         <td>{{ b.erfasst_von or "Gast" }}</td>
         <td>{% if b.bezahlt %}✅ bezahlt{% else %}<span class="leer">offen</span>{% endif %}</td>

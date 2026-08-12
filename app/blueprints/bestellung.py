@@ -29,13 +29,15 @@ def bestellen(tisch: int):
         if current_user.is_authenticated and darf("kellner"):
             bestellung.erfasst_von = current_user.username
 
+        # Ein Team gilt für die gesamte (Sammel-)Bestellung, nicht pro Artikel.
+        team_id = request.form.get("team_id") or None
+        team_id = int(team_id) if team_id else None
+
         hinzugefuegt = False
         for a in artikel:
             menge = _int_or_null(request.form.get(f"menge_{a.id}"))
             if not menge or menge <= 0:
                 continue
-            team_id = request.form.get(f"team_{a.id}") or None
-            team_id = int(team_id) if team_id else None
             bestellung.positionen.append(BestellPosition(
                 artikel_id=a.id, artikel_name=a.name, einzelpreis=a.preis,
                 menge=menge, team_id=team_id,
@@ -82,10 +84,24 @@ def uebersicht():
     summe_offen = sum(b.gesamtbetrag for b in alle if not b.bezahlt)
     summe_bezahlt = sum(b.gesamtbetrag for b in alle if b.bezahlt)
 
+    punkte_je_team: dict[int, int] = {}
+    for b in alle:
+        for p in b.positionen:
+            if p.team_id:
+                punkte_je_team[p.team_id] = (punkte_je_team.get(p.team_id, 0)
+                                             + (p.punkte_gesamt or 0))
+    teams_nach_id = {t.id: t for t in Team.query.filter(
+        Team.id.in_(punkte_je_team.keys())).all()}
+    team_punkte = sorted(
+        ({"team": teams_nach_id[tid], "punkte": punkte}
+         for tid, punkte in punkte_je_team.items()),
+        key=lambda z: z["punkte"], reverse=True)
+
     return render_template("bestellungen/uebersicht.html",
                            bestellungen=bestellungen, filter_status=filter_status,
                            summe_offen=summe_offen, summe_bezahlt=summe_bezahlt,
-                           summe_gesamt=summe_offen + summe_bezahlt)
+                           summe_gesamt=summe_offen + summe_bezahlt,
+                           team_punkte=team_punkte)
 
 
 @bp.route("/bestellungen/<int:bestellung_id>/bezahlt", methods=["POST"])

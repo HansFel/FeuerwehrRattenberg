@@ -3,43 +3,40 @@
 {% block inhalt %}
   <h1>🍽️ Tisch {{ tisch }} – Essen &amp; Getränke bestellen</h1>
   <p>Wähle die gewünschten Artikel und Mengen. Ihr könnt auch für mehrere
-     Personen gemeinsam in einer Bestellung auswählen. Optional: vergib pro
-     Artikel Punkte an ein Wettkampfteam.</p>
+     Personen gemeinsam in einer Bestellung auswählen.</p>
 
   {% if not hat_artikel %}
     <p class="leer">Die Speisekarte ist gerade leer – bitte beim Personal
        nachfragen.</p>
   {% else %}
   <form method="post">
+    {% if teams %}
+    <div class="formular" style="max-width:100%; margin-bottom:1rem;">
+      <label for="team_id">Punkte für dieses Team vergeben (gilt für die
+        ganze Bestellung, optional)</label>
+      <select id="team_id" name="team_id">
+        <option value="">– kein Team –</option>
+        {% for t in teams %}
+          <option value="{{ t.id }}">{{ t.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
     {% for kategorie, artikel_liste in nach_kategorie.items() %}
       {% if artikel_liste %}
       <h2>{{ KATEGORIEN.get(kategorie, kategorie) }}</h2>
       <table>
         <thead>
-          <tr><th>Artikel</th><th>Preis</th><th>Menge</th>
-              {% if teams %}<th>Punkte für Team</th>{% endif %}</tr>
+          <tr><th>Artikel</th><th>Preis</th><th>Menge</th></tr>
         </thead>
         <tbody>
           {% for a in artikel_liste %}
           <tr>
-            <td>{{ a.name }}</td>
+            <td>{{ a.name }}
+              {%- if a.punkte_pro_einheit %} <small class="leer">({{ a.punkte_pro_einheit }} Pkt./Stk.)</small>{% endif %}</td>
             <td>{{ "%.2f"|format(a.preis) }} €</td>
             <td><input type="number" name="menge_{{ a.id }}" min="0" value="0" style="width:4.5rem"></td>
-            {% if teams %}
-            <td>
-              {% if a.punkte_pro_einheit %}
-              <select name="team_{{ a.id }}">
-                <option value="">– kein Team –</option>
-                {% for t in teams %}
-                  <option value="{{ t.id }}">{{ t.name }}</option>
-                {% endfor %}
-              </select>
-              <small class="leer">({{ a.punkte_pro_einheit }} Pkt./Stk.)</small>
-              {% else %}
-              <span class="leer">–</span>
-              {% endif %}
-            </td>
-            {% endif %}
           </tr>
           {% endfor %}
         </tbody>

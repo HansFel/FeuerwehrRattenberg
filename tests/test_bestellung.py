@@ -60,7 +60,7 @@ def test_gast_bestellung_mit_teampunkten(client, app):
 
     r = client.post("/bestellen/7", data={
         f"menge_{bier.id}": "3",
-        f"team_{bier.id}": str(team.id),
+        "team_id": str(team.id),
     }, follow_redirects=True)
     assert r.status_code == 200
     assert "10.50".encode() in r.data or "10,50".encode() in r.data \
@@ -77,6 +77,25 @@ def test_gast_bestellung_mit_teampunkten(client, app):
         assert pos.punkte_gesamt == 6            # 2 Pkt./Stk. * 3
         assert pos.team_id == team.id
         assert b.gesamtbetrag == pytest.approx(10.5)
+
+
+def test_ein_team_gilt_fuer_gesamte_bestellung(client, app):
+    """Ein Team wird EINMAL pro Bestellung gewählt, nicht pro Artikel –
+    muss auf allen Positionen derselben Bestellung landen."""
+    with app.app_context():
+        bier = Artikel.query.filter_by(name="Bier").first()
+        gulasch = Artikel.query.filter_by(name="Gulasch").first()
+        team = Team.query.first()
+
+    client.post("/bestellen/8", data={
+        f"menge_{bier.id}": "2",
+        f"menge_{gulasch.id}": "1",
+        "team_id": str(team.id),
+    })
+    with app.app_context():
+        b = Bestellung.query.filter_by(tisch_nummer=8).first()
+        assert len(b.positionen) == 2
+        assert all(p.team_id == team.id for p in b.positionen)
 
 
 def test_leere_bestellung_wird_abgelehnt(client):

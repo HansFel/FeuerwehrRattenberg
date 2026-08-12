@@ -3,12 +3,18 @@
 {% block inhalt %}
   <h1>✅ Bestellung aufgenommen – Tisch {{ bestellung.tisch_nummer }}</h1>
 
+  {% set team = bestellung.positionen[0].team if bestellung.positionen else none %}
+  {% if team %}
+    <p>Punkte für dieses Team: <strong>{{ team.name }}</strong>
+       ({{ bestellung.gesamtpunkte }} Punkte)</p>
+  {% endif %}
+
   <table>
     <thead><tr><th>Artikel</th><th>Menge</th><th>Preis</th><th>Zwischensumme</th></tr></thead>
     <tbody>
       {% for p in bestellung.positionen %}
       <tr>
-        <td>{{ p.artikel_name }}{% if p.team %} <small class="leer">(→ {{ p.team.name }})</small>{% endif %}</td>
+        <td>{{ p.artikel_name }}</td>
         <td>{{ p.menge }}</td>
         <td>{{ "%.2f"|format(p.einzelpreis) }} €</td>
         <td>{{ "%.2f"|format(p.zwischensumme) }} €</td>
