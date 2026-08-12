@@ -82,6 +82,29 @@
         <a class="knopf grau" href="{{ url_for('disziplinen.neu') }}">+ Neu</a>
       </div>
     </section>
+    <section class="dash-karte">
+      <h2>🍽️ Speisekarte &amp; Tische</h2>
+      <p class="leer">Essen &amp; Getränke pflegen, Tisch-QR-Codes drucken.</p>
+      <div class="werkzeugleiste">
+        <a class="knopf" href="{{ url_for('speisekarte.liste') }}">Speisekarte</a>
+        <a class="knopf grau" href="{{ url_for('speisekarte.tische') }}">🏷️ QR-Codes</a>
+      </div>
+    </section>
+    {% endif %}
+
+    {% if dashboard_zeigt('kellner') %}
+    <section class="dash-karte">
+      <h2>🍽️ Bestellungen &amp; Abrechnung</h2>
+      <p class="leer">Bestellungen ansehen, als bezahlt markieren, Tisch direkt aufrufen.</p>
+      <div class="werkzeugleiste">
+        <a class="knopf" href="{{ url_for('bestellung.uebersicht') }}">Zur Abrechnung</a>
+      </div>
+      <form method="post" action="{{ url_for('bestellung.tisch_suche') }}"
+            class="werkzeugleiste" style="margin-top:0.6rem">
+        <input type="number" name="tisch" min="1" placeholder="Tischnr." style="width:6rem" required>
+        <button class="knopf grau" type="submit">Tisch öffnen</button>
+      </form>
+    </section>
     {% endif %}
 
     {% if aktive_rolle() == 'administrator' %}

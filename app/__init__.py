@@ -40,6 +40,11 @@ def create_app(test_config: dict | None = None) -> Flask:
     if prefix:
         app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=prefix)
 
+    # X-Forwarded-Proto/-Host von Traefik vertrauen, damit url_for(_external=True)
+    # (z.B. für QR-Code-Links) korrekt "https://" statt "http://" erzeugt.
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
     db_path = os.path.join(app.instance_path, "wettbewerb.sqlite")
     # Produktion: PostgreSQL 17 via DATABASE_URL (wie mgr-test1);
     # lokal ohne Variable: SQLite-Datei als Fallback.
@@ -86,7 +91,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     from .blueprints import (teams, disziplinen, wertung, zeitplan, start,
                              auth, export, pdf, benutzer, sicherung,
-                             anforderungen, nachrichten)
+                             anforderungen, nachrichten, speisekarte, bestellung)
 
     from flask_login import current_user as _current_user
 
@@ -109,6 +114,8 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(sicherung.bp)
     app.register_blueprint(anforderungen.bp)
     app.register_blueprint(nachrichten.bp)
+    app.register_blueprint(speisekarte.bp)
+    app.register_blueprint(bestellung.bp)
 
     with app.app_context():
         db.create_all()

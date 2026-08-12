@@ -28,6 +28,7 @@ ROLLEN = {
     "organisator": "Organisator",
     "startrichter": "Startrichter",
     "punkterichter": "Punkterichter",
+    "kellner": "Kellner",
 }
 
 
@@ -298,3 +299,82 @@ class Startplatz(db.Model):
 
     team = db.relationship("Team", back_populates="startplaetze")
     disziplin = db.relationship("Disziplin", back_populates="startplaetze")
+
+
+# ── Essen & Getränke (Gäste-Bestellsystem) ───────────────────────────────────
+
+KATEGORIE_ESSEN = "essen"
+KATEGORIE_GETRAENK = "getraenk"
+KATEGORIEN = {KATEGORIE_ESSEN: "Essen", KATEGORIE_GETRAENK: "Getränk"}
+
+
+class Artikel(db.Model):
+    """Ein Essens- oder Getränke-Artikel der Speisekarte (vom Organisator
+    gepflegt)."""
+    __tablename__ = "artikel"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    kategorie = db.Column(db.String(20), default=KATEGORIE_GETRAENK)
+    preis = db.Column(db.Float, nullable=False, default=0.0)
+    # Punkte, die ein Wettkampfteam pro bestellter Einheit bekommt
+    punkte_pro_einheit = db.Column(db.Integer, default=0)
+    aktiv = db.Column(db.Boolean, default=True)
+    reihenfolge = db.Column(db.Integer, default=0)
+
+    def __repr__(self) -> str:
+        return f"<Artikel {self.name!r}>"
+
+
+class Bestellung(db.Model):
+    """Eine (Sammel-)Bestellung an einem Tisch – von einem Gast per QR-Code
+    selbst aufgegeben oder von einem Kellner erfasst."""
+    __tablename__ = "bestellung"
+
+    id = db.Column(db.Integer, primary_key=True)
+    tisch_nummer = db.Column(db.Integer, nullable=False)
+    erstellt = db.Column(db.DateTime, default=_jetzt)
+    # Kellner-Benutzername, falls vom Personal erfasst; leer = Gast-Selbstbestellung
+    erfasst_von = db.Column(db.String(80), default="")
+    bezahlt = db.Column(db.Boolean, default=False)
+    bezahlt_am = db.Column(db.DateTime)
+
+    positionen = db.relationship("BestellPosition", back_populates="bestellung",
+                                 cascade="all, delete-orphan")
+
+    @property
+    def gesamtbetrag(self) -> float:
+        return sum(p.zwischensumme for p in self.positionen)
+
+    @property
+    def gesamtpunkte(self) -> int:
+        return sum(p.punkte_gesamt or 0 for p in self.positionen)
+
+    def __repr__(self) -> str:
+        return f"<Bestellung Tisch {self.tisch_nummer}>"
+
+
+class BestellPosition(db.Model):
+    """Eine Zeile einer Bestellung: ein Artikel in einer Menge, optional mit
+    Team-Punkten. Preis/Punkte werden zum Bestellzeitpunkt eingefroren
+    (Schnappschuss), damit spätere Änderungen an der Speisekarte bereits
+    aufgegebene Bestellungen nicht rückwirkend verändern."""
+    __tablename__ = "bestellposition"
+
+    id = db.Column(db.Integer, primary_key=True)
+    bestellung_id = db.Column(db.Integer, db.ForeignKey("bestellung.id"),
+                              nullable=False)
+    artikel_id = db.Column(db.Integer, db.ForeignKey("artikel.id"))
+    artikel_name = db.Column(db.String(120), nullable=False)   # Schnappschuss
+    einzelpreis = db.Column(db.Float, nullable=False, default=0.0)  # Schnappschuss
+    menge = db.Column(db.Integer, nullable=False, default=1)
+    team_id = db.Column(db.Integer, db.ForeignKey("team.id"))
+    punkte_gesamt = db.Column(db.Integer, default=0)           # Schnappschuss * Menge
+
+    bestellung = db.relationship("Bestellung", back_populates="positionen")
+    artikel = db.relationship("Artikel")
+    team = db.relationship("Team")
+
+    @property
+    def zwischensumme(self) -> float:
+        return self.einzelpreis * self.menge

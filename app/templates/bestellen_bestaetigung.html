@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block titel %}Bestellung aufgenommen{% endblock %}
+{% block inhalt %}
+  <h1>✅ Bestellung aufgenommen – Tisch {{ bestellung.tisch_nummer }}</h1>
+
+  <table>
+    <thead><tr><th>Artikel</th><th>Menge</th><th>Preis</th><th>Zwischensumme</th></tr></thead>
+    <tbody>
+      {% for p in bestellung.positionen %}
+      <tr>
+        <td>{{ p.artikel_name }}{% if p.team %} <small class="leer">(→ {{ p.team.name }})</small>{% endif %}</td>
+        <td>{{ p.menge }}</td>
+        <td>{{ "%.2f"|format(p.einzelpreis) }} €</td>
+        <td>{{ "%.2f"|format(p.zwischensumme) }} €</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p style="margin-top:1rem; font-size:1.3rem">
+    <strong>Gesamtbetrag: {{ "%.2f"|format(bestellung.gesamtbetrag) }} €</strong>
+  </p>
+  <p class="leer">Bitte den Betrag beim Kellner/an der Theke bezahlen.</p>
+
+  <div class="werkzeugleiste" style="margin-top:1rem">
+    <a class="knopf" href="{{ url_for('bestellung.bestellen', tisch=bestellung.tisch_nummer) }}">
+      + Weitere Bestellung für diesen Tisch</a>
+  </div>
+{% endblock %}

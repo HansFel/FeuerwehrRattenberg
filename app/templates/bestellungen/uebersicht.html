@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block titel %}Bestellungen / Abrechnung{% endblock %}
+{% block inhalt %}
+  <h1>🧾 Bestellungen / Abrechnung</h1>
+
+  <div class="karten">
+    <div class="karte">
+      <div class="zahl">{{ "%.2f"|format(summe_offen) }} €</div>
+      <div>noch offen</div>
+    </div>
+    <div class="karte">
+      <div class="zahl">{{ "%.2f"|format(summe_bezahlt) }} €</div>
+      <div>bereits bezahlt</div>
+    </div>
+    <div class="karte">
+      <div class="zahl">{{ "%.2f"|format(summe_gesamt) }} €</div>
+      <div>Gesamtumsatz</div>
+    </div>
+  </div>
+
+  <h2>Schnellzugriff: Tisch aufrufen</h2>
+  <form method="post" action="{{ url_for('bestellung.tisch_suche') }}" class="zuweis-form">
+    <input type="number" name="tisch" min="1" placeholder="Tischnummer" required>
+    <button class="knopf" type="submit">Bestellseite öffnen</button>
+  </form>
+
+  <h2>Bestellungen</h2>
+  <div class="werkzeugleiste">
+    <a class="knopf klein {{ '' if filter_status != 'offen' else 'grau' }}"
+       href="{{ url_for('bestellung.uebersicht', status='offen') }}">Offen</a>
+    <a class="knopf klein {{ '' if filter_status != 'bezahlt' else 'grau' }}"
+       href="{{ url_for('bestellung.uebersicht', status='bezahlt') }}">Bezahlt</a>
+    <a class="knopf klein {{ '' if filter_status != 'alle' else 'grau' }}"
+       href="{{ url_for('bestellung.uebersicht', status='alle') }}">Alle</a>
+  </div>
+
+  {% if bestellungen %}
+  <table>
+    <thead>
+      <tr><th>Zeit</th><th>Tisch</th><th>Artikel</th><th>Betrag</th><th>Erfasst von</th><th>Status</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for b in bestellungen %}
+      <tr>
+        <td>{{ b.erstellt.strftime('%H:%M') if b.erstellt else '' }}</td>
+        <td>{{ b.tisch_nummer }}</td>
+        <td>{% for p in b.positionen %}{{ p.menge }}× {{ p.artikel_name }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+        <td>{{ "%.2f"|format(b.gesamtbetrag) }} €</td>
+        <td>{{ b.erfasst_von or "Gast" }}</td>
+        <td>{% if b.bezahlt %}✅ bezahlt{% else %}<span class="leer">offen</span>{% endif %}</td>
+        <td>
+          <form class="inline" method="post"
+                action="{{ url_for('bestellung.bezahlt_umschalten', bestellung_id=b.id, status=filter_status) }}">
+            <button class="knopf klein {{ 'grau' if b.bezahlt else '' }}" type="submit">
+              {{ '↩ als offen markieren' if b.bezahlt else '✓ als bezahlt markieren' }}</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="leer">Keine Bestellungen in dieser Ansicht.</p>
+  {% endif %}
+{% endblock %}

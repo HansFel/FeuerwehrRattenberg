@@ -15,14 +15,16 @@
         {%- elif r == 'organisator' %}🗂️
         {%- elif r == 'startrichter' %}🕒
         {%- elif r == 'punkterichter' %}🏁
+        {%- elif r == 'kellner' %}🍽️
         {%- else %}👤{% endif %}
         {{ ROLLEN.get(r, r) }}
       </h2>
       <p class="leer">
         {%- if r == 'administrator' %}Alle Bereiche inkl. Personen &amp; Rollen.
-        {%- elif r == 'organisator' %}Mannschaften, Disziplinen, Startlisten.
+        {%- elif r == 'organisator' %}Mannschaften, Disziplinen, Startlisten, Speisekarte.
         {%- elif r == 'startrichter' %}Startlisten &amp; Zeitplan.
         {%- elif r == 'punkterichter' %}Ergebnisse erfassen.
+        {%- elif r == 'kellner' %}Bestellungen &amp; Abrechnung.
         {%- else %}—{% endif %}
       </p>
       <button class="knopf" type="submit">In dieser Rolle arbeiten</button>

@@ -2,6 +2,7 @@ Flask>=3.0
 Flask-SQLAlchemy>=3.1
 Flask-Login>=0.6
 reportlab>=4.0
+qrcode>=7.4
 # Nur für den Produktionsbetrieb mit PostgreSQL 17 nötig
 # (lokal mit SQLite nicht erforderlich):
 psycopg2-binary>=2.9.9
