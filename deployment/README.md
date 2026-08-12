@@ -47,12 +47,27 @@ Das legt an:
 
 ## Wenn sich der App-Code ändert (Update ausrollen)
 
+**Wichtig:** `docker compose up` (auch ohne `--build`, z.B. per Klick in
+UGOS) baut das Image **nicht neu**, wenn bereits ein Image mit dem
+angegebenen Tag existiert – das gilt unabhängig davon, was sich im
+Quellcode geändert hat. Deshalb trägt der Image-Tag in
+`Z:\siloplanenrace\docker-compose.yml` die Build-Nummer, z.B.
+`siloplanenrace:build5` (passend zu `BUILD_NUMMER` in `app/version.py`).
+
+Beim Ausrollen eines neuen Stands:
+
 1. Aktuellen Stand von `C:\dev\FeuerwehrRattenberg` nach `Z:\siloplanenrace\repo`
    kopieren (überschreiben; `instance\`, `.venv\`, `__pycache__` auslassen)
-2. Auf dem NAS erneut:
-   ```bash
-   docker compose up -d --build
-   ```
+2. In `Z:\siloplanenrace\docker-compose.yml` den Image-Tag
+   (`image: siloplanenrace:buildN`) auf die neue `BUILD_NUMMER` erhöhen
+3. Auf dem NAS wie gewohnt deployen (egal ob per `docker compose up -d`
+   oder per UGOS-Klick) – da der Tag neu ist, **muss** ein echter Rebuild
+   passieren, ein Löschen des alten Images ist nicht mehr nötig
+4. Nach dem Deploy im Footer der Seite prüfen: zeigt es die erwartete
+   „Build N (Zeitpunkt)"? Wenn ja, ist der neue Stand live.
+
+Alte `siloplanenrace:buildN`-Images (mit niedrigerer Nummer) können jederzeit
+gefahrlos manuell gelöscht werden, um Speicherplatz freizugeben.
 
 ## Datensicherung
 

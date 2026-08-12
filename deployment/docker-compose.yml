@@ -32,7 +32,13 @@ services:
     build:
       context: /volume1/docker/instanzen/siloplanenrace/repo
       dockerfile: deployment/Dockerfile
-    image: siloplanenrace:latest
+    # WICHTIG: Der Image-Tag "buildN" muss bei jedem neuen Code-Stand erhoeht
+    # werden (siehe app/version.py -> BUILD_NUMMER). Nur so erzwingt
+    # "docker compose up" (auch OHNE --build, z.B. per Klick in UGOS) einen
+    # echten Neu-Build - ein bereits vorhandener Tag wird sonst einfach
+    # wiederverwendet, ohne neu zu bauen. Alte "buildN"-Images koennen
+    # gefahrlos manuell geloescht werden, sobald ein neuerer Tag laeuft.
+    image: siloplanenrace:build1
     pull_policy: build
     container_name: app-silo
     restart: unless-stopped
