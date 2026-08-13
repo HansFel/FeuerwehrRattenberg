@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block titel %}Pfand – Tisch {{ tisch }}{% endblock %}
+{% block inhalt %}
+  <h1>🥤 Pfand-Rückgabe – Tisch {{ tisch }}</h1>
+
+  {% if offene %}
+  <p style="font-size:1.2rem">Noch offen: <strong>{{ "%.2f"|format(offener_betrag) }} €</strong></p>
+
+  <div class="pfand-liste">
+    {% for p in offene %}
+    <div class="pfand-zeile">
+      <div class="pfand-info">
+        <strong>{{ p.artikel_name }}</strong><br>
+        <span class="leer">{{ p.pfand_offen_anzahl }} von {{ p.menge }} offen
+          · {{ "%.2f"|format(p.pfand_pro_einheit) }} €/Stk.
+          · {{ "%.2f"|format(p.pfand_offen_betrag) }} € offen</span>
+      </div>
+      <div class="pfand-aktionen">
+        <form class="inline" method="post"
+              action="{{ url_for('bestellung.pfand_rueckgabe', position_id=p.id) }}">
+          <button class="knopf gross" type="submit">-1 zurück</button>
+        </form>
+        <form class="inline" method="post"
+              action="{{ url_for('bestellung.pfand_rueckgabe', position_id=p.id) }}">
+          <input type="hidden" name="alle" value="1">
+          <button class="knopf gross grau" type="submit">Alle zurück</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="leer">Kein offenes Pfand für Tisch {{ tisch }}.</p>
+  {% endif %}
+
+  <div class="werkzeugleiste" style="margin-top:1.5rem">
+    <a class="knopf grau" href="{{ url_for('bestellung.uebersicht') }}">Zurück zur Übersicht</a>
+  </div>
+{% endblock %}

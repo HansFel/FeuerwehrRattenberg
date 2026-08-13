@@ -9,7 +9,7 @@ from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
-from ..models import db, Artikel, KATEGORIEN, KATEGORIE_GETRAENK
+from ..models import db, Artikel, BestellPosition, KATEGORIEN, KATEGORIE_GETRAENK
 from ..auth import rolle_noetig
 
 bp = Blueprint("speisekarte", __name__, url_prefix="/speisekarte")
@@ -59,6 +59,11 @@ def bearbeiten(artikel_id: int):
 @rolle_noetig("organisator")
 def loeschen(artikel_id: int):
     a = db.get_or_404(Artikel, artikel_id)
+    # Bereits aufgegebene Bestellungen speichern Name/Preis/Pfand als
+    # Schnappschuss auf der Position selbst – die Live-Referenz auf den
+    # Artikel wird beim Löschen nur gekappt, nicht die Bestellhistorie.
+    BestellPosition.query.filter_by(artikel_id=artikel_id).update(
+        {"artikel_id": None})
     db.session.delete(a)
     db.session.commit()
     flash("Artikel gelöscht.", "ok")
@@ -77,6 +82,11 @@ def _aus_formular(a: Artikel) -> Artikel:
         a.punkte_pro_einheit = int(request.form.get("punkte_pro_einheit", "0") or 0)
     except ValueError:
         a.punkte_pro_einheit = 0
+    try:
+        a.pfand_pro_einheit = float(
+            request.form.get("pfand_pro_einheit", "0").replace(",", "."))
+    except ValueError:
+        a.pfand_pro_einheit = 0.0
     try:
         a.reihenfolge = int(request.form.get("reihenfolge", "0") or 0)
     except ValueError:

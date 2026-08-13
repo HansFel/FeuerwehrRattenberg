@@ -24,7 +24,7 @@
       {% if darf('organisator') %}
         <a href="{{ url_for('speisekarte.liste') }}">Speisekarte</a>
       {% endif %}
-      {% if darf('kellner', 'organisator') %}
+      {% if darf('kellner', 'organisator', 'ausschank') %}
         <a href="{{ url_for('bestellung.uebersicht') }}">Bestellungen</a>
       {% endif %}
       {% if darf('organisator', 'startrichter') %}

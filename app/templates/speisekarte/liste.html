@@ -10,7 +10,7 @@
   {% if artikel %}
   <table>
     <thead>
-      <tr><th>Kategorie</th><th>Name</th><th>Preis</th><th>Punkte/Einheit</th><th>Status</th><th></th></tr>
+      <tr><th>Kategorie</th><th>Name</th><th>Preis</th><th>Punkte/Einheit</th><th>Pfand/Einheit</th><th>Status</th><th></th></tr>
     </thead>
     <tbody>
       {% for a in artikel %}
@@ -19,6 +19,7 @@
         <td>{{ a.name }}</td>
         <td>{{ "%.2f"|format(a.preis) }} €</td>
         <td>{{ a.punkte_pro_einheit }}</td>
+        <td>{% if a.pfand_pro_einheit %}{{ "%.2f"|format(a.pfand_pro_einheit) }} €{% else %}<span class="leer">–</span>{% endif %}</td>
         <td>{% if a.aktiv %}aktiv{% else %}<span class="inaktiv">inaktiv</span>{% endif %}</td>
         <td>
           <a class="knopf klein grau" href="{{ url_for('speisekarte.bearbeiten', artikel_id=a.id) }}">Bearbeiten</a>

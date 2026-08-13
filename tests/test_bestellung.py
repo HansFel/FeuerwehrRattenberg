@@ -18,7 +18,7 @@ def app():
     with app.app_context():
         db.create_all()
         bier = Artikel(name="Bier", kategorie=KATEGORIE_GETRAENK, preis=3.5,
-                       punkte_pro_einheit=2, aktiv=True)
+                       punkte_pro_einheit=2, pfand_pro_einheit=1.0, aktiv=True)
         gulasch = Artikel(name="Gulasch", kategorie=KATEGORIE_ESSEN, preis=9.0,
                           punkte_pro_einheit=0, aktiv=True)
         team_a = Team(name="Team A")
@@ -33,6 +33,11 @@ def app():
         punkterichter.set_password("pw")
         punkterichter.rollen.append(BenutzerRolle(rolle="punkterichter"))
         db.session.add(punkterichter)
+
+        ausschank = Benutzer(username="ausschank1", name="Aussi", aktiv=True)
+        ausschank.set_password("pw")
+        ausschank.rollen.append(BenutzerRolle(rolle="ausschank"))
+        db.session.add(ausschank)
         db.session.commit()
         yield app
 
@@ -63,8 +68,8 @@ def test_gast_bestellung_mit_teampunkten(client, app):
         "team_id": str(team.id),
     }, follow_redirects=True)
     assert r.status_code == 200
-    assert "10.50".encode() in r.data or "10,50".encode() in r.data \
-        or b"10.50" in r.data
+    # 3 x 3,50 Preis + 3 x 1,00 Pfand = 13,50 Gesamtbetrag
+    assert "13.50".encode() in r.data or "13,50".encode() in r.data
 
     with app.app_context():
         b = Bestellung.query.filter_by(tisch_nummer=7).first()
@@ -76,7 +81,11 @@ def test_gast_bestellung_mit_teampunkten(client, app):
         assert pos.einzelpreis == 3.5
         assert pos.punkte_gesamt == 6            # 2 Pkt./Stk. * 3
         assert pos.team_id == team.id
-        assert b.gesamtbetrag == pytest.approx(10.5)
+        assert pos.pfand_pro_einheit == 1.0
+        assert pos.pfand_summe == pytest.approx(3.0)
+        assert b.gesamtbetrag == pytest.approx(13.5)         # inkl. Pfand
+        assert b.pfand_gesamt == pytest.approx(3.0)
+        assert b.pfand_offen_betrag == pytest.approx(3.0)    # noch nichts zurück
 
 
 def test_ein_team_gilt_fuer_gesamte_bestellung(client, app):
@@ -114,7 +123,7 @@ def test_kellner_bestellung_wird_zugeordnet(client, app):
         assert b.erfasst_von == "kellner1"
 
 
-def test_bestellungen_uebersicht_nur_kellner_oder_organisator(client, app):
+def test_bestellungen_uebersicht_nur_kellner_organisator_ausschank(client, app):
     with app.app_context():
         gulasch = Artikel.query.filter_by(name="Gulasch").first()
     client.post("/bestellen/1", data={f"menge_{gulasch.id}": "1"})
@@ -130,6 +139,20 @@ def test_bestellungen_uebersicht_nur_kellner_oder_organisator(client, app):
     r = client.get("/bestellungen/")
     assert r.status_code == 200
     assert "Abrechnung".encode() in r.data
+    client.post("/abmelden")
+
+    # Ausschank darf ebenfalls
+    _login(client, "ausschank1", "pw")
+    r = client.get("/bestellungen/")
+    assert r.status_code == 200
+    assert "Abrechnung".encode() in r.data
+
+
+def test_ausschank_kein_zugriff_auf_speisekarte(client):
+    """Ausschank ist eine eigene Rolle ohne Speisekarten-Verwaltung (Organisator-Sache)."""
+    _login(client, "ausschank1", "pw")
+    r = client.post("/speisekarte/neu", data={"name": "Verboten", "preis": "1"})
+    assert Artikel.query.filter_by(name="Verboten").first() is None
 
 
 def test_bezahlt_umschalten(client, app):
@@ -200,6 +223,117 @@ def test_qrcode_pdf_kein_zugriff_ohne_rolle(client):
     r = client.get("/speisekarte/tische/qrcodes.pdf?von=1&bis=3",
                    follow_redirects=True)
     assert "anmelden".encode() in r.data.lower()
+
+
+def test_speisekarte_pfand_feld_speicherbar(client, app):
+    with app.app_context():
+        org = Benutzer(username="orga3", aktiv=True)
+        org.set_password("pw")
+        org.rollen.append(BenutzerRolle(rolle="organisator"))
+        db.session.add(org)
+        db.session.commit()
+
+    _login(client, "orga3", "pw")
+    client.post("/speisekarte/neu", data={
+        "name": "Becher", "kategorie": KATEGORIE_GETRAENK, "preis": "0",
+        "punkte_pro_einheit": "0", "pfand_pro_einheit": "2,00",
+        "reihenfolge": "0", "aktiv": "on",
+    })
+    artikel = Artikel.query.filter_by(name="Becher").first()
+    assert artikel is not None
+    assert artikel.pfand_pro_einheit == 2.0
+
+
+def test_pfand_tisch_zeigt_offene_positionen(client, app):
+    with app.app_context():
+        bier = Artikel.query.filter_by(name="Bier").first()
+    client.post("/bestellen/4", data={f"menge_{bier.id}": "3"})
+
+    _login(client, "kellner1", "pw")
+    r = client.get("/pfand/4")
+    assert r.status_code == 200
+    assert "3 von 3 offen".encode() in r.data
+    assert "3.00".encode() in r.data or "3,00".encode() in r.data
+
+
+def test_pfand_teilrueckgabe(client, app):
+    with app.app_context():
+        bier = Artikel.query.filter_by(name="Bier").first()
+    client.post("/bestellen/6", data={f"menge_{bier.id}": "3"})
+    with app.app_context():
+        pos = BestellPosition.query.filter_by(artikel_name="Bier").first()
+        pos_id = pos.id
+
+    _login(client, "kellner1", "pw")
+    client.post(f"/pfand/position/{pos_id}/rueckgabe")   # -1
+    with app.app_context():
+        pos = db.session.get(BestellPosition, pos_id)
+        assert pos.pfand_zurueckgegeben == 1
+        assert pos.pfand_offen_anzahl == 2               # nicht alles kommt zurück
+
+    client.post(f"/pfand/position/{pos_id}/rueckgabe", data={"alle": "1"})
+    with app.app_context():
+        pos = db.session.get(BestellPosition, pos_id)
+        assert pos.pfand_zurueckgegeben == 3
+        assert pos.pfand_offen_anzahl == 0
+
+    # Darf nicht ueber die bestellte Menge hinaus zurueckgegeben werden
+    client.post(f"/pfand/position/{pos_id}/rueckgabe")
+    with app.app_context():
+        pos = db.session.get(BestellPosition, pos_id)
+        assert pos.pfand_zurueckgegeben == 3             # gedeckelt bei menge
+
+
+def test_pfand_rueckgabe_auch_fuer_ausschank(client, app):
+    with app.app_context():
+        bier = Artikel.query.filter_by(name="Bier").first()
+    client.post("/bestellen/10", data={f"menge_{bier.id}": "1"})
+    with app.app_context():
+        pos_id = BestellPosition.query.filter_by(artikel_name="Bier").first().id
+
+    _login(client, "ausschank1", "pw")
+    r = client.post(f"/pfand/position/{pos_id}/rueckgabe", data={"alle": "1"},
+                    follow_redirects=True)
+    assert r.status_code == 200
+    with app.app_context():
+        pos = db.session.get(BestellPosition, pos_id)
+        assert pos.pfand_offen_anzahl == 0
+
+
+def test_pfand_route_erfordert_rolle(client, app):
+    with app.app_context():
+        bier = Artikel.query.filter_by(name="Bier").first()
+    client.post("/bestellen/11", data={f"menge_{bier.id}": "1"})
+
+    # Punkterichter hat keinen Zugriff auf die Pfand-Rueckgabe
+    _login(client, "punkt", "pw")
+    r = client.get("/pfand/11", follow_redirects=True)
+    assert "anmelden".encode() in r.data.lower() or "Pfand-Rückgabe".encode() not in r.data
+
+
+def test_artikel_loeschen_trotz_bestehender_bestellung(client, app):
+    """Ein bereits bestellter Artikel muss loeschbar sein, ohne dass die
+    Bestellhistorie (Fremdschluessel-Fehler) das verhindert."""
+    with app.app_context():
+        org = Benutzer(username="orga4", aktiv=True)
+        org.set_password("pw")
+        org.rollen.append(BenutzerRolle(rolle="organisator"))
+        db.session.add(org)
+        db.session.commit()
+        bier_id = Artikel.query.filter_by(name="Bier").first().id
+
+    client.post("/bestellen/5", data={f"menge_{bier_id}": "1"})
+
+    _login(client, "orga4", "pw")
+    r = client.post(f"/speisekarte/{bier_id}/loeschen", follow_redirects=True)
+    assert r.status_code == 200
+    assert Artikel.query.filter_by(name="Bier").first() is None
+
+    with app.app_context():
+        pos = BestellPosition.query.filter_by(artikel_name="Bier").first()
+        assert pos is not None                # Bestellhistorie bleibt erhalten
+        assert pos.artikel_id is None          # Referenz gekappt
+        assert pos.einzelpreis == 3.5          # Schnappschuss unveraendert
 
 
 def test_artikel_snapshot_bleibt_nach_preisaenderung_stabil(client, app):

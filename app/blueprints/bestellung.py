@@ -42,6 +42,7 @@ def bestellen(tisch: int):
                 artikel_id=a.id, artikel_name=a.name, einzelpreis=a.preis,
                 menge=menge, team_id=team_id,
                 punkte_gesamt=(a.punkte_pro_einheit or 0) * menge,
+                pfand_pro_einheit=a.pfand_pro_einheit or 0.0,
             ))
             hinzugefuegt = True
 
@@ -70,7 +71,7 @@ def bestaetigung(bestellung_id: int):
 # ── Kellner: Bestellungen-Übersicht / Abrechnung ─────────────────────────────
 
 @bp.route("/bestellungen/")
-@rolle_noetig("kellner", "organisator")
+@rolle_noetig("kellner", "organisator", "ausschank")
 def uebersicht():
     filter_status = request.args.get("status", "offen")
     query = Bestellung.query.order_by(Bestellung.erstellt.desc())
@@ -105,7 +106,7 @@ def uebersicht():
 
 
 @bp.route("/bestellungen/<int:bestellung_id>/bezahlt", methods=["POST"])
-@rolle_noetig("kellner", "organisator")
+@rolle_noetig("kellner", "organisator", "ausschank")
 def bezahlt_umschalten(bestellung_id: int):
     b = db.get_or_404(Bestellung, bestellung_id)
     b.bezahlt = not b.bezahlt
@@ -116,7 +117,7 @@ def bezahlt_umschalten(bestellung_id: int):
 
 
 @bp.route("/bestellungen/tisch-suche", methods=["POST"])
-@rolle_noetig("kellner", "organisator")
+@rolle_noetig("kellner", "organisator", "ausschank")
 def tisch_suche():
     """Schneller Sprung zur Bestellseite eines Tisches (z.B. nach QR-Scan
     oder manueller Eingabe der Tischnummer)."""
@@ -132,3 +133,46 @@ def _int_or_null(wert):
         return int(wert)
     except (TypeError, ValueError):
         return None
+
+
+# ── Pfand-Rückgabe (Kellner, Organisator, Ausschank) ─────────────────────────
+# Bewusst schnell/einfach gehalten: eine Ansicht pro Tisch, große Buttons,
+# Teilrückgaben möglich (nicht immer kommt alles zurück).
+
+@bp.route("/pfand/tisch-suche", methods=["POST"])
+@rolle_noetig("kellner", "organisator", "ausschank")
+def pfand_suche():
+    """Schneller Sprung zur Pfand-Rückgabe eines Tisches."""
+    tisch = request.form.get("tisch", type=int)
+    if not tisch:
+        flash("Bitte eine Tischnummer eingeben.", "error")
+        return redirect(url_for("bestellung.uebersicht"))
+    return redirect(url_for("bestellung.pfand_tisch", tisch=tisch))
+
+
+@bp.route("/pfand/<int:tisch>")
+@rolle_noetig("kellner", "organisator", "ausschank")
+def pfand_tisch(tisch: int):
+    positionen = (BestellPosition.query
+                  .join(Bestellung)
+                  .filter(Bestellung.tisch_nummer == tisch,
+                         BestellPosition.pfand_pro_einheit > 0)
+                  .order_by(Bestellung.erstellt).all())
+    offene = [p for p in positionen if p.pfand_offen_anzahl > 0]
+    offener_betrag = sum(p.pfand_offen_betrag for p in offene)
+    return render_template("pfand_tisch.html", tisch=tisch, offene=offene,
+                           offener_betrag=offener_betrag)
+
+
+@bp.route("/pfand/position/<int:position_id>/rueckgabe", methods=["POST"])
+@rolle_noetig("kellner", "organisator", "ausschank")
+def pfand_rueckgabe(position_id: int):
+    p = db.get_or_404(BestellPosition, position_id)
+    if request.form.get("alle"):
+        anzahl = p.pfand_offen_anzahl
+    else:
+        anzahl = 1
+    p.pfand_zurueckgegeben = min(p.menge, (p.pfand_zurueckgegeben or 0) + anzahl)
+    db.session.commit()
+    return redirect(url_for("bestellung.pfand_tisch",
+                            tisch=p.bestellung.tisch_nummer))

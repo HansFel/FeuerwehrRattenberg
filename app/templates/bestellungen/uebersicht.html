@@ -32,10 +32,14 @@
      die Gesamtwertung der Disziplinen ein.</small></p>
   {% endif %}
 
-  <h2>Schnellzugriff: Tisch aufrufen</h2>
+  <h2>Schnellzugriff</h2>
   <form method="post" action="{{ url_for('bestellung.tisch_suche') }}" class="zuweis-form">
     <input type="number" name="tisch" min="1" placeholder="Tischnummer" required>
     <button class="knopf" type="submit">Bestellseite öffnen</button>
+  </form>
+  <form method="post" action="{{ url_for('bestellung.pfand_suche') }}" class="zuweis-form">
+    <input type="number" name="tisch" min="1" placeholder="Tischnummer" required>
+    <button class="knopf grau" type="submit">🥤 Pfand-Rückgabe öffnen</button>
   </form>
 
   <h2>Bestellungen</h2>
@@ -51,7 +55,7 @@
   {% if bestellungen %}
   <table>
     <thead>
-      <tr><th>Zeit</th><th>Tisch</th><th>Artikel</th><th>Team</th><th>Betrag</th><th>Erfasst von</th><th>Status</th><th></th></tr>
+      <tr><th>Zeit</th><th>Tisch</th><th>Artikel</th><th>Team</th><th>Betrag</th><th>Pfand offen</th><th>Erfasst von</th><th>Status</th><th></th></tr>
     </thead>
     <tbody>
       {% for b in bestellungen %}
@@ -62,6 +66,9 @@
         <td>{% for p in b.positionen %}{{ p.menge }}× {{ p.artikel_name }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
         <td>{% if team %}{{ team.name }} <small class="leer">({{ b.gesamtpunkte }} Pkt.)</small>{% else %}<span class="leer">–</span>{% endif %}</td>
         <td>{{ "%.2f"|format(b.gesamtbetrag) }} €</td>
+        <td>{% if b.pfand_offen_betrag %}
+              <a href="{{ url_for('bestellung.pfand_tisch', tisch=b.tisch_nummer) }}">{{ "%.2f"|format(b.pfand_offen_betrag) }} €</a>
+            {% else %}<span class="leer">–</span>{% endif %}</td>
         <td>{{ b.erfasst_von or "Gast" }}</td>
         <td>{% if b.bezahlt %}✅ bezahlt{% else %}<span class="leer">offen</span>{% endif %}</td>
         <td>

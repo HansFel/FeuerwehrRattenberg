@@ -29,6 +29,7 @@ ROLLEN = {
     "startrichter": "Startrichter",
     "punkterichter": "Punkterichter",
     "kellner": "Kellner",
+    "ausschank": "Ausschank",
 }
 
 
@@ -344,6 +345,8 @@ class Artikel(db.Model):
     preis = db.Column(db.Float, nullable=False, default=0.0)
     # Punkte, die ein Wettkampfteam pro bestellter Einheit bekommt
     punkte_pro_einheit = db.Column(db.Integer, default=0)
+    # Pfand pro Einheit (z.B. Mehrweg-Becher/-Gläser); 0 = kein Pfand
+    pfand_pro_einheit = db.Column(db.Float, nullable=False, default=0.0)
     aktiv = db.Column(db.Boolean, default=True)
     reihenfolge = db.Column(db.Integer, default=0)
 
@@ -369,11 +372,23 @@ class Bestellung(db.Model):
 
     @property
     def gesamtbetrag(self) -> float:
-        return sum(p.zwischensumme for p in self.positionen)
+        """Zu zahlender Gesamtbetrag inkl. Pfand (wird bei Rückgabe erstattet)."""
+        return sum(p.zwischensumme + p.pfand_summe for p in self.positionen)
 
     @property
     def gesamtpunkte(self) -> int:
         return sum(p.punkte_gesamt or 0 for p in self.positionen)
+
+    @property
+    def pfand_gesamt(self) -> float:
+        """Insgesamt kassiertes Pfand dieser Bestellung (unabhängig davon,
+        ob schon (teilweise) zurückgegeben wurde)."""
+        return sum(p.pfand_summe for p in self.positionen)
+
+    @property
+    def pfand_offen_betrag(self) -> float:
+        """Noch nicht zurückerstattetes Pfand dieser Bestellung."""
+        return sum(p.pfand_offen_betrag for p in self.positionen)
 
     def __repr__(self) -> str:
         return f"<Bestellung Tisch {self.tisch_nummer}>"
@@ -395,6 +410,11 @@ class BestellPosition(db.Model):
     menge = db.Column(db.Integer, nullable=False, default=1)
     team_id = db.Column(db.Integer, db.ForeignKey("team.id"))
     punkte_gesamt = db.Column(db.Integer, default=0)           # Schnappschuss * Menge
+    # Pfand: Schnappschuss (bleibt bei späteren Preisänderungen stabil) und
+    # wie viele Einheiten davon schon zurückgegeben wurden (Teilrückgaben
+    # möglich – nicht immer kommt alles zurück).
+    pfand_pro_einheit = db.Column(db.Float, nullable=False, default=0.0)
+    pfand_zurueckgegeben = db.Column(db.Integer, nullable=False, default=0)
 
     bestellung = db.relationship("Bestellung", back_populates="positionen")
     artikel = db.relationship("Artikel")
@@ -403,3 +423,16 @@ class BestellPosition(db.Model):
     @property
     def zwischensumme(self) -> float:
         return self.einzelpreis * self.menge
+
+    @property
+    def pfand_summe(self) -> float:
+        return self.pfand_pro_einheit * self.menge
+
+    @property
+    def pfand_offen_anzahl(self) -> int:
+        """Wie viele Einheiten noch nicht zurückgegeben wurden."""
+        return max(0, self.menge - (self.pfand_zurueckgegeben or 0))
+
+    @property
+    def pfand_offen_betrag(self) -> float:
+        return self.pfand_offen_anzahl * self.pfand_pro_einheit

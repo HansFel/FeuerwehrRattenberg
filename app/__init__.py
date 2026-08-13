@@ -126,31 +126,48 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     with app.app_context():
         db.create_all()
-        _migriere_mitglied()
+        _schema_migrieren()
         _standard_admin_anlegen(app)
 
     return app
 
 
-def _migriere_mitglied() -> None:
-    """Ergänzt fehlende Mitglied-Spalten in einer bestehenden SQLite-DB.
+def _spalten_ergaenzen(tabelle: str, neue_spalten: dict[str, str]) -> None:
+    """Ergänzt fehlende Spalten einer bereits bestehenden Tabelle.
 
-    (Für Postgres/fresh DB legt create_all die Spalten bereits an.)
+    Funktioniert für PostgreSQL und SQLite. Nötig, weil ``db.create_all()``
+    bei einer NEUEN Tabelle zwar automatisch alle Spalten anlegt, bei einer
+    bereits VORHANDENEN Tabelle aber keine fehlenden Spalten nachträgt (z.B.
+    nach einem Code-Update, das neue Modellfelder zu einem bestehenden
+    Modell hinzufügt).
     """
-    from sqlalchemy import text
-    if db.engine.dialect.name != "sqlite":
-        return
-    vorhanden = {row[1] for row in db.session.execute(
-        text("PRAGMA table_info(mitglied)"))}
-    if not vorhanden:
-        return
-    neue = {"vorname": "TEXT", "nachname": "TEXT", "spitzname": "TEXT",
-            "telefon": "TEXT", "alter": "INTEGER"}
-    for spalte, typ in neue.items():
-        if spalte not in vorhanden:
+    from sqlalchemy import inspect, text
+    inspektor = inspect(db.engine)
+    if not inspektor.has_table(tabelle):
+        return   # Tabelle existiert noch gar nicht -> create_all() erledigt das
+    vorhandene = {spalte["name"] for spalte in inspektor.get_columns(tabelle)}
+    for spalte, typ in neue_spalten.items():
+        if spalte not in vorhandene:
             db.session.execute(
-                text(f'ALTER TABLE mitglied ADD COLUMN "{spalte}" {typ}'))
+                text(f'ALTER TABLE {tabelle} ADD COLUMN "{spalte}" {typ}'))
     db.session.commit()
+
+
+def _schema_migrieren() -> None:
+    """Additive Migrationen für Modellfelder, die zu bereits bestehenden
+    Tabellen hinzugefügt wurden (siehe ``_spalten_ergaenzen``)."""
+    gleitkomma = "DOUBLE PRECISION" if db.engine.dialect.name == "postgresql" else "REAL"
+    _spalten_ergaenzen("mitglied", {
+        "vorname": "TEXT", "nachname": "TEXT", "spitzname": "TEXT",
+        "telefon": "TEXT", "alter": "INTEGER",
+    })
+    _spalten_ergaenzen("artikel", {
+        "pfand_pro_einheit": f"{gleitkomma} NOT NULL DEFAULT 0.0",
+    })
+    _spalten_ergaenzen("bestellposition", {
+        "pfand_pro_einheit": f"{gleitkomma} NOT NULL DEFAULT 0.0",
+        "pfand_zurueckgegeben": "INTEGER NOT NULL DEFAULT 0",
+    })
 
 
 def _standard_admin_anlegen(app: Flask) -> None:

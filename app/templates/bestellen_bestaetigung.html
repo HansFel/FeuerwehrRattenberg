@@ -10,14 +10,15 @@
   {% endif %}
 
   <table>
-    <thead><tr><th>Artikel</th><th>Menge</th><th>Preis</th><th>Zwischensumme</th></tr></thead>
+    <thead><tr><th>Artikel</th><th>Menge</th><th>Preis</th><th>Pfand</th><th>Zwischensumme</th></tr></thead>
     <tbody>
       {% for p in bestellung.positionen %}
       <tr>
         <td>{{ p.artikel_name }}</td>
         <td>{{ p.menge }}</td>
         <td>{{ "%.2f"|format(p.einzelpreis) }} €</td>
-        <td>{{ "%.2f"|format(p.zwischensumme) }} €</td>
+        <td>{% if p.pfand_summe %}{{ "%.2f"|format(p.pfand_summe) }} €{% else %}<span class="leer">–</span>{% endif %}</td>
+        <td>{{ "%.2f"|format(p.zwischensumme + p.pfand_summe) }} €</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -25,6 +26,9 @@
 
   <p style="margin-top:1rem; font-size:1.3rem">
     <strong>Gesamtbetrag: {{ "%.2f"|format(bestellung.gesamtbetrag) }} €</strong>
+    {% if bestellung.pfand_gesamt %}
+      <br><small class="leer">davon {{ "%.2f"|format(bestellung.pfand_gesamt) }} € Pfand (rückerstattbar bei Rückgabe)</small>
+    {% endif %}
   </p>
   <p class="leer">Bitte den Betrag beim Kellner/an der Theke bezahlen.</p>
 

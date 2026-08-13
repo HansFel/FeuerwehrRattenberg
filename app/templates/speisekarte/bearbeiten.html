@@ -24,6 +24,10 @@
     <input type="number" min="0" id="punkte_pro_einheit" name="punkte_pro_einheit"
            value="{{ artikel.punkte_pro_einheit if artikel else 0 }}">
 
+    <label for="pfand_pro_einheit">Pfand pro Einheit (€) – z.B. Mehrweg-Becher/-Glas, 0 = kein Pfand</label>
+    <input type="text" id="pfand_pro_einheit" name="pfand_pro_einheit"
+           value="{{ '%.2f'|format(artikel.pfand_pro_einheit) if artikel else '0.00' }}">
+
     <label for="reihenfolge">Reihenfolge auf der Speisekarte</label>
     <input type="number" id="reihenfolge" name="reihenfolge"
            value="{{ artikel.reihenfolge if artikel else 0 }}">

@@ -16,6 +16,7 @@
         {%- elif r == 'startrichter' %}🕒
         {%- elif r == 'punkterichter' %}🏁
         {%- elif r == 'kellner' %}🍽️
+        {%- elif r == 'ausschank' %}🥤
         {%- else %}👤{% endif %}
         {{ ROLLEN.get(r, r) }}
       </h2>
@@ -25,6 +26,7 @@
         {%- elif r == 'startrichter' %}Startlisten &amp; Zeitplan.
         {%- elif r == 'punkterichter' %}Ergebnisse erfassen.
         {%- elif r == 'kellner' %}Bestellungen &amp; Abrechnung.
+        {%- elif r == 'ausschank' %}Eingehende Bestellungen &amp; Pfand-Rückgabe.
         {%- else %}—{% endif %}
       </p>
       <button class="knopf" type="submit">In dieser Rolle arbeiten</button>

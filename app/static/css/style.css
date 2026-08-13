@@ -148,6 +148,14 @@ form.formular textarea { min-height: 4rem; }
 .knopf.grau { background: var(--grau); }
 .knopf.klein { padding: 0.3rem 0.6rem; font-size: 0.85rem; }
 .knopf.gefahr { background: #fff; color: var(--fehler); border: 1px solid var(--fehler); }
+.knopf.gross { padding: 1rem 1.5rem; font-size: 1.1rem; font-weight: 600; min-width: 8rem; }
+
+.pfand-liste { display: flex; flex-direction: column; gap: 0.7rem; margin-top: 1rem; }
+.pfand-zeile {
+  display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between;
+  background: #fff; border: 1px solid var(--rand); border-radius: 8px; padding: 1rem 1.2rem;
+}
+.pfand-aktionen { display: flex; gap: 0.6rem; flex-wrap: wrap; }
 
 .werkzeugleiste { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; align-items: center; }
 .leer { color: #777; font-style: italic; }

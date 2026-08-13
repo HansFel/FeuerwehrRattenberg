@@ -34,7 +34,8 @@
           {% for a in artikel_liste %}
           <tr>
             <td>{{ a.name }}
-              {%- if a.punkte_pro_einheit %} <small class="leer">({{ a.punkte_pro_einheit }} Pkt./Stk.)</small>{% endif %}</td>
+              {%- if a.punkte_pro_einheit %} <small class="leer">({{ a.punkte_pro_einheit }} Pkt./Stk.)</small>{% endif %}
+              {%- if a.pfand_pro_einheit %} <small class="leer">(+{{ "%.2f"|format(a.pfand_pro_einheit) }} € Pfand)</small>{% endif %}</td>
             <td>{{ "%.2f"|format(a.preis) }} €</td>
             <td><input type="number" name="menge_{{ a.id }}" min="0" value="0" style="width:4.5rem"></td>
           </tr>
