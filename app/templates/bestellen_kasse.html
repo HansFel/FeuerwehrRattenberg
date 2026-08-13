@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block titel %}Kasse – Tisch {{ tisch }}{% endblock %}
+{% block inhalt %}
+  <h1>🧾 Kasse – Tisch {{ tisch }}</h1>
+  <div class="werkzeugleiste">
+    <a class="knopf klein grau" href="{{ url_for('bestellung.bestellen', tisch=tisch) }}">📝 Zur Formular-Ansicht</a>
+  </div>
+
+  <p class="leer">Tippe jede Ware so oft an, wie sie bestellt wird. Bei
+     „Becher-Gutschrift" tippe die Anzahl der zurückgegebenen Pfand-Becher/
+     -Gläser – die Endsumme unten berücksichtigt beides automatisch.</p>
+
+  <div class="kassen-sprungleiste">
+    {% if nach_kategorie.get('essen') %}<a href="#kat-essen" class="knopf klein kasse-essen">🍲 Essen</a>{% endif %}
+    {% if nach_kategorie.get('getraenk') %}<a href="#kat-getraenk" class="knopf klein kasse-getraenk">🥤 Getränke</a>{% endif %}
+    {% if pfand_artikel %}<a href="#kat-pfand" class="knopf klein kasse-pfand">♻️ Becher-Gutschrift</a>{% endif %}
+  </div>
+
+  <form method="post" id="kassenformular">
+    {% if teams %}
+    <div class="formular" style="max-width:100%; margin:1rem 0;">
+      <label for="team_id">Punkte für dieses Team vergeben (gilt für die ganze Bestellung, optional)</label>
+      <select id="team_id" name="team_id">
+        <option value="">– kein Team –</option>
+        {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    {% for kategorie, artikel_liste in nach_kategorie.items() %}
+      {% if artikel_liste %}
+      <h2 id="kat-{{ kategorie }}">{{ '🍲' if kategorie == 'essen' else '🥤' }} {{ KATEGORIEN.get(kategorie, kategorie) }}</h2>
+      <div class="kasse-grid">
+        {% for a in artikel_liste %}
+        <div class="kasse-kachel {{ 'kasse-essen' if kategorie == 'essen' else 'kasse-getraenk' }}"
+             data-feld="menge_{{ a.id }}" data-preis="{{ a.preis }}" data-pfandpreis="{{ a.pfand_pro_einheit }}">
+          <button type="button" class="kasse-tipp" onclick="aendereMenge('menge_{{ a.id }}', 1)">
+            <strong>{{ a.name }}</strong>
+            <span>{{ "%.2f"|format(a.preis) }} €{% if a.pfand_pro_einheit %} + {{ "%.2f"|format(a.pfand_pro_einheit) }} € Pfand{% endif %}</span>
+          </button>
+          <div class="kasse-zaehler">
+            <button type="button" class="knopf klein grau" onclick="aendereMenge('menge_{{ a.id }}', -1)">−</button>
+            <span id="anzeige_menge_{{ a.id }}" class="kasse-anzahl">0</span>
+            <input type="hidden" id="menge_{{ a.id }}" name="menge_{{ a.id }}" value="0">
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% endfor %}
+
+    {% if pfand_artikel %}
+    <h2 id="kat-pfand">♻️ Becher-Gutschrift (Pfand zurück)</h2>
+    <div class="kasse-grid">
+      {% for a in pfand_artikel %}
+      <div class="kasse-kachel kasse-pfand"
+           data-feld="rueckgabe_{{ a.id }}" data-rueckgabepreis="{{ a.pfand_pro_einheit }}">
+        <button type="button" class="kasse-tipp" onclick="aendereMenge('rueckgabe_{{ a.id }}', 1)">
+          <strong>{{ a.name }}</strong>
+          <span>−{{ "%.2f"|format(a.pfand_pro_einheit) }} € pro Stück</span>
+        </button>
+        <div class="kasse-zaehler">
+          <button type="button" class="knopf klein grau" onclick="aendereMenge('rueckgabe_{{ a.id }}', -1)">−</button>
+          <span id="anzeige_rueckgabe_{{ a.id }}" class="kasse-anzahl">0</span>
+          <input type="hidden" id="rueckgabe_{{ a.id }}" name="rueckgabe_{{ a.id }}" value="0">
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="kasse-summenleiste">
+      <span>Endsumme:</span>
+      <strong id="kassen-summe">0,00 €</strong>
+      <button class="knopf gross" type="submit">Abschließen</button>
+    </div>
+  </form>
+
+  <script>
+    function aendereMenge(feldId, delta) {
+      var feld = document.getElementById(feldId);
+      var wert = parseInt(feld.value || '0', 10) + delta;
+      if (wert < 0) { wert = 0; }
+      feld.value = wert;
+      document.getElementById('anzeige_' + feldId).textContent = wert;
+      aktualisiereSumme();
+    }
+    function aktualisiereSumme() {
+      var summe = 0;
+      document.querySelectorAll('.kasse-kachel').forEach(function (kachel) {
+        var feld = document.getElementById(kachel.dataset.feld);
+        var menge = parseInt(feld.value || '0', 10);
+        if (kachel.dataset.preis !== undefined) {
+          summe += menge * parseFloat(kachel.dataset.preis);
+          summe += menge * parseFloat(kachel.dataset.pfandpreis || '0');
+        }
+        if (kachel.dataset.rueckgabepreis !== undefined) {
+          summe -= menge * parseFloat(kachel.dataset.rueckgabepreis);
+        }
+      });
+      document.getElementById('kassen-summe').textContent =
+        summe.toFixed(2).replace('.', ',') + ' €';
+    }
+  </script>
+{% endblock %}

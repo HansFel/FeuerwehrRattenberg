@@ -354,3 +354,166 @@ def test_artikel_snapshot_bleibt_nach_preisaenderung_stabil(client, app):
 
         pos = BestellPosition.query.first()
         assert pos.einzelpreis == 3.5          # unverändert trotz Preisänderung
+
+
+# ── Kassen-Ansicht (kombinierte Bestellung + Pfand-Rückgabe) ─────────────────
+
+def test_kasse_route_erfordert_rolle(client):
+    r = client.get("/bestellen/1/kasse", follow_redirects=True)
+    assert "anmelden".encode() in r.data.lower()
+
+
+def test_kasse_get_zeigt_formular(client, app):
+    _login(client, "kellner1", "pw")
+    r = client.get("/bestellen/1/kasse")
+    assert r.status_code == 200
+    assert "Kasse".encode() in r.data
+    assert "Bier".encode() in r.data
+    assert "Becher-Gutschrift".encode() in r.data  # Bier hat Pfand -> Rückgabe-Kachel
+
+
+def test_kasse_bestellung_erstellt_und_erfasst_von_gesetzt(client, app):
+    with app.app_context():
+        gulasch = Artikel.query.filter_by(name="Gulasch").first()
+        gulasch_id = gulasch.id
+
+    _login(client, "kellner1", "pw")
+    r = client.post("/bestellen/2/kasse", data={f"menge_{gulasch_id}": "2"},
+                    follow_redirects=True)
+    assert r.status_code == 200
+
+    with app.app_context():
+        b = Bestellung.query.filter_by(tisch_nummer=2).first()
+        assert b is not None
+        assert b.erfasst_von == "kellner1"
+        assert len(b.positionen) == 1
+        assert b.positionen[0].menge == 2
+
+
+def test_kasse_pfand_rueckgabe_ohne_neue_bestellung(client, app):
+    """Reine Pfand-Rückgabe über die Kasse, ohne dass etwas Neues bestellt wird."""
+    with app.app_context():
+        bier = Artikel.query.filter_by(name="Bier").first()
+        bier_id = bier.id
+    client.post("/bestellen/3", data={f"menge_{bier_id}": "2"})
+    vor_anzahl = Bestellung.query.count()
+
+    _login(client, "kellner1", "pw")
+    r = client.post("/bestellen/3/kasse", data={f"rueckgabe_{bier_id}": "1"},
+                    follow_redirects=True)
+    assert r.status_code == 200
+    # Auszahlung an Gast, da nur Rückgabe ohne neue Bestellung
+    assert "Auszahlung an Gast".encode() in r.data
+    assert "1.00".encode() in r.data or "1,00".encode() in r.data
+
+    with app.app_context():
+        # Es wurde keine neue Bestellung angelegt, nur die alte Position aktualisiert
+        assert Bestellung.query.count() == vor_anzahl
+        pos = BestellPosition.query.filter_by(artikel_name="Bier").first()
+        assert pos.pfand_zurueckgegeben == 1
+
+
+def test_kasse_kombiniert_bestellung_und_pfand_rueckgabe(client, app):
+    """Kernszenario aus der Anforderung: Kellner nimmt neue Getränke auf UND
+    nimmt gleichzeitig Pfand zurück -> eine korrekte Endsumme."""
+    with app.app_context():
+        bier = Artikel.query.filter_by(name="Bier").first()
+        bier_id = bier.id
+    # Erste Runde: Gast bestellt 2 Bier (2 x 3,50 + 2 x 1,00 Pfand = 9,00)
+    client.post("/bestellen/4", data={f"menge_{bier_id}": "2"})
+
+    _login(client, "kellner1", "pw")
+    # Kellner nimmt 1 neues Bier auf UND bekommt 2 leere Becher zurück
+    r = client.post("/bestellen/4/kasse", data={
+        f"menge_{bier_id}": "1", f"rueckgabe_{bier_id}": "2",
+    }, follow_redirects=True)
+    assert r.status_code == 200
+
+    # Neue Bestellung: 1 x 3,50 + 1 x 1,00 Pfand = 4,50
+    # Pfand-Gutschrift: 2 x 1,00 = 2,00
+    # Netto: 4,50 - 2,00 = 2,50 -> "Zu kassieren"
+    assert "Zu kassieren".encode() in r.data
+    assert "2.50".encode() in r.data or "2,50".encode() in r.data
+
+    with app.app_context():
+        alle_bier_positionen = BestellPosition.query.filter_by(
+            artikel_name="Bier").order_by(BestellPosition.id).all()
+        assert len(alle_bier_positionen) == 2
+        # Die älteste (erste) Bestellung sollte die Pfand-Rückgabe erhalten (FIFO)
+        assert alle_bier_positionen[0].pfand_zurueckgegeben == 2
+        assert alle_bier_positionen[1].pfand_zurueckgegeben == 0
+
+
+def test_pfand_automatisch_zurueckgeben_ueber_mehrere_bestellungen_fifo(app):
+    """FIFO über mehrere Bestellungen hinweg, inkl. Deckelung wenn mehr
+    verlangt wird als tatsächlich offen ist."""
+    from app.blueprints.bestellung import _pfand_automatisch_zurueckgeben
+
+    with app.app_context():
+        bier = Artikel.query.filter_by(name="Bier").first()
+
+        b1 = Bestellung(tisch_nummer=20)
+        b1.positionen.append(BestellPosition(
+            artikel_id=bier.id, artikel_name="Bier", einzelpreis=3.5, menge=1,
+            pfand_pro_einheit=1.0))
+        b2 = Bestellung(tisch_nummer=20)
+        b2.positionen.append(BestellPosition(
+            artikel_id=bier.id, artikel_name="Bier", einzelpreis=3.5, menge=2,
+            pfand_pro_einheit=1.0))
+        db.session.add_all([b1, b2])
+        db.session.commit()
+
+        # 2 zurückgeben -> zuerst die ältere Bestellung (1 Stk.) komplett,
+        # dann 1 Stk. von der zweiten Bestellung
+        gutschrift = _pfand_automatisch_zurueckgeben(20, bier.id, 2)
+        assert gutschrift == pytest.approx(2.0)
+
+        pos1 = BestellPosition.query.join(Bestellung).filter(
+            Bestellung.id == b1.id).first()
+        pos2 = BestellPosition.query.join(Bestellung).filter(
+            Bestellung.id == b2.id).first()
+        assert pos1.pfand_zurueckgegeben == 1
+        assert pos2.pfand_zurueckgegeben == 1
+
+        # Nochmal 5 verlangen, obwohl nur noch 1 offen ist (Deckelung)
+        gutschrift2 = _pfand_automatisch_zurueckgeben(20, bier.id, 5)
+        assert gutschrift2 == pytest.approx(1.0)
+        pos2 = BestellPosition.query.join(Bestellung).filter(
+            Bestellung.id == b2.id).first()
+        assert pos2.pfand_zurueckgegeben == 2
+
+        # Jetzt ist nichts mehr offen -> 0 Gutschrift
+        gutschrift3 = _pfand_automatisch_zurueckgeben(20, bier.id, 1)
+        assert gutschrift3 == pytest.approx(0.0)
+
+
+def test_kasse_bestaetigung_leert_session_und_leitet_ohne_beleg_weiter(client, app):
+    with app.app_context():
+        gulasch = Artikel.query.filter_by(name="Gulasch").first()
+        gulasch_id = gulasch.id
+
+    _login(client, "kellner1", "pw")
+    client.post("/bestellen/2/kasse", data={f"menge_{gulasch_id}": "1"})
+    r = client.get("/bestellen/kasse/bestaetigung")
+    assert r.status_code == 200
+    assert "Kassenbeleg".encode() in r.data
+
+    # Zweiter Aufruf ohne neue Bestellung -> Session ist geleert -> Weiterleitung
+    r2 = client.get("/bestellen/kasse/bestaetigung", follow_redirects=True)
+    assert r2.status_code == 200
+    assert "Kassenbeleg".encode() not in r2.data
+
+
+def test_kasse_leere_eingabe_wird_abgelehnt(client, app):
+    _login(client, "kellner1", "pw")
+    r = client.post("/bestellen/1/kasse", data={}, follow_redirects=True)
+    assert "mindestens einen Artikel".encode() in r.data
+
+
+def test_formular_ansicht_zeigt_kasse_link_nur_fuer_personal(client, app):
+    r = client.get("/bestellen/1")
+    assert "Kassen-Ansicht".encode() not in r.data
+
+    _login(client, "kellner1", "pw")
+    r = client.get("/bestellen/1")
+    assert "Kassen-Ansicht".encode() in r.data

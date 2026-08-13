@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block titel %}Kassenbeleg – Tisch {{ beleg.tisch }}{% endblock %}
+{% block inhalt %}
+  <h1>✅ Kassenbeleg – Tisch {{ beleg.tisch }}</h1>
+
+  {% if beleg.positionen %}
+  <h2>Bestellt</h2>
+  <table>
+    <thead><tr><th>Artikel</th><th>Menge</th><th>Betrag</th></tr></thead>
+    <tbody>
+      {% for p in beleg.positionen %}
+      <tr><td>{{ p.name }}</td><td>{{ p.menge }}</td><td>{{ "%.2f"|format(p.betrag) }} €</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p>Zwischensumme: <strong>{{ "%.2f"|format(beleg.bestellbetrag) }} €</strong></p>
+  {% endif %}
+
+  {% if beleg.rueckgaben %}
+  <h2>♻️ Pfand-Rückgabe (Gutschrift)</h2>
+  <table>
+    <thead><tr><th>Artikel</th><th>Anzahl</th><th>Gutschrift</th></tr></thead>
+    <tbody>
+      {% for r in beleg.rueckgaben %}
+      <tr><td>{{ r.name }}</td><td>{{ r.anzahl }}</td><td>−{{ "%.2f"|format(r.betrag) }} €</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p>Pfand-Gutschrift: <strong>−{{ "%.2f"|format(beleg.pfand_gutschrift) }} €</strong></p>
+  {% endif %}
+
+  <p style="margin-top:1rem; font-size:1.5rem">
+    <strong>
+      {% if beleg.netto < 0 %}Auszahlung an Gast: {{ "%.2f"|format(-beleg.netto) }} €
+      {% else %}Zu kassieren: {{ "%.2f"|format(beleg.netto) }} €{% endif %}
+    </strong>
+  </p>
+
+  <div class="werkzeugleiste" style="margin-top:1rem">
+    <a class="knopf" href="{{ url_for('bestellung.kasse', tisch=beleg.tisch) }}">+ Weiter an Tisch {{ beleg.tisch }}</a>
+    <a class="knopf grau" href="{{ url_for('bestellung.uebersicht') }}">Zur Abrechnung</a>
+  </div>
+{% endblock %}

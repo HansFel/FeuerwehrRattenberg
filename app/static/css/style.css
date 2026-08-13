@@ -175,3 +175,36 @@ form.formular textarea { min-height: 4rem; }
   background: #fff3b0; padding: 0.05rem 0.4rem; border-radius: 4px;
   font-style: italic;
 }
+
+/* Kassen-Ansicht (Tipp-Buttons statt Zahlenfelder) */
+.kassen-sprungleiste { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.8rem 0; position: sticky; top: 0; z-index: 5; }
+.kasse-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.8rem; margin-bottom: 1rem; }
+.kasse-kachel {
+  border-radius: 10px; overflow: hidden; border: 2px solid var(--rand);
+  display: flex; flex-direction: column; background: #fff;
+}
+.kasse-tipp {
+  border: none; cursor: pointer; padding: 1rem 0.8rem; text-align: left;
+  display: flex; flex-direction: column; gap: 0.3rem; color: #fff; font: inherit;
+}
+.kasse-tipp strong { font-size: 1.05rem; }
+.kasse-tipp span { font-size: 0.85rem; opacity: 0.9; }
+.kasse-essen .kasse-tipp, .knopf.kasse-essen { background: #ef6c00; }
+.kasse-getraenk .kasse-tipp, .knopf.kasse-getraenk { background: #1565c0; }
+.kasse-pfand .kasse-tipp, .knopf.kasse-pfand { background: #2e7d32; }
+.kasse-essen .kasse-tipp:hover { background: #d45c00; }
+.kasse-getraenk .kasse-tipp:hover { background: #0d47a1; }
+.kasse-pfand .kasse-tipp:hover { background: #1b5e20; }
+.kasse-zaehler {
+  display: flex; align-items: center; justify-content: center; gap: 0.6rem;
+  padding: 0.5rem; background: var(--hell);
+}
+.kasse-anzahl { font-size: 1.3rem; font-weight: 700; min-width: 1.5rem; text-align: center; }
+
+.kasse-summenleiste {
+  position: sticky; bottom: 0; display: flex; align-items: center; gap: 1rem;
+  background: #fff; border: 1px solid var(--rand); border-radius: 10px;
+  padding: 1rem 1.2rem; margin-top: 1rem; font-size: 1.1rem;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.08);
+}
+.kasse-summenleiste strong { font-size: 1.5rem; color: var(--rot-dunkel); margin-right: auto; }

@@ -5,6 +5,12 @@
   <p>Wähle die gewünschten Artikel und Mengen. Ihr könnt auch für mehrere
      Personen gemeinsam in einer Bestellung auswählen.</p>
 
+  {% if darf('kellner', 'organisator', 'ausschank') %}
+  <div class="werkzeugleiste">
+    <a class="knopf klein grau" href="{{ url_for('bestellung.kasse', tisch=tisch) }}">🧾 Zur Kassen-Ansicht</a>
+  </div>
+  {% endif %}
+
   {% if not hat_artikel %}
     <p class="leer">Die Speisekarte ist gerade leer – bitte beim Personal
        nachfragen.</p>
