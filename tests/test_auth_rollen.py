@@ -21,6 +21,10 @@ def app():
         pr.set_password("pw")
         pr.rollen.append(BenutzerRolle(rolle="punkterichter"))
         db.session.add(pr)
+        kellner = Benutzer(username="kellner1", name="Kelly", aktiv=True)
+        kellner.set_password("pw")
+        kellner.rollen.append(BenutzerRolle(rolle="kellner"))
+        db.session.add(kellner)
         db.session.commit()
         yield app
 
@@ -176,6 +180,56 @@ def test_dashboard_oeffentlich_ohne_login(client):
     r = client.get("/")
     assert "Deine Rollen".encode() not in r.data
     assert "Anmelden".encode() in r.data
+
+
+def _nav(response) -> str:
+    text = response.data.decode()
+    return text[text.index('<nav class="nav">'):text.index("</nav>")]
+
+
+def test_menueleiste_kellner_nur_bestellungen(client):
+    """Kellner braucht im Alltag nur die Bestellungen – Wettkampf-Verwaltung
+    und Speisekarten-Pflege sind für die Rolle überflüssig und sollen die
+    Menüleiste nicht zumüllen."""
+    _login(client, "kellner1", "pw")
+    nav = _nav(client.get("/"))
+    assert ">Bestellungen<" in nav
+    assert ">Mannschaften<" not in nav
+    assert ">Disziplinen<" not in nav
+    assert ">Wertung<" not in nav
+    assert ">Zeitplan<" not in nav
+    assert ">Speisekarte<" not in nav
+    assert ">Zeitmessung<" not in nav
+    assert ">Personen<" not in nav
+
+
+def test_menueleiste_punkterichter_sieht_wettkampf_nicht_bestellungen(client):
+    _login(client, "punkt", "pw")
+    nav = _nav(client.get("/"))
+    assert ">Mannschaften<" in nav
+    assert ">Disziplinen<" in nav
+    assert ">Wertung<" in nav
+    assert ">Zeitplan<" in nav
+    assert ">Bestellungen<" not in nav
+    assert ">Speisekarte<" not in nav
+
+
+def test_menueleiste_oeffentlich_zeigt_wettkampf_info(client):
+    """Ohne Login (öffentliche Ansicht) bleiben die allgemeinen
+    Wettkampf-Infoseiten sichtbar."""
+    nav = _nav(client.get("/"))
+    assert ">Mannschaften<" in nav
+    assert ">Wertung<" in nav
+
+
+def test_menueleiste_admin_sieht_alles(client):
+    _login(client, "admin", "admin")
+    nav = _nav(client.get("/"))
+    assert ">Mannschaften<" in nav
+    assert ">Bestellungen<" in nav
+    assert ">Speisekarte<" in nav
+    assert ">Zeitmessung<" in nav
+    assert ">Personen<" in nav
 
 
 def test_benutzerverwaltung_nur_admin(client):

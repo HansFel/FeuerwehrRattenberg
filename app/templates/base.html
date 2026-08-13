@@ -17,20 +17,23 @@
     </div>
     <nav class="nav">
       <a href="{{ url_for('start.index') }}">Übersicht</a>
-      <a href="{{ url_for('teams.liste') }}">Mannschaften</a>
-      <a href="{{ url_for('disziplinen.liste') }}">Disziplinen</a>
-      <a href="{{ url_for('wertung.uebersicht') }}">Wertung</a>
-      <a href="{{ url_for('zeitplan.uebersicht') }}">Zeitplan</a>
-      {% if darf('organisator') %}
+      {% set wettkampf_rollen = dashboard_zeigt('organisator', 'startrichter', 'punkterichter') %}
+      {% if not current_user.is_authenticated or wettkampf_rollen %}
+        <a href="{{ url_for('teams.liste') }}">Mannschaften</a>
+        <a href="{{ url_for('disziplinen.liste') }}">Disziplinen</a>
+        <a href="{{ url_for('wertung.uebersicht') }}">Wertung</a>
+        <a href="{{ url_for('zeitplan.uebersicht') }}">Zeitplan</a>
+      {% endif %}
+      {% if dashboard_zeigt('organisator') %}
         <a href="{{ url_for('speisekarte.liste') }}">Speisekarte</a>
       {% endif %}
-      {% if darf('kellner', 'organisator', 'ausschank') %}
+      {% if dashboard_zeigt('kellner', 'organisator', 'ausschank') %}
         <a href="{{ url_for('bestellung.uebersicht') }}">Bestellungen</a>
       {% endif %}
-      {% if darf('organisator', 'startrichter') %}
+      {% if dashboard_zeigt('organisator', 'startrichter') %}
         <a href="{{ url_for('zeitmessung.liste') }}">Zeitmessung</a>
       {% endif %}
-      {% if current_user.is_authenticated and current_user.ist_admin() %}
+      {% if aktive_rolle() == 'administrator' %}
         <a href="{{ url_for('benutzer.liste') }}">Personen</a>
         <a href="{{ url_for('benutzer.rollen') }}">Rollen</a>
         <a href="{{ url_for('sicherung.index') }}">Sicherung</a>
