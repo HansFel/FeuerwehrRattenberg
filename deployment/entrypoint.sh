@@ -28,4 +28,9 @@ python -c "from app import create_app; create_app()"
 echo "Initialisierung abgeschlossen."
 
 echo "=== Starte Gunicorn ==="
-exec gunicorn -w 4 -b 0.0.0.0:8000 --timeout 300 "app:create_app()"
+# Anzahl Worker per Umgebungsvariable anpassbar (z.B. bei Lastspitzen), ohne
+# Rebuild - Standard 8 (verdoppelt gegenueber der urspruenglichen 4, sicherer
+# Puffer fuer gleichzeitige Bestellungen/Zugriffe ohne genaue NAS-Hardware-
+# Kenntnis).
+echo "Worker: ${GUNICORN_WORKERS:-8}"
+exec gunicorn -w "${GUNICORN_WORKERS:-8}" -b 0.0.0.0:8000 --timeout 300 "app:create_app()"

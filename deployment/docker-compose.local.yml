@@ -38,6 +38,10 @@ services:
       INSTANCE_NAME: silo-lokal
       # Muss mit dem API-Key übereinstimmen, den die ESP32-Firmware sendet.
       ZEITMESSUNG_API_KEY: dev-nur-lokal-zeitmessung
+      # Anzahl Gunicorn-Worker (gleichzeitige Anfragen). Bei Bedarf (z.B.
+      # Lastspitzen am Eventtag) hier erhöhen und Container neu starten -
+      # kein Rebuild nötig.
+      GUNICORN_WORKERS: "8"
     volumes:
       # Sicherungsdateien müssen einen Rebuild überleben.
       - silo-lokal-instance:/opt/wettbewerb/instance
