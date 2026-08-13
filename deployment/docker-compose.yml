@@ -53,6 +53,10 @@ services:
       FLASK_ENV: production
       APPLICATION_PREFIX: /silo
       INSTANCE_NAME: silo
+    volumes:
+      # Sicherungsdateien (Backups) müssen einen Rebuild überleben - sonst
+      # zeigen alte Sicherung-Datenbankeinträge auf verschwundene Dateien.
+      - silo-instance-data:/opt/wettbewerb/instance
     networks:
       - silo-internal
       - traefik
@@ -68,6 +72,7 @@ services:
 
 volumes:
   db-silo-data:
+  silo-instance-data:
 
 networks:
   silo-internal:

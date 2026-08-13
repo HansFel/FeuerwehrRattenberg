@@ -1,0 +1,45 @@
+# Lokaler Testbetrieb auf Docker Desktop (Windows) – KEIN Traefik/HTTPS,
+# direkt auf Port 8000 erreichbar. Für das echte NAS-Deployment siehe
+# docker-compose.yml und deployment/README.md.
+#
+# Start (aus dem Ordner deployment/):
+#   docker compose -f docker-compose.local.yml up --build
+services:
+  db-silo:
+    image: postgres:17
+    container_name: db-silo-lokal
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wettbewerb
+      POSTGRES_USER: silo_user
+      POSTGRES_PASSWORD: lokal_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U silo_user -d wettbewerb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - db-silo-lokal-data:/var/lib/postgresql/data
+
+  app-silo:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    image: siloplanenrace:lokal
+    container_name: app-silo-lokal
+    restart: unless-stopped
+    depends_on:
+      db-silo:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://silo_user:lokal_test@db-silo:5432/wettbewerb
+      SECRET_KEY: lokal-test-secret
+      ADMIN_STARTPASSWORT: admin
+      INSTANCE_NAME: silo-lokal
+      # Muss mit dem API-Key übereinstimmen, den die ESP32-Firmware sendet.
+      ZEITMESSUNG_API_KEY: dev-nur-lokal-zeitmessung
+    ports:
+      - "8000:8000"
+
+volumes:
+  db-silo-lokal-data:

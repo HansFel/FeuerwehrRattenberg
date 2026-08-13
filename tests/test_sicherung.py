@@ -97,6 +97,20 @@ def test_aufbewahrung_begrenzt_anzahl(app):
         assert Sicherung.query.count() == 2
 
 
+def test_download_fehlende_datei_zeigt_fehler_statt_500(client, app):
+    """Fehlt die physische Datei (z.B. nach einem Container-Neustart ohne
+    Volume), darf der Download nicht mit einem Serverfehler abstuerzen."""
+    _login(client)
+    with app.app_context():
+        s = dienst.erstellen(typ="manuell", von="admin")
+        pfad = os.path.join(app.instance_path, "sicherungen", s.dateiname)
+        os.remove(pfad)
+        sid = s.id
+    r = client.get(f"/sicherung/{sid}/download", follow_redirects=True)
+    assert r.status_code == 200
+    assert "fehlt auf dem Server".encode() in r.data
+
+
 def test_groesse_formatiert():
     s = Sicherung(dateigroesse=2048)
     assert s.groesse_formatiert == "2.0 KB"
@@ -110,6 +124,44 @@ def test_dateiname_enthaelt_instanzname(client, app):
     with app.app_context():
         s = Sicherung.query.first()
         assert s.dateiname.startswith("ffrattenberg_sicherung_")
+
+
+def test_upload_behaelt_urspruenglichen_dateinamen(app):
+    """Eine hochgeladene Datei (z.B. von einer anderen Instanz heruntergeladen)
+    muss unter ihrem ursprünglichen Namen in der Liste erscheinen –
+    Umbenennen macht sie sonst unauffindbar."""
+    with app.app_context():
+        original = dienst.erstellen(typ="manuell", von="admin")
+        quelle = os.path.join(app.instance_path, "sicherungen", original.dateiname)
+
+        class _FakeUpload:
+            filename = "lokal_sicherung_20260812_073231_857883.sql.gz"
+            def save(self, ziel):
+                import shutil as _shutil
+                _shutil.copyfile(quelle, ziel)
+
+        hochgeladen = dienst.hochladen(_FakeUpload(), von="Felfer")
+        assert hochgeladen.dateiname == "lokal_sicherung_20260812_073231_857883.sql.gz"
+        assert Sicherung.query.filter_by(
+            dateiname="lokal_sicherung_20260812_073231_857883.sql.gz").first() is not None
+
+
+def test_upload_weicht_bei_namenskonflikt_aus(app):
+    with app.app_context():
+        original = dienst.erstellen(typ="manuell", von="admin")
+        quelle = os.path.join(app.instance_path, "sicherungen", original.dateiname)
+
+        class _FakeUpload:
+            filename = "kollision.sql.gz"
+            def save(self, ziel):
+                import shutil as _shutil
+                _shutil.copyfile(quelle, ziel)
+
+        erster = dienst.hochladen(_FakeUpload(), von="admin")
+        zweiter = dienst.hochladen(_FakeUpload(), von="admin")
+        assert erster.dateiname == "kollision.sql.gz"
+        assert zweiter.dateiname != "kollision.sql.gz"   # Konflikt -> Ausweichname
+        assert "upload" in zweiter.dateiname
 
 
 def test_instanzname_aus_umgebungsvariable(tmp_path):

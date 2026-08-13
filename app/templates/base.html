@@ -27,6 +27,9 @@
       {% if darf('kellner', 'organisator') %}
         <a href="{{ url_for('bestellung.uebersicht') }}">Bestellungen</a>
       {% endif %}
+      {% if darf('organisator', 'startrichter') %}
+        <a href="{{ url_for('zeitmessung.liste') }}">Zeitmessung</a>
+      {% endif %}
       {% if current_user.is_authenticated and current_user.ist_admin() %}
         <a href="{{ url_for('benutzer.liste') }}">Personen</a>
         <a href="{{ url_for('benutzer.rollen') }}">Rollen</a>

@@ -1,5 +1,7 @@
 """Datensicherung – Übersicht, Erstellen, Herunterladen, Hochladen,
 Wiederherstellen, Löschen (nur Administrator)."""
+import os
+
 from flask import (Blueprint, flash, redirect, render_template, request,
                    send_file, url_for)
 from flask_login import current_user
@@ -32,6 +34,11 @@ def erstellen():
 @rolle_noetig("administrator")
 def download(sicherung_id: int):
     s, pfad = dienst.pfad_fuer(sicherung_id)
+    if not os.path.exists(pfad):
+        flash(f"Datei „{s.dateiname}“ fehlt auf dem Server (z.B. nach einem "
+              "Container-Neustart ohne dauerhaften Speicher). Der Eintrag "
+              "kann über „Löschen“ entfernt werden.", "error")
+        return redirect(url_for("sicherung.index"))
     return send_file(pfad, as_attachment=True, download_name=s.dateiname)
 
 

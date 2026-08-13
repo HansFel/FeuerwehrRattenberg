@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block titel %}Zeitmessung{% endblock %}
+{% block inhalt %}
+  <h1>Zeitmessung – Live-Ereignisse</h1>
+  <p class="hinweis">
+    Rohe Kontaktauslösungen der ESP32-Zeitmessung (Start/Ziel je Bahn), noch
+    ohne Zuordnung zu einem Lauf. Aktualisiert sich alle 5 Sekunden – zum
+    Testen, ob die Kontakte vor Ort sauber auslösen.
+  </p>
+
+  {% if ereignisse %}
+  <table>
+    <thead>
+      <tr><th>Empfangen (Server)</th><th>Gerät</th><th>Bahn</th><th>Kontakt</th><th>Geräte-Zeit</th></tr>
+    </thead>
+    <tbody>
+      {% for e in ereignisse %}
+      <tr>
+        <td>{{ e.server_empfangen.strftime("%H:%M:%S.") ~ "%03d"|format(e.server_empfangen.microsecond // 1000) }}</td>
+        <td>{{ e.geraet_id }}</td>
+        <td>{{ e.bahn }}</td>
+        <td>{{ "Start" if e.kontakt == "start" else "Ziel" }}</td>
+        <td>{{ e.geraet_zeit_iso or "–" }} {% if e.geraet_millis is not none %}({{ e.geraet_millis }} ms){% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="leer">Noch keine Ereignisse empfangen.</p>
+  {% endif %}
+
+  <script>
+    setTimeout(() => location.reload(), 5000);
+  </script>
+{% endblock %}

@@ -301,6 +301,31 @@ class Startplatz(db.Model):
     disziplin = db.relationship("Disziplin", back_populates="startplaetze")
 
 
+KONTAKT_START = "start"
+KONTAKT_ZIEL = "ziel"
+
+
+class Zeitereignis(db.Model):
+    """Ein roher Kontakt-Auslöser der ESP32-Zeitmessung (Start/Ziel je Bahn).
+
+    Wird von der Firmware ohne Bezug zu einem Lauf gemeldet; die Zuordnung
+    zu einem Wettkampf-Lauf/Team erfolgt später in der Auswertung. Dient bis
+    dahin auch als Live-Protokoll, um die Hardware vor Ort zu testen.
+    """
+    __tablename__ = "zeitereignis"
+
+    id = db.Column(db.Integer, primary_key=True)
+    geraet_id = db.Column(db.String(80), nullable=False)
+    bahn = db.Column(db.Integer, nullable=False)             # 1-4
+    kontakt = db.Column(db.String(10), nullable=False)        # start/ziel
+    geraet_millis = db.Column(db.BigInteger)                  # millis() des ESP32
+    geraet_zeit_iso = db.Column(db.String(40), default="")    # NTP-Zeit, falls synchron
+    server_empfangen = db.Column(db.DateTime, default=_jetzt)
+
+    def __repr__(self) -> str:
+        return f"<Zeitereignis Bahn {self.bahn} {self.kontakt}>"
+
+
 # ── Essen & Getränke (Gäste-Bestellsystem) ───────────────────────────────────
 
 KATEGORIE_ESSEN = "essen"

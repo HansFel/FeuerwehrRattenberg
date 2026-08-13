@@ -20,6 +20,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 
 from flask import current_app
+from werkzeug.utils import secure_filename
 
 from .models import db, Sicherung
 
@@ -231,10 +232,19 @@ def hochladen(datei, von: str = "") -> Sicherung:
             or datei.filename.endswith(".sql.gz")):
         raise ValueError("Nur .sqlite.gz- oder .sql.gz-Dateien sind erlaubt.")
 
-    zeitstempel = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     endung = ".sql.gz" if datei.filename.endswith(".sql.gz") else ".sqlite.gz"
-    dateiname = f"{_instanzname()}_upload_{zeitstempel}{endung}"
+
+    # Ursprünglichen Dateinamen behalten (z.B. von einer anderen Instanz
+    # heruntergeladen, "lokal_sicherung_...") – so ist in der Liste weiterhin
+    # erkennbar, welche Datei hochgeladen wurde. Nur bei einem echten
+    # Namenskonflikt auf einen generischen, garantiert eindeutigen Namen
+    # ausweichen.
+    dateiname = secure_filename(datei.filename)
     ziel = os.path.join(_verzeichnis(), dateiname)
+    if not dateiname or os.path.exists(ziel):
+        zeitstempel = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        dateiname = f"{_instanzname()}_upload_{zeitstempel}{endung}"
+        ziel = os.path.join(_verzeichnis(), dateiname)
     datei.save(ziel)
 
     try:

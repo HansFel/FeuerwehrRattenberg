@@ -62,6 +62,11 @@ def create_app(test_config: dict | None = None) -> Flask:
         # MGRSoftware übernommen: INSTANCE_NAME > HOSTNAME > Kurzname.
         INSTANCE_NAME=(os.environ.get("INSTANCE_NAME")
                       or os.environ.get("HOSTNAME") or "ffrattenberg"),
+        # Gemeinsames Geheimnis für die ESP32-Zeitmessgeräte (Header
+        # 'X-API-Key'). Unbedingt in der Produktion per Umgebungsvariable
+        # überschreiben.
+        ZEITMESSUNG_API_KEY=os.environ.get(
+            "ZEITMESSUNG_API_KEY", "dev-nur-lokal-zeitmessung"),
     )
     if test_config:
         app.config.update(test_config)
@@ -91,7 +96,8 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     from .blueprints import (teams, disziplinen, wertung, zeitplan, start,
                              auth, export, pdf, benutzer, sicherung,
-                             anforderungen, nachrichten, speisekarte, bestellung)
+                             anforderungen, nachrichten, speisekarte, bestellung,
+                             zeitmessung)
 
     from flask_login import current_user as _current_user
 
@@ -116,6 +122,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(nachrichten.bp)
     app.register_blueprint(speisekarte.bp)
     app.register_blueprint(bestellung.bp)
+    app.register_blueprint(zeitmessung.bp)
 
     with app.app_context():
         db.create_all()

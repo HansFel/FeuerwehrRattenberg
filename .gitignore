@@ -23,3 +23,6 @@ deployment/.env
 .idea/
 Thumbs.db
 desktop.ini
+
+# PlatformIO (ESP32-Zeitmessung)
+firmware/*/.pio/
