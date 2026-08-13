@@ -38,8 +38,12 @@ services:
       INSTANCE_NAME: silo-lokal
       # Muss mit dem API-Key übereinstimmen, den die ESP32-Firmware sendet.
       ZEITMESSUNG_API_KEY: dev-nur-lokal-zeitmessung
+    volumes:
+      # Sicherungsdateien müssen einen Rebuild überleben.
+      - silo-lokal-instance:/opt/wettbewerb/instance
     ports:
       - "8000:8000"
 
 volumes:
   db-silo-lokal-data:
+  silo-lokal-instance:
