@@ -241,7 +241,8 @@ def kasse(tisch: int):
             neue_bestellung.positionen.append(pos)
             bestellte_positionen.append({
                 "name": a.name, "menge": menge,
-                "betrag": pos.zwischensumme + pos.pfand_summe})
+                "betrag": pos.zwischensumme + pos.pfand_summe,
+                "pfand": pos.pfand_summe})
 
         rueckgaben = []
         pfand_gutschrift = 0.0
@@ -264,10 +265,11 @@ def kasse(tisch: int):
         db.session.commit()
 
         bestellbetrag = neue_bestellung.gesamtbetrag if neue_bestellung else 0.0
+        pfand_neu = neue_bestellung.pfand_gesamt if neue_bestellung else 0.0
         session["kassen_beleg"] = {
             "tisch": tisch, "positionen": bestellte_positionen,
             "rueckgaben": rueckgaben, "bestellbetrag": bestellbetrag,
-            "pfand_gutschrift": pfand_gutschrift,
+            "pfand_neu": pfand_neu, "pfand_gutschrift": pfand_gutschrift,
             "netto": bestellbetrag - pfand_gutschrift,
         }
         return redirect(url_for("bestellung.kasse_bestaetigung"))

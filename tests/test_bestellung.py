@@ -444,6 +444,22 @@ def test_kasse_kombiniert_bestellung_und_pfand_rueckgabe(client, app):
         assert alle_bier_positionen[1].pfand_zurueckgegeben == 0
 
 
+def test_kasse_beleg_zeigt_pfand_anteil_separat(client, app):
+    """Auf dem Kassenbeleg muss ersichtlich sein, wie viel vom neuen
+    Bestellbetrag Pfand ist – nicht nur die Endsumme."""
+    with app.app_context():
+        bier = Artikel.query.filter_by(name="Bier").first()
+        bier_id = bier.id
+
+    _login(client, "kellner1", "pw")
+    r = client.post("/bestellen/12/kasse", data={f"menge_{bier_id}": "2"},
+                    follow_redirects=True)
+    assert r.status_code == 200
+    # 2 x 3,50 + 2 x 1,00 Pfand = 9,00 Zwischensumme, davon 2,00 Pfand
+    assert "davon".encode() in r.data
+    assert "2.00".encode() in r.data or "2,00".encode() in r.data
+
+
 def test_pfand_automatisch_zurueckgeben_ueber_mehrere_bestellungen_fifo(app):
     """FIFO über mehrere Bestellungen hinweg, inkl. Deckelung wenn mehr
     verlangt wird als tatsächlich offen ist."""

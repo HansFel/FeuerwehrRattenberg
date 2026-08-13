@@ -6,14 +6,22 @@
   {% if beleg.positionen %}
   <h2>Bestellt</h2>
   <table>
-    <thead><tr><th>Artikel</th><th>Menge</th><th>Betrag</th></tr></thead>
+    <thead><tr><th>Artikel</th><th>Menge</th><th>Pfand</th><th>Betrag</th></tr></thead>
     <tbody>
       {% for p in beleg.positionen %}
-      <tr><td>{{ p.name }}</td><td>{{ p.menge }}</td><td>{{ "%.2f"|format(p.betrag) }} €</td></tr>
+      <tr>
+        <td>{{ p.name }}</td><td>{{ p.menge }}</td>
+        <td>{% if p.pfand %}{{ "%.2f"|format(p.pfand) }} €{% else %}<span class="leer">–</span>{% endif %}</td>
+        <td>{{ "%.2f"|format(p.betrag) }} €</td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>
-  <p>Zwischensumme: <strong>{{ "%.2f"|format(beleg.bestellbetrag) }} €</strong></p>
+  <p>Zwischensumme: <strong>{{ "%.2f"|format(beleg.bestellbetrag) }} €</strong>
+    {% if beleg.pfand_neu %}
+      <br><small class="leer">davon {{ "%.2f"|format(beleg.pfand_neu) }} € Pfand (rückerstattbar bei Rückgabe)</small>
+    {% endif %}
+  </p>
   {% endif %}
 
   {% if beleg.rueckgaben %}
@@ -27,6 +35,12 @@
     </tbody>
   </table>
   <p>Pfand-Gutschrift: <strong>−{{ "%.2f"|format(beleg.pfand_gutschrift) }} €</strong></p>
+  {% endif %}
+
+  {% set pfand_saldo = (beleg.pfand_neu or 0) - (beleg.pfand_gutschrift or 0) %}
+  {% if pfand_saldo %}
+  <p class="leer">Pfand-Saldo dieser Buchung:
+    {{ '+' if pfand_saldo > 0 else '−' }}{{ "%.2f"|format(pfand_saldo | abs) }} €</p>
   {% endif %}
 
   <p style="margin-top:1rem; font-size:1.5rem">

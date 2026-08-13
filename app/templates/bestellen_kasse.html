@@ -70,8 +70,11 @@
     {% endif %}
 
     <div class="kasse-summenleiste">
-      <span>Endsumme:</span>
-      <strong id="kassen-summe">0,00 €</strong>
+      <div>
+        <span>Endsumme:</span>
+        <strong id="kassen-summe">0,00 €</strong>
+        <div id="kassen-pfand-hinweis" class="leer" style="display:none"></div>
+      </div>
       <button class="knopf gross" type="submit">Abschließen</button>
     </div>
   </form>
@@ -85,21 +88,37 @@
       document.getElementById('anzeige_' + feldId).textContent = wert;
       aktualisiereSumme();
     }
+    function formatiereBetrag(wert) {
+      return wert.toFixed(2).replace('.', ',') + ' €';
+    }
     function aktualisiereSumme() {
       var summe = 0;
+      var pfandSaldo = 0;
       document.querySelectorAll('.kasse-kachel').forEach(function (kachel) {
         var feld = document.getElementById(kachel.dataset.feld);
         var menge = parseInt(feld.value || '0', 10);
         if (kachel.dataset.preis !== undefined) {
+          var pfandNeu = menge * parseFloat(kachel.dataset.pfandpreis || '0');
           summe += menge * parseFloat(kachel.dataset.preis);
-          summe += menge * parseFloat(kachel.dataset.pfandpreis || '0');
+          summe += pfandNeu;
+          pfandSaldo += pfandNeu;
         }
         if (kachel.dataset.rueckgabepreis !== undefined) {
-          summe -= menge * parseFloat(kachel.dataset.rueckgabepreis);
+          var pfandRueck = menge * parseFloat(kachel.dataset.rueckgabepreis);
+          summe -= pfandRueck;
+          pfandSaldo -= pfandRueck;
         }
       });
-      document.getElementById('kassen-summe').textContent =
-        summe.toFixed(2).replace('.', ',') + ' €';
+      document.getElementById('kassen-summe').textContent = formatiereBetrag(summe);
+
+      var hinweis = document.getElementById('kassen-pfand-hinweis');
+      if (pfandSaldo !== 0) {
+        hinweis.style.display = '';
+        hinweis.textContent = 'davon Pfand: '
+          + (pfandSaldo > 0 ? '+' : '−') + formatiereBetrag(Math.abs(pfandSaldo));
+      } else {
+        hinweis.style.display = 'none';
+      }
     }
   </script>
 {% endblock %}
