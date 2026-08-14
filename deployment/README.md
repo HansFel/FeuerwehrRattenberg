@@ -1,3 +1,26 @@
+# Deployment auf dem eigenen Server "ffrattenberg" (Ubuntu, Traefik, eigene Domain)
+
+Produktiv-Instanz ab August 2026: eigener Ubuntu-Server (Hostname/SSH-Alias
+`ffrattenberg`, siehe `~/.ssh/config` am Windows-PC), eigener Traefik, eigene
+DuckDNS-Domain **ffrattenberg.duckdns.org** (kein Pfad-Präfix, im Unterschied
+zum NAS-Deployment – die App läuft hier direkt unter der Domain-Wurzel).
+
+Repo liegt auf GitHub (`HansFel/FeuerwehrRattenberg`, privat) und wird auf
+dem Server nach `~/apps/FeuerwehrRattenberg` geklont (Read-only-Deploy-Key,
+kein Passwort/Token nötig). Updates ausrollen: auf dem Server `git pull`,
+Build-Tag in `deployment/.env` erhöhen, `docker compose -f
+deployment/docker-compose.ffrattenberg.yml up -d --build`.
+
+Secrets liegen ausschließlich in `deployment/.env` auf dem Server (nicht in
+Git, siehe `.gitignore`). Traefik-Stack (mit DuckDNS-DNS-01-Certresolver
+`duckdns`) läuft separat unter `~/apps/traefik` und wird von mehreren Apps
+auf diesem Server gemeinsam genutzt (externes Docker-Netzwerk `traefik`).
+
+Ein systemd-Timer auf dem Server aktualisiert die DuckDNS-IP periodisch
+(nötig, da der Server ggf. die Netzwerk-/Provider-Umgebung wechselt).
+
+---
+
 # Deployment auf dem NAS (UGOS / Docker, hinter Traefik)
 
 Diese App wird genau nach dem Muster der bestehenden Instanzen auf diesem NAS

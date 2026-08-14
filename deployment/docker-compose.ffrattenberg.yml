@@ -1,0 +1,74 @@
+# Deployment für den eigenen Server "ffrattenberg" (Ubuntu, eigene Domain
+# ffrattenberg.duckdns.org, eigener Traefik – im Unterschied zum NAS-
+# Deployment KEIN geteilter Pfad-Präfix "/silo", da die App hier allein
+# unter ihrer eigenen Domain läuft.
+#
+# Wird mit einer .env-Datei neben dieser Datei betrieben (deployment/.env,
+# nicht in Git – siehe .gitignore). Aufruf von diesem Ordner aus:
+#   docker compose -f docker-compose.ffrattenberg.yml up -d --build
+#
+# Voraussetzung: externes Docker-Netzwerk "traefik" existiert bereits
+# (angelegt vom Traefik-Stack unter ~/apps/traefik auf dem Server) und der
+# Certresolver "duckdns" ist dort für DNS-01-Challenges konfiguriert.
+services:
+  db-silo:
+    image: postgres:17
+    container_name: db-ffrattenberg
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wettbewerb
+      POSTGRES_USER: silo_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U silo_user -d wettbewerb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - db-ffrattenberg-data:/var/lib/postgresql/data
+    networks:
+      - silo-internal
+
+  app-silo:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    # WICHTIG: Der Image-Tag muss bei jedem neuen Code-Stand erhöht werden
+    # (siehe app/version.py -> BUILD_NUMMER), sonst wird ein vorhandener Tag
+    # einfach wiederverwendet statt neu gebaut zu werden.
+    image: ffrattenberg-app:${BUILD_TAG}
+    pull_policy: build
+    container_name: app-ffrattenberg
+    restart: unless-stopped
+    depends_on:
+      db-silo:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://silo_user:${DB_PASSWORD}@db-silo:5432/wettbewerb
+      SECRET_KEY: ${SECRET_KEY}
+      ADMIN_STARTPASSWORT: ${ADMIN_STARTPASSWORT}
+      FLASK_APP: run.py
+      FLASK_ENV: production
+      INSTANCE_NAME: ffrattenberg
+      GUNICORN_WORKERS: "8"
+    volumes:
+      - ffrattenberg-instance-data:/opt/wettbewerb/instance
+    networks:
+      - silo-internal
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.ffrattenberg.rule=Host(`ffrattenberg.duckdns.org`)"
+      - "traefik.http.routers.ffrattenberg.entrypoints=websecure"
+      - "traefik.http.routers.ffrattenberg.tls.certresolver=duckdns"
+      - "traefik.http.services.ffrattenberg.loadbalancer.server.port=8000"
+
+volumes:
+  db-ffrattenberg-data:
+  ffrattenberg-instance-data:
+
+networks:
+  silo-internal:
+  traefik:
+    external: true
