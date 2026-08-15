@@ -1,0 +1,127 @@
+# Zwei Testinstanzen für Personal-Schulung auf dem ffrattenberg-Server,
+# erreichbar per Pfad-Präfix unter derselben Domain wie die Produktion
+# (spart DuckDNS-Slots, nutzt das schon vorhandene Pfad-Präfix-Feature der
+# App - siehe app/__init__.py PrefixMiddleware, gleiches Muster wie früher
+# beim NAS-Deployment mit "/silo").
+#
+# Nutzt bewusst dasselbe, schon gebaute Image wie die Produktion
+# (ffrattenberg-app:${BUILD_TAG}) - kein eigener Build nötig, da der
+# App-Code identisch ist, nur DB/Konfiguration pro Instanz getrennt sind.
+#
+# Erreichbar unter:
+#   https://ffrattenberg.duckdns.org/test1
+#   https://ffrattenberg.duckdns.org/test2
+#
+# Die Datenbanken werden einmalig mit einer Kopie der Produktions-DB
+# befüllt (pg_dump/restore), danach unabhängig voneinander - Personal kann
+# dort frei testen, ohne die echten Wettbewerbsdaten zu verändern.
+services:
+  db-test1:
+    image: postgres:17
+    container_name: db-ffrattenberg-test1
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wettbewerb
+      POSTGRES_USER: silo_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD_TEST1}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U silo_user -d wettbewerb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - db-ffrattenberg-test1-data:/var/lib/postgresql/data
+    networks:
+      - test1-internal
+
+  app-test1:
+    image: ffrattenberg-app:${BUILD_TAG}
+    container_name: app-ffrattenberg-test1
+    restart: unless-stopped
+    depends_on:
+      db-test1:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://silo_user:${DB_PASSWORD_TEST1}@db-test1:5432/wettbewerb
+      SECRET_KEY: ${SECRET_KEY_TEST1}
+      ADMIN_STARTPASSWORT: ${ADMIN_STARTPASSWORT_TEST1}
+      FLASK_APP: run.py
+      FLASK_ENV: production
+      APPLICATION_PREFIX: /test1
+      INSTANCE_NAME: ffrattenberg-test1
+      GUNICORN_WORKERS: "2"
+    volumes:
+      - ffrattenberg-test1-instance-data:/opt/wettbewerb/instance
+    networks:
+      - test1-internal
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.ffrattenberg-test1.rule=Host(`ffrattenberg.duckdns.org`) && PathPrefix(`/test1`)"
+      - "traefik.http.routers.ffrattenberg-test1.entrypoints=websecure"
+      - "traefik.http.routers.ffrattenberg-test1.tls.certresolver=duckdns"
+      - "traefik.http.services.ffrattenberg-test1.loadbalancer.server.port=8000"
+      - "traefik.http.middlewares.ffrattenberg-test1-headers.headers.customrequestheaders.X-Script-Name=/test1"
+      - "traefik.http.routers.ffrattenberg-test1.middlewares=ffrattenberg-test1-headers"
+
+  db-test2:
+    image: postgres:17
+    container_name: db-ffrattenberg-test2
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wettbewerb
+      POSTGRES_USER: silo_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD_TEST2}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U silo_user -d wettbewerb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - db-ffrattenberg-test2-data:/var/lib/postgresql/data
+    networks:
+      - test2-internal
+
+  app-test2:
+    image: ffrattenberg-app:${BUILD_TAG}
+    container_name: app-ffrattenberg-test2
+    restart: unless-stopped
+    depends_on:
+      db-test2:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://silo_user:${DB_PASSWORD_TEST2}@db-test2:5432/wettbewerb
+      SECRET_KEY: ${SECRET_KEY_TEST2}
+      ADMIN_STARTPASSWORT: ${ADMIN_STARTPASSWORT_TEST2}
+      FLASK_APP: run.py
+      FLASK_ENV: production
+      APPLICATION_PREFIX: /test2
+      INSTANCE_NAME: ffrattenberg-test2
+      GUNICORN_WORKERS: "2"
+    volumes:
+      - ffrattenberg-test2-instance-data:/opt/wettbewerb/instance
+    networks:
+      - test2-internal
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.ffrattenberg-test2.rule=Host(`ffrattenberg.duckdns.org`) && PathPrefix(`/test2`)"
+      - "traefik.http.routers.ffrattenberg-test2.entrypoints=websecure"
+      - "traefik.http.routers.ffrattenberg-test2.tls.certresolver=duckdns"
+      - "traefik.http.services.ffrattenberg-test2.loadbalancer.server.port=8000"
+      - "traefik.http.middlewares.ffrattenberg-test2-headers.headers.customrequestheaders.X-Script-Name=/test2"
+      - "traefik.http.routers.ffrattenberg-test2.middlewares=ffrattenberg-test2-headers"
+
+volumes:
+  db-ffrattenberg-test1-data:
+  ffrattenberg-test1-instance-data:
+  db-ffrattenberg-test2-data:
+  ffrattenberg-test2-instance-data:
+
+networks:
+  test1-internal:
+  test2-internal:
+  traefik:
+    external: true
