@@ -73,7 +73,8 @@
     <small>© {{ heutiges_jahr() }} Feuerwehr Rattenberg – Wettbewerbs-Organisation
       {%- if INSTANZ_NAME and INSTANZ_NAME != 'ffrattenberg' %} · Instanz: {{ INSTANZ_NAME }}{% endif %}
       · <a href="{{ url_for('start.impressum') }}">Impressum</a>
-      · <a href="{{ url_for('start.datenschutz') }}">Datenschutz</a></small>
+      · <a href="{{ url_for('start.datenschutz') }}">Datenschutz</a>
+      · Programmierung: Johann Felfer, Claude &amp; Codex</small>
     <span class="build-badge" title="Zeigt, ob ein Deployment den neuesten Code enthält">
       Build {{ BUILD_NUMMER }} · {{ BUILD_ZEIT }}</span>
   </footer>
