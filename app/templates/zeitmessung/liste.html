@@ -11,10 +11,19 @@
     die Kontakte vor Ort sauber auslösen.
   </p>
 
+  {% if darf('organisator') %}
+  <div class="werkzeugleiste">
+    <form class="inline" method="post" action="{{ url_for('zeitmessung.loeschen') }}"
+          onsubmit="return confirm('Wirklich ALLE Zeitmessung-Ereignisse unwiderruflich löschen?');">
+      <button class="knopf gefahr" type="submit">🗑️ Alle Ereignisse löschen</button>
+    </form>
+  </div>
+  {% endif %}
+
   {% if ereignisse %}
   <table>
     <thead>
-      <tr><th>Empfangen (Server)</th><th>Gerät</th><th>Bahn</th><th>Nr. (Bahn)</th><th>Kontakt</th><th>Geräte-Zeit</th></tr>
+      <tr><th>Empfangen (Server)</th><th>Gerät</th><th>Bahn</th><th>Nr. (Bahn)</th><th>Abstand zur vorherigen</th><th>Kontakt</th><th>Geräte-Zeit</th></tr>
     </thead>
     <tbody>
       {% for e in ereignisse %}
@@ -23,6 +32,7 @@
         <td>{{ e.geraet_id }}</td>
         <td>{{ e.bahn }}</td>
         <td>{{ bahn_zaehler[e.id] }}{% if bahn_zaehler[e.id] == 5 %} (Ziel){% elif bahn_zaehler[e.id] %} (Läufer {{ bahn_zaehler[e.id] }}){% endif %}</td>
+        <td>{% if bahn_abstand[e.id] is not none %}{{ "%.2f"|format(bahn_abstand[e.id]) }} s{% else %}<span class="leer">–</span>{% endif %}</td>
         <td>{% if e.kontakt == "start" %}Start{% elif e.kontakt == "ziel" %}Ziel{% else %}Kontakt{% endif %}</td>
         <td>{{ e.geraet_zeit_iso or "–" }} {% if e.geraet_millis is not none %}({{ e.geraet_millis }} ms){% endif %}</td>
       </tr>

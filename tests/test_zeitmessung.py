@@ -104,3 +104,59 @@ def test_liste_zeigt_laufende_nummer_je_bahn(client, app):
     assert "Läufer 1".encode() in r.data
     assert "Läufer 4".encode() in r.data
     assert "(Ziel)".encode() in r.data
+
+
+def test_liste_zeigt_abstand_zur_vorherigen_ausloesung(client, app):
+    from datetime import datetime, timedelta
+    from app.models import Benutzer, BenutzerRolle
+
+    with app.app_context():
+        orga = Benutzer(username="orga3", aktiv=True)
+        orga.set_password("pw")
+        orga.rollen.append(BenutzerRolle(rolle="organisator"))
+        db.session.add(orga)
+        basis = datetime(2026, 8, 22, 10, 0, 0)
+        db.session.add(Zeitereignis(geraet_id="esp32-1", bahn=1, kontakt="kontakt",
+                                    server_empfangen=basis))
+        db.session.add(Zeitereignis(geraet_id="esp32-1", bahn=1, kontakt="kontakt",
+                                    server_empfangen=basis + timedelta(seconds=12.5)))
+        db.session.commit()
+
+    client.post("/anmelden", data={"username": "orga3", "passwort": "pw"})
+    r = client.get("/zeitmessung/")
+    assert r.status_code == 200
+    assert "12.50 s".encode() in r.data
+
+
+def test_ereignisse_loeschen_nur_organisator(client, app):
+    with app.app_context():
+        from app.models import Benutzer, BenutzerRolle
+        orga = Benutzer(username="orga2", aktiv=True)
+        orga.set_password("pw")
+        orga.rollen.append(BenutzerRolle(rolle="organisator"))
+        db.session.add(orga)
+        richter = Benutzer(username="richter", aktiv=True)
+        richter.set_password("pw")
+        richter.rollen.append(BenutzerRolle(rolle="startrichter"))
+        db.session.add(richter)
+        db.session.commit()
+
+    client.post("/api/zeitmessung/event",
+               json={"geraet_id": "esp32-1", "bahn": 1, "kontakt": "kontakt"},
+               headers={"X-API-Key": API_KEY})
+
+    # Startrichter darf nicht löschen
+    client.post("/anmelden", data={"username": "richter", "passwort": "pw"})
+    r = client.post("/zeitmessung/loeschen", follow_redirects=True)
+    assert "rolle".encode() in r.data.lower()
+    with app.app_context():
+        assert Zeitereignis.query.count() == 1
+    client.post("/abmelden")
+
+    # Organisator darf
+    client.post("/anmelden", data={"username": "orga2", "passwort": "pw"})
+    r = client.post("/zeitmessung/loeschen", follow_redirects=True)
+    assert r.status_code == 200
+    assert "gelöscht".encode() in r.data
+    with app.app_context():
+        assert Zeitereignis.query.count() == 0
