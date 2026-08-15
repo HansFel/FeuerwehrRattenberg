@@ -160,6 +160,14 @@ def _schema_migrieren() -> None:
     _spalten_ergaenzen("mitglied", {
         "vorname": "TEXT", "nachname": "TEXT", "spitzname": "TEXT",
         "telefon": "TEXT", "alter": "INTEGER",
+        "haftungsausschluss": "BOOLEAN NOT NULL DEFAULT FALSE",
+        "ausweis_kontrolliert": "BOOLEAN NOT NULL DEFAULT FALSE",
+        "einverstaendniserklaerung": "BOOLEAN NOT NULL DEFAULT FALSE",
+    })
+    _spalten_ergaenzen("team", {
+        "getraenk": "TEXT",
+        "bezahlt": "BOOLEAN NOT NULL DEFAULT FALSE",
+        "haftungsausschluss": "BOOLEAN NOT NULL DEFAULT FALSE",
     })
     _spalten_ergaenzen("artikel", {
         "pfand_pro_einheit": f"{gleitkomma} NOT NULL DEFAULT 0.0",

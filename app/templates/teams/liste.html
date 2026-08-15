@@ -12,7 +12,7 @@
   {% if teams %}
   <table>
     <thead>
-      <tr><th>Nr.</th><th>Name</th><th>Personen</th><th>Wehr / Ort</th><th>Kontakt</th>{% if darf('organisator') %}<th></th>{% endif %}</tr>
+      <tr><th>Nr.</th><th>Name</th><th>Personen</th><th>Wehr / Ort</th><th>Kontakt</th><th>Getränk</th><th>Bezahlt</th>{% if darf('organisator') %}<th></th>{% endif %}</tr>
     </thead>
     <tbody>
       {% for team in teams %}
@@ -21,7 +21,7 @@
         <td>{{ team.name }}</td>
         <td>
           {% if team.mitglieder %}
-            {% for m in team.mitglieder %}{{ m.anzeige() }}{% if not loop.last %}, {% endif %}{% endfor %}
+            {% for m in team.mitglieder %}{{ m.anzeige() }}{% if m.ist_minderjaehrig %} <span class="tag" title="Minderjährig – Einverständnis der Eltern nötig">U18</span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
             {% if team.mitglieder | length < 4 %}
               <small class="leer">({{ team.mitglieder | length }}/4)</small>
             {% endif %}
@@ -29,6 +29,8 @@
         </td>
         <td>{{ team.wehr or "–" }}</td>
         <td>{{ team.kontakt or "–" }}</td>
+        <td>{{ team.getraenk or "–" }}</td>
+        <td>{% if team.bezahlt %}✅{% else %}<span class="leer">offen</span>{% endif %}</td>
         {% if darf('organisator') %}
         <td>
           <a class="knopf klein grau" href="{{ url_for('teams.bearbeiten', team_id=team.id) }}">Bearbeiten</a>

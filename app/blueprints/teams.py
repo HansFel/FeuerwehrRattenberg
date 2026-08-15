@@ -27,6 +27,9 @@ def neu():
             kontakt=request.form.get("kontakt", "").strip(),
             notiz=request.form.get("notiz", "").strip(),
             startnummer=_int_or_none(request.form.get("startnummer")),
+            getraenk=request.form.get("getraenk", "").strip(),
+            bezahlt=bool(request.form.get("bezahlt")),
+            haftungsausschluss=bool(request.form.get("haftungsausschluss")),
         )
         if not team.name:
             flash("Name der Mannschaft fehlt.", "error")
@@ -51,6 +54,9 @@ def bearbeiten(team_id: int):
         team.kontakt = request.form.get("kontakt", "").strip()
         team.notiz = request.form.get("notiz", "").strip()
         team.startnummer = _int_or_none(request.form.get("startnummer"))
+        team.getraenk = request.form.get("getraenk", "").strip()
+        team.bezahlt = bool(request.form.get("bezahlt"))
+        team.haftungsausschluss = bool(request.form.get("haftungsausschluss"))
         _mitglieder_uebernehmen(team)
         db.session.commit()
         flash("Mannschaft gespeichert.", "ok")
@@ -93,15 +99,28 @@ def _personen_aus_formular() -> list[dict]:
 
 
 def _mitglieder_uebernehmen(team: Team) -> None:
-    """Setzt die (bis zu 4) Team-Mitglieder aus dem Formular neu."""
+    """Setzt die (bis zu 4) Team-Mitglieder aus dem Formular neu.
+
+    Das Bearbeiten-Formular kennt nur die Basisfelder (FELDER) - die beim
+    Import gesetzten Haken (Haftungsausschluss/Ausweis/Einv.-Erklärung)
+    werden je Position aus den bisherigen Mitgliedern übernommen, damit ein
+    simples Speichern im Formular diese Werte nicht stillschweigend
+    zurücksetzt.
+    """
+    bisherige = {m.position: m for m in team.mitglieder}
     team.mitglieder.clear()   # cascade delete-orphan entfernt alte Einträge
     for pos, p in enumerate(_personen_aus_formular(), start=1):
         if p["vorname"] or p["nachname"] or p["spitzname"]:
+            alt = bisherige.get(pos)
             team.mitglieder.append(Mitglied(
                 vorname=p["vorname"], nachname=p["nachname"],
                 spitzname=p["spitzname"], telefon=p["telefon"],
                 alter=_int_or_none(p["alter"]), position=pos,
-                name=f"{p['vorname']} {p['nachname']}".strip()))
+                name=f"{p['vorname']} {p['nachname']}".strip(),
+                haftungsausschluss=alt.haftungsausschluss if alt else False,
+                ausweis_kontrolliert=alt.ausweis_kontrolliert if alt else False,
+                einverstaendniserklaerung=alt.einverstaendniserklaerung if alt else False,
+            ))
 
 
 def _int_or_none(wert):

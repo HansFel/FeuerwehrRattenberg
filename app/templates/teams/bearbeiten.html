@@ -39,6 +39,16 @@
     <label for="kontakt">Kontakt (Name / Telefon)</label>
     <input type="text" id="kontakt" name="kontakt" value="{{ team.kontakt if team else '' }}">
 
+    <label for="getraenk">Pflichtgetränk im Bewerb</label>
+    <select id="getraenk" name="getraenk">
+      <option value="" {{ "selected" if not team or not team.getraenk else "" }}>– keins –</option>
+      <option value="Bier" {{ "selected" if team and team.getraenk == "Bier" else "" }}>Bier</option>
+      <option value="Spritzer" {{ "selected" if team and team.getraenk == "Spritzer" else "" }}>Spritzer</option>
+    </select>
+
+    <label><input type="checkbox" name="bezahlt" {{ "checked" if team and team.bezahlt else "" }}> Bezahlt</label>
+    <label><input type="checkbox" name="haftungsausschluss" {{ "checked" if team and team.haftungsausschluss else "" }}> Haftungsausschluss unterschrieben</label>
+
     <label for="notiz">Notiz</label>
     <textarea id="notiz" name="notiz">{{ team.notiz if team else '' }}</textarea>
 

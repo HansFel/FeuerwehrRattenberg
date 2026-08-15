@@ -2,7 +2,7 @@
 import pytest
 
 from app import create_app
-from app.models import db, Team, Disziplin, Ergebnis, WERTUNG_ZEIT
+from app.models import db, Team, Mitglied, Disziplin, Ergebnis, WERTUNG_ZEIT
 from app.wertung import rangliste_disziplin, gesamtwertung
 
 
@@ -81,6 +81,59 @@ def test_team_mit_vier_personen(client):
     })
     assert [m.voller_name() for m in team.mitglieder] == [
         "Anna Huber", "Clara Gruber", "Dieter Bauer"]
+
+
+def test_team_status_felder(client, app):
+    client.post("/anmelden", data={"username": "admin", "passwort": "admin"})
+    client.post("/teams/neu", data={
+        "name": "Bierbrigade",
+        "getraenk": "Bier", "bezahlt": "on", "haftungsausschluss": "on",
+        "person_1_vorname": "Anna", "person_1_nachname": "Huber",
+    })
+    with app.app_context():
+        team = Team.query.filter_by(name="Bierbrigade").first()
+        assert team.getraenk == "Bier"
+        assert team.bezahlt is True
+        assert team.haftungsausschluss is True
+
+    # Checkbox nicht mitgeschickt -> muss wieder False werden
+    client.post(f"/teams/{team.id}/bearbeiten", data={
+        "name": "Bierbrigade", "getraenk": "Bier",
+        "person_1_vorname": "Anna", "person_1_nachname": "Huber",
+    })
+    with app.app_context():
+        team = Team.query.filter_by(name="Bierbrigade").first()
+        assert team.bezahlt is False
+        assert team.haftungsausschluss is False
+
+
+def test_mitglied_minderjaehrig_und_bearbeiten_erhaelt_haken(client, app):
+    """Import setzt Haftungsausschluss/Ausweis/Einv.-Erklärung je Läufer -
+    ein simples Speichern im Bearbeiten-Formular (das diese Felder nicht
+    kennt) darf diese Haken nicht zurücksetzen."""
+    with app.app_context():
+        team = Team(name="U18 Team")
+        team.mitglieder.append(Mitglied(
+            vorname="Lena", nachname="Jung", alter=16, position=1,
+            haftungsausschluss=True, ausweis_kontrolliert=True,
+            einverstaendniserklaerung=True))
+        db.session.add(team)
+        db.session.commit()
+        assert team.mitglieder[0].ist_minderjaehrig is True
+        team_id = team.id
+
+    client.post("/anmelden", data={"username": "admin", "passwort": "admin"})
+    client.post(f"/teams/{team_id}/bearbeiten", data={
+        "name": "U18 Team",
+        "person_1_vorname": "Lena", "person_1_nachname": "Jung",
+        "person_1_alter": "16",
+    })
+    with app.app_context():
+        team = db.session.get(Team, team_id)
+        lena = team.mitglieder[0]
+        assert lena.haftungsausschluss is True
+        assert lena.ausweis_kontrolliert is True
+        assert lena.einverstaendniserklaerung is True
 
 
 def test_zeitwertung_mit_strafsekunden(app):

@@ -191,6 +191,9 @@ class Team(db.Model):
     startnummer = db.Column(db.Integer)                    # optionale feste Nummer
     kontakt = db.Column(db.String(120), default="")
     notiz = db.Column(db.Text, default="")
+    getraenk = db.Column(db.String(20), default="")        # Pflichtgetränk (Bier/Spritzer)
+    bezahlt = db.Column(db.Boolean, default=False)
+    haftungsausschluss = db.Column(db.Boolean, default=False)
     erstellt = db.Column(db.DateTime, default=_jetzt)
 
     ergebnisse = db.relationship("Ergebnis", back_populates="team",
@@ -218,6 +221,9 @@ class Mitglied(db.Model):
     telefon = db.Column(db.String(60), default="")
     alter = db.Column("alter", db.Integer)            # Lebensalter in Jahren
     position = db.Column(db.Integer, default=1)       # 1..4
+    haftungsausschluss = db.Column(db.Boolean, default=False)
+    ausweis_kontrolliert = db.Column(db.Boolean, default=False)
+    einverstaendniserklaerung = db.Column(db.Boolean, default=False)
 
     team = db.relationship("Team", back_populates="mitglieder")
 
@@ -230,6 +236,10 @@ class Mitglied(db.Model):
         if self.spitzname and voll:
             return f"{voll} „{self.spitzname}“"
         return self.spitzname or voll
+
+    @property
+    def ist_minderjaehrig(self) -> bool:
+        return self.alter is not None and self.alter < 18
 
     def __repr__(self) -> str:
         return f"<Mitglied {self.voller_name()!r}>"
