@@ -60,6 +60,9 @@ bool ereignisSenden(EreignisEintrag& eintrag);
 String aktuelleZeitIso();
 String statusJson();
 String startseiteHtml();
+void serielleBefehleVerarbeiten();
+void serielleHilfeAusgeben();
+void serielleStatusAusgeben();
 
 void setup() {
   Serial.begin(115200);
@@ -79,11 +82,13 @@ void setup() {
   starteZeitSynchronisation();
   starteWebserver();
 
-  Serial.println("Bereit.");
+  Serial.println("Bereit. 'hilfe' eingeben fuer Befehlsuebersicht.");
+  serielleStatusAusgeben();
 }
 
 void loop() {
   kontaktePruefen();
+  serielleBefehleVerarbeiten();
 
   unsigned long jetzt = millis();
   for (auto& eintrag : verlauf) {
@@ -371,4 +376,132 @@ void starteWebserver() {
     ESP.restart();
   });
   webserver.begin();
+}
+
+// ── Serielle Konsole (USB) ───────────────────────────────────────────────
+// Einrichtung/Diagnose ohne Handy/Laptop im WLAN: 'pio device monitor'
+// (oder ein beliebiges serielles Terminal, 115200 Baud, Zeilenende "\n")
+// oeffnen und Befehle eintippen. Siehe README.md fuer die vollstaendige
+// Befehlsliste.
+void serielleHilfeAusgeben() {
+  Serial.println("── Befehle ──────────────────────────────────────────");
+  Serial.println("hilfe                    - diese Uebersicht");
+  Serial.println("status | ip              - aktueller Status");
+  Serial.println("scan                     - WLAN-Netzwerke in der Umgebung auflisten");
+  Serial.println("wifi <SSID>|<Passwort>   - mit neuem WLAN verbinden + speichern");
+  Serial.println("                           (Trennzeichen ist das Pipe-Zeichen |,");
+  Serial.println("                           SSID/Passwort duerfen Leerzeichen enthalten)");
+  Serial.println("apiurl <URL>             - App-URL setzen");
+  Serial.println("apikey <Schluessel>      - API-Key setzen");
+  Serial.println("ntp <Server>             - Zeitserver setzen");
+  Serial.println("neustart                 - Geraet neu starten");
+  Serial.println("────────────────────────────────────────────────────");
+}
+
+void serielleStatusAusgeben() {
+  Serial.println("── Status ───────────────────────────────────────────");
+  Serial.printf("Geraet-ID:   %s\n", GERAETE_ID);
+  bool verbunden = WiFi.status() == WL_CONNECTED;
+  Serial.printf("WLAN:        %s\n", verbunden ? "verbunden" : "NICHT verbunden");
+  if (verbunden) {
+    Serial.printf("SSID:        %s\n", WiFi.SSID().c_str());
+    Serial.printf("IP-Adresse:  %s\n", WiFi.localIP().toString().c_str());
+    Serial.printf("RSSI:        %d dBm\n", WiFi.RSSI());
+  }
+  Serial.printf("Zeit-Sync:   %s\n", zeitSynchronisiert ? "ja" : "nein");
+  Serial.printf("App-URL:     %s\n", appUrl.c_str());
+  Serial.printf("NTP-Server:  %s\n", ntpServer.c_str());
+  Serial.printf("Laufzeit:    %lu s\n", millis() / 1000);
+  Serial.println("────────────────────────────────────────────────────");
+}
+
+void serielleBefehleVerarbeiten() {
+  if (!Serial.available()) return;
+  String zeile = Serial.readStringUntil('\n');
+  zeile.trim();
+  if (zeile.length() == 0) return;
+
+  int leerzeichen = zeile.indexOf(' ');
+  String befehl = (leerzeichen == -1) ? zeile : zeile.substring(0, leerzeichen);
+  String rest = (leerzeichen == -1) ? "" : zeile.substring(leerzeichen + 1);
+  befehl.toLowerCase();
+  rest.trim();
+
+  if (befehl == "hilfe" || befehl == "help") {
+    serielleHilfeAusgeben();
+
+  } else if (befehl == "status" || befehl == "ip") {
+    serielleStatusAusgeben();
+
+  } else if (befehl == "scan") {
+    Serial.println("Suche WLAN-Netzwerke...");
+    int anzahl = WiFi.scanNetworks();
+    for (int i = 0; i < anzahl; i++) {
+      Serial.printf("  %-32s RSSI %4d dBm  Kanal %2d  %s\n",
+                    WiFi.SSID(i).c_str(), WiFi.RSSI(i), WiFi.channel(i),
+                    WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "[offen]" : "[verschluesselt]");
+    }
+    Serial.printf("%d Netzwerk(e) gefunden.\n", anzahl);
+
+  } else if (befehl == "wifi") {
+    int trenner = rest.indexOf('|');
+    if (trenner == -1) {
+      Serial.println("Format: wifi <SSID>|<Passwort>  (Trennzeichen: |)");
+    } else {
+      String ssid = rest.substring(0, trenner);
+      String passwort = rest.substring(trenner + 1);
+      Serial.printf("Verbinde mit \"%s\"...\n", ssid.c_str());
+      WiFi.disconnect();
+      WiFi.begin(ssid.c_str(), passwort.c_str());
+      unsigned long start = millis();
+      while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
+        delay(300);
+        Serial.print(".");
+      }
+      Serial.println();
+      if (WiFi.status() == WL_CONNECTED) {
+        Serial.printf("Verbunden. IP-Adresse: %s\n", WiFi.localIP().toString().c_str());
+      } else {
+        Serial.println("Verbindung fehlgeschlagen. Zugangsdaten pruefen und erneut "
+                        "versuchen, oder 'neustart' fuer einen neuen Versuch mit den "
+                        "zuletzt gespeicherten Zugangsdaten.");
+      }
+    }
+
+  } else if (befehl == "apiurl") {
+    if (rest.length() == 0) {
+      Serial.println("Format: apiurl <URL>");
+    } else {
+      appUrl = rest;
+      speichereEinstellungen();
+      Serial.printf("App-URL gesetzt: %s\n", appUrl.c_str());
+    }
+
+  } else if (befehl == "apikey") {
+    if (rest.length() == 0) {
+      Serial.println("Format: apikey <Schluessel>");
+    } else {
+      apiKey = rest;
+      speichereEinstellungen();
+      Serial.println("API-Key gesetzt.");
+    }
+
+  } else if (befehl == "ntp") {
+    if (rest.length() == 0) {
+      Serial.println("Format: ntp <Server>");
+    } else {
+      ntpServer = rest;
+      speichereEinstellungen();
+      starteZeitSynchronisation();
+      Serial.printf("NTP-Server gesetzt: %s\n", ntpServer.c_str());
+    }
+
+  } else if (befehl == "neustart" || befehl == "restart") {
+    Serial.println("Neustart...");
+    delay(300);
+    ESP.restart();
+
+  } else {
+    Serial.printf("Unbekannter Befehl \"%s\" - 'hilfe' fuer Uebersicht.\n", befehl.c_str());
+  }
 }

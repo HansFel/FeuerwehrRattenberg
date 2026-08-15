@@ -83,6 +83,44 @@ pio device monitor         # Serial-Ausgabe (115200 Baud)
 `upload_port`/`monitor_port` in `platformio.ini` ggf. anpassen, falls der
 ESP32 an einem anderen COM-Port hängt.
 
+**Aktuelle IP schnell herausfinden, ohne etwas zu ändern:** `pio device
+monitor` öffnen (das Öffnen des Monitors selbst löst durch DTR/RTS der
+USB-Bridge einen Neustart des ESP32 aus – der Boot-Log zeigt dann u.a. die
+WLAN-IP). Alternativ nach dem Boot einfach `status` eintippen.
+
+## Serielle Konsole (Einrichtung/Diagnose per USB-Kabel)
+
+Mit `pio device monitor` (oder jedem anderen seriellen Terminal, 115200
+Baud, Zeilenende „Newline"/`\n`) verbunden, stehen folgende Befehle zur
+Verfügung – nützlich, wenn kein Handy/Laptop im selben WLAN verfügbar ist
+oder man nicht erst den Konfigurations-Access-Point durchlaufen will:
+
+| Befehl | Wirkung |
+|---|---|
+| `hilfe` | Befehlsübersicht anzeigen |
+| `status` bzw. `ip` | Aktueller Status: WLAN verbunden ja/nein, SSID, **IP-Adresse**, RSSI, Zeit-Sync, App-URL, NTP-Server, Laufzeit |
+| `scan` | WLAN-Netzwerke in der Umgebung auflisten (SSID, RSSI, Kanal, offen/verschlüsselt) |
+| `wifi <SSID>\|<Passwort>` | Mit neuem WLAN verbinden und speichern (Trennzeichen **`\|`** – Pipe-Zeichen, da SSID/Passwort Leerzeichen enthalten dürfen, z.B. `wifi FRITZ!Box 6670 GN\|MeinPasswort123`) |
+| `apiurl <URL>` | App-URL setzen (z.B. `apiurl http://192.168.1.10:8000/api/zeitmessung/event`) |
+| `apikey <Schlüssel>` | API-Key setzen |
+| `ntp <Server>` | Zeitserver setzen (z.B. `ntp pool.ntp.org`) |
+| `neustart` | Gerät neu starten |
+
+Beispiel-Ablauf für die Ersteinrichtung komplett über USB (ohne Captive
+Portal): Gerät per USB anschließen, `pio device monitor` öffnen, dann
+nacheinander:
+```
+wifi Veranstaltungs-WLAN|GeheimesPasswort
+apiurl http://192.168.1.10:8000/api/zeitmessung/event
+apikey dein-api-key
+ntp pool.ntp.org
+status
+```
+
+**Hinweis:** Dieser Befehlssatz wurde in dieser Umgebung nicht auf echter
+Hardware getestet (kein PlatformIO/Compiler/ESP32 verfügbar) – vor dem
+Event einmal komplett durchspielen.
+
 ## Offene Punkte
 
 - Bei mehreren ESP32-Geräten (z.B. eines pro Bahn statt eines für alle 4)
