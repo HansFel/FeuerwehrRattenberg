@@ -47,6 +47,7 @@ services:
       DATABASE_URL: postgresql://silo_user:${DB_PASSWORD}@db-silo:5432/wettbewerb
       SECRET_KEY: ${SECRET_KEY}
       ADMIN_STARTPASSWORT: ${ADMIN_STARTPASSWORT}
+      ZEITMESSUNG_API_KEY: ${ZEITMESSUNG_API_KEY}
       FLASK_APP: run.py
       FLASK_ENV: production
       INSTANCE_NAME: ffrattenberg
