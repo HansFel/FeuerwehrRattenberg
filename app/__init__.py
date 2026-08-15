@@ -173,6 +173,9 @@ def _schema_migrieren() -> None:
     _spalten_ergaenzen("artikel", {
         "pfand_pro_einheit": f"{gleitkomma} NOT NULL DEFAULT 0.0",
     })
+    _spalten_ergaenzen("startplatz", {
+        "ergebnis_sekunden": gleitkomma,
+    })
     _spalten_ergaenzen("bestellposition", {
         "pfand_pro_einheit": f"{gleitkomma} NOT NULL DEFAULT 0.0",
         "pfand_zurueckgegeben": "INTEGER NOT NULL DEFAULT 0",

@@ -19,6 +19,47 @@ def uebersicht():
     return render_template("zeitplan/uebersicht.html", disziplinen=disziplinen)
 
 
+@bp.route("/disziplin/<int:disziplin_id>/rangliste", methods=["GET", "POST"])
+@rolle_noetig("startrichter", "organisator")
+def rangliste(disziplin_id: int):
+    """Automatische Rangliste aus den erfassten Zeiten einer Runde (z.B.
+    "Vorrunde"), plus die Möglichkeit, daraus gezielt Teams für die nächste
+    Runde (Halbfinale, Platzierungslauf, Finale, ...) zu einem neuen Lauf
+    zusammenzustellen. Die genaue Einteilung (z.B. welche Plätze gegeneinander
+    laufen) bestimmt der Organisator selbst - die App liefert nur die
+    Rangliste."""
+    disziplin = db.get_or_404(Disziplin, disziplin_id)
+    praefix = request.args.get("quelle", "Vorrunde").strip() or "Vorrunde"
+
+    if request.method == "POST":
+        team_ids = [_int_or_none(t) for t in request.form.getlist("team_id")]
+        team_ids = [t for t in team_ids if t]
+        neuer_heat = request.form.get("neuer_heat", "").strip()
+        if not team_ids or not neuer_heat:
+            flash("Bitte mindestens ein Team und einen Namen für den neuen "
+                  "Lauf angeben.", "error")
+        elif len(team_ids) > BAHNEN:
+            flash(f"Ein Lauf hat maximal {BAHNEN} Bahnen - bitte höchstens "
+                  f"{BAHNEN} Teams auswählen.", "error")
+        else:
+            for lane, team_id in enumerate(team_ids, start=1):
+                db.session.add(Startplatz(
+                    team_id=team_id, disziplin_id=disziplin.id,
+                    startnummer=lane, heat=neuer_heat))
+            db.session.commit()
+            flash(f"Lauf „{neuer_heat}“ mit {len(team_ids)} Team(s) angelegt.", "ok")
+        return redirect(url_for("zeitplan.rangliste", disziplin_id=disziplin.id,
+                                quelle=praefix))
+
+    platzierungen = _rangliste_berechnen(disziplin, praefix)
+    vorhandene_praefixe = sorted({
+        sp.heat.rsplit(" ", 1)[0] for sp in disziplin.startplaetze if sp.heat
+    })
+    return render_template("zeitplan/rangliste.html", disziplin=disziplin,
+                           platzierungen=platzierungen, praefix=praefix,
+                           vorhandene_praefixe=vorhandene_praefixe)
+
+
 @bp.route("/startplatz/<int:startplatz_id>/loeschen", methods=["POST"])
 @rolle_noetig("startrichter", "organisator")
 def startplatz_loeschen(startplatz_id: int):
@@ -85,6 +126,8 @@ def _startzeiten_speichern(disziplin: Disziplin) -> None:
         sp.startnummer = _int_or_none(request.form.get(f"nr_{sp.id}"))
         sp.startzeit = request.form.get(f"zeit_{sp.id}", "").strip()
         sp.heat = request.form.get(f"heat_{sp.id}", "").strip()
+        sp.ergebnis_sekunden = _float_or_none(
+            request.form.get(f"erg_{sp.id}", ""))
     db.session.commit()
 
 
@@ -160,3 +203,49 @@ def _int_or_none(wert):
         return int(wert)
     except (TypeError, ValueError):
         return None
+
+
+def _float_or_none(wert):
+    try:
+        wert = (wert or "").replace(",", ".").strip()
+        return float(wert) if wert else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _rangliste_berechnen(disziplin: Disziplin, praefix: str) -> list[dict]:
+    """Rangliste für alle Läufe einer Disziplin, deren Heat-Name mit
+    `praefix` beginnt (z.B. "Vorrunde"): je Team die Summe der
+    `ergebnis_sekunden` über alle passenden Läufe. Nur Teams, bei denen ALLE
+    passenden Läufe eine erfasste Zeit haben, werden gerankt - andere
+    erscheinen als "unvollständig" ohne Rang. Sortiert aufsteigend (schneller
+    = besser).
+    """
+    passende = [sp for sp in disziplin.startplaetze
+               if sp.heat and sp.heat.startswith(praefix)]
+    je_team: dict[int, list[Startplatz]] = {}
+    for sp in passende:
+        je_team.setdefault(sp.team_id, []).append(sp)
+
+    vollstaendig, unvollstaendig = [], []
+    for team_id, eintraege in je_team.items():
+        team = eintraege[0].team
+        zeiten = [e.ergebnis_sekunden for e in eintraege]
+        if all(z is not None for z in zeiten):
+            vollstaendig.append({
+                "team": team, "gesamtzeit": sum(zeiten),
+                "laeufe": eintraege, "vollstaendig": True,
+            })
+        else:
+            unvollstaendig.append({
+                "team": team, "gesamtzeit": None,
+                "laeufe": eintraege, "vollstaendig": False,
+            })
+
+    vollstaendig.sort(key=lambda e: e["gesamtzeit"])
+    for i, e in enumerate(vollstaendig, start=1):
+        e["rang"] = i
+    for e in unvollstaendig:
+        e["rang"] = None
+
+    return vollstaendig + unvollstaendig

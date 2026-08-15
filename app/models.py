@@ -304,9 +304,14 @@ class Startplatz(db.Model):
     team_id = db.Column(db.Integer, db.ForeignKey("team.id"), nullable=False)
     disziplin_id = db.Column(db.Integer, db.ForeignKey("disziplin.id"),
                              nullable=False)
-    startnummer = db.Column(db.Integer)      # Reihenfolge innerhalb der Disziplin
+    startnummer = db.Column(db.Integer)      # Bahn/Reihenfolge innerhalb des Laufs
     startzeit = db.Column(db.String(20), default="")  # z.B. "10:30"
     heat = db.Column(db.String(40), default="")
+    # Erzielte Zeit dieses Teams in GENAU diesem Lauf/Heat (nicht die
+    # Startzeit!) - Grundlage für die automatische Rangliste je Runde
+    # (z.B. Vorrunde-Gesamtzeit = Summe über die 2 Vorrunden-Läufe eines
+    # Teams), aus der die nächste Runde ausgelost werden kann.
+    ergebnis_sekunden = db.Column(db.Float)
 
     team = db.relationship("Team", back_populates="startplaetze")
     disziplin = db.relationship("Disziplin", back_populates="startplaetze")

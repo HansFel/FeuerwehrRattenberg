@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block titel %}{{ disziplin.name }} – Rangliste{% endblock %}
+{% block inhalt %}
+  <h1>🏆 Rangliste: {{ disziplin.name }}</h1>
+  <p class="leer">
+    Rangliste aus allen Läufen, deren Heat/Durchgang-Name mit "{{ praefix }}"
+    beginnt (Zeiten mehrerer Läufe desselben Teams werden addiert). Wähle
+    unten die Teams für den nächsten Lauf aus (z.B. Halbfinale, Platzierung
+    41–44, Finale) – die genaue Einteilung entscheidest du selbst.
+  </p>
+
+  <form method="get" class="zuweis-form">
+    <label for="quelle">Runde/Quelle:</label>
+    <input type="text" id="quelle" name="quelle" value="{{ praefix }}" list="praefixe" style="width:12rem">
+    <datalist id="praefixe">
+      {% for p in vorhandene_praefixe %}<option value="{{ p }}">{% endfor %}
+    </datalist>
+    <button class="knopf klein grau" type="submit">Anzeigen</button>
+  </form>
+
+  {% if platzierungen %}
+  <table style="margin-top:1rem">
+    <thead>
+      <tr><th></th><th>Platz</th><th>Mannschaft</th><th>Gesamtzeit (Sek.)</th><th>Läufe</th></tr>
+    </thead>
+    <tbody>
+      <form method="post" id="rundeForm">
+      {% for p in platzierungen %}
+      <tr {% if not p.vollstaendig %}class="leer"{% endif %}>
+        <td><input type="checkbox" name="team_id" value="{{ p.team.id }}" form="rundeForm"></td>
+        <td>{{ p.rang if p.rang else "–" }}</td>
+        <td>{{ p.team.name }}</td>
+        <td>{{ "%.2f"|format(p.gesamtzeit) if p.gesamtzeit is not none else "unvollständig" }}</td>
+        <td><small>{% for l in p.laeufe %}{{ l.heat }}{% if l.ergebnis_sekunden is not none %} ({{ "%.2f"|format(l.ergebnis_sekunden) }}s){% else %} (offen){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</small></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="formular" style="max-width:100%; margin-top:1rem;">
+    <label for="neuer_heat">Name des neuen Laufs (z.B. "Halbfinale 1", "Platzierung 41-44")</label>
+    <input type="text" id="neuer_heat" name="neuer_heat" form="rundeForm" placeholder="Halbfinale 1">
+    <div class="werkzeugleiste" style="margin-top:0.6rem">
+      <button class="knopf" type="submit" form="rundeForm">→ Neuen Lauf mit ausgewählten Teams anlegen</button>
+    </div>
+    <p class="leer" style="margin-top:0.5rem">Oben die Häkchen bei den gewünschten Teams (max. 4) setzen, Namen eingeben, dann anlegen. Der neue Lauf erscheint danach in der normalen Startliste und kann dort weiter bearbeitet werden (Startzeit, Bahn-Reihenfolge, später Ergebnis eintragen).</p>
+  </div>
+  {% else %}
+  <p class="leer" style="margin-top:1rem">Keine Läufe mit diesem Namens-Präfix gefunden.</p>
+  {% endif %}
+
+  <div class="werkzeugleiste" style="margin-top:1rem">
+    <a class="knopf grau" href="{{ url_for('zeitplan.disziplin', disziplin_id=disziplin.id) }}">Zurück zur Startliste</a>
+  </div>
+{% endblock %}

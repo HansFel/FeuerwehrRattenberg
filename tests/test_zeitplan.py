@@ -151,3 +151,93 @@ def test_loeschen_erfordert_rolle(client, app):
     assert "rolle".encode() in r.data.lower()
     with app.app_context():
         assert db.session.get(Startplatz, sp_id) is not None
+
+
+def test_ergebnis_speichern(client, app):
+    with app.app_context():
+        d = Disziplin.query.first()
+        d_id = d.id
+        team = Team.query.first()
+        sp = Startplatz(team_id=team.id, disziplin_id=d_id, startnummer=1,
+                        heat="Vorrunde 1")
+        db.session.add(sp)
+        db.session.commit()
+        sp_id = sp.id
+
+    _login(client, "richter", "pw")
+    client.post(f"/zeitplan/disziplin/{d_id}", data={
+        "aktion": "speichern",
+        f"nr_{sp_id}": "1", f"zeit_{sp_id}": "10:00",
+        f"heat_{sp_id}": "Vorrunde 1", f"erg_{sp_id}": "42,50",
+    })
+    with app.app_context():
+        sp = db.session.get(Startplatz, sp_id)
+        assert sp.ergebnis_sekunden == pytest.approx(42.5)
+
+
+def test_rangliste_summiert_zwei_laeufe_und_markiert_unvollstaendig(client, app):
+    with app.app_context():
+        d = Disziplin.query.first()
+        d_id = d.id
+        t1, t2 = Team.query.order_by(Team.startnummer).limit(2).all()
+        # Team 1: beide Vorrunden-Läufe erfasst -> vollständig, Gesamtzeit 90
+        db.session.add(Startplatz(team_id=t1.id, disziplin_id=d_id,
+                                  heat="Vorrunde 1", ergebnis_sekunden=40.0))
+        db.session.add(Startplatz(team_id=t1.id, disziplin_id=d_id,
+                                  heat="Vorrunde 2", ergebnis_sekunden=50.0))
+        # Team 2: nur 1 von 2 Läufen erfasst -> unvollständig
+        db.session.add(Startplatz(team_id=t2.id, disziplin_id=d_id,
+                                  heat="Vorrunde 1", ergebnis_sekunden=30.0))
+        db.session.add(Startplatz(team_id=t2.id, disziplin_id=d_id,
+                                  heat="Vorrunde 2", ergebnis_sekunden=None))
+        db.session.commit()
+
+    _login(client, "orga", "pw")
+    r = client.get(f"/zeitplan/disziplin/{d_id}/rangliste?quelle=Vorrunde")
+    assert r.status_code == 200
+    assert "90.00".encode() in r.data
+    assert "unvollständig".encode() in r.data
+
+
+def test_naechste_runde_aus_rangliste_anlegen(client, app):
+    with app.app_context():
+        d = Disziplin.query.first()
+        d_id = d.id
+        teams = Team.query.order_by(Team.startnummer).limit(4).all()
+        team_ids = [t.id for t in teams]
+        for t in teams:
+            db.session.add(Startplatz(team_id=t.id, disziplin_id=d_id,
+                                      heat="Vorrunde 1", ergebnis_sekunden=float(t.id)))
+        db.session.commit()
+
+    _login(client, "orga", "pw")
+    r = client.post(f"/zeitplan/disziplin/{d_id}/rangliste", data={
+        "team_id": [str(i) for i in team_ids],
+        "neuer_heat": "Halbfinale 1",
+    }, follow_redirects=True)
+    assert r.status_code == 200
+    assert "angelegt".encode() in r.data
+
+    with app.app_context():
+        neue = Startplatz.query.filter_by(disziplin_id=d_id, heat="Halbfinale 1").all()
+        assert len(neue) == 4
+        assert {sp.team_id for sp in neue} == set(team_ids)
+        bahnen = [sp.startnummer for sp in neue]
+        assert sorted(bahnen) == [1, 2, 3, 4]
+
+
+def test_naechste_runde_lehnt_zu_viele_teams_ab(client, app):
+    with app.app_context():
+        d = Disziplin.query.first()
+        d_id = d.id
+        teams = Team.query.all()
+        team_ids = [t.id for t in teams]   # 8 Teams, mehr als 4 Bahnen
+
+    _login(client, "orga", "pw")
+    r = client.post(f"/zeitplan/disziplin/{d_id}/rangliste", data={
+        "team_id": [str(i) for i in team_ids],
+        "neuer_heat": "Zu viele",
+    }, follow_redirects=True)
+    assert "maximal".encode() in r.data
+    with app.app_context():
+        assert Startplatz.query.filter_by(heat="Zu viele").count() == 0

@@ -21,6 +21,9 @@
     {% if startplaetze %}
     <a class="knopf grau" href="{{ url_for('pdf.startliste', disziplin_id=disziplin.id) }}">📄 Startliste als PDF</a>
     {% endif %}
+    {% if darf_bearbeiten and startplaetze %}
+    <a class="knopf grau" href="{{ url_for('zeitplan.rangliste', disziplin_id=disziplin.id) }}">🏆 Rangliste &amp; nächste Runde auslosen</a>
+    {% endif %}
   </div>
 
   {% if darf_bearbeiten %}
@@ -47,7 +50,7 @@
     <table style="margin-top:1rem">
       <thead>
         <tr>
-          <th>Heat/Durchgang</th><th>Bahn</th><th>Mannschaft</th><th>Startzeit</th>
+          <th>Heat/Durchgang</th><th>Bahn</th><th>Mannschaft</th><th>Startzeit</th><th>Ergebnis (Sek.)</th>
           {% if darf_bearbeiten %}<th></th>{% endif %}
         </tr>
       </thead>
@@ -56,7 +59,7 @@
         {% for sp in startplaetze %}
         {% if sp.heat != ns.letzter_heat %}
           {% set ns.letzter_heat = sp.heat %}
-        <tr><td colspan="{{ 5 if darf_bearbeiten else 4 }}" style="background:var(--hell); font-weight:600;">
+        <tr><td colspan="{{ 6 if darf_bearbeiten else 5 }}" style="background:var(--hell); font-weight:600;">
           {{ sp.heat or "(ohne Heat/Durchgang)" }}
         </td></tr>
         {% endif %}
@@ -66,6 +69,7 @@
           <td><input type="number" name="nr_{{ sp.id }}" value="{{ sp.startnummer if sp.startnummer is not none else '' }}" style="width:4.5rem"></td>
           <td>{{ sp.team.name }}{% if sp.team.wehr %} <small>({{ sp.team.wehr }})</small>{% endif %}</td>
           <td><input type="text" name="zeit_{{ sp.id }}" value="{{ sp.startzeit }}" placeholder="10:30" style="width:6rem"></td>
+          <td><input type="text" name="erg_{{ sp.id }}" value="{{ sp.ergebnis_sekunden if sp.ergebnis_sekunden is not none else '' }}" placeholder="z.B. 42,3" style="width:6rem"></td>
           <td>
             <button class="knopf klein gefahr" type="submit" form="loeschen_{{ sp.id }}">✕</button>
           </td>
@@ -74,6 +78,7 @@
           <td>{{ sp.startnummer if sp.startnummer is not none else "–" }}</td>
           <td>{{ sp.team.name }}{% if sp.team.wehr %} <small>({{ sp.team.wehr }})</small>{% endif %}</td>
           <td>{{ sp.startzeit or "–" }}</td>
+          <td>{{ sp.ergebnis_sekunden if sp.ergebnis_sekunden is not none else "–" }}</td>
           {% endif %}
         </tr>
         {% endfor %}
