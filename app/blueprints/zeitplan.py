@@ -1,11 +1,15 @@
 """Startlisten / Zeitplan je Disziplin."""
+import random
+
 from flask import (Blueprint, flash, redirect, render_template, request,
                    url_for)
 
 from ..models import db, Team, Disziplin, Startplatz
-from ..auth import darf
+from ..auth import darf, rolle_noetig
 
 bp = Blueprint("zeitplan", __name__, url_prefix="/zeitplan")
+
+BAHNEN = 4
 
 
 @bp.route("/")
@@ -13,6 +17,17 @@ def uebersicht():
     disziplinen = Disziplin.query.order_by(Disziplin.reihenfolge,
                                             Disziplin.name).all()
     return render_template("zeitplan/uebersicht.html", disziplinen=disziplinen)
+
+
+@bp.route("/startplatz/<int:startplatz_id>/loeschen", methods=["POST"])
+@rolle_noetig("startrichter", "organisator")
+def startplatz_loeschen(startplatz_id: int):
+    sp = db.get_or_404(Startplatz, startplatz_id)
+    disziplin_id = sp.disziplin_id
+    db.session.delete(sp)
+    db.session.commit()
+    flash("Startplatz gelöscht.", "ok")
+    return redirect(url_for("zeitplan.disziplin", disziplin_id=disziplin_id))
 
 
 @bp.route("/disziplin/<int:disziplin_id>", methods=["GET", "POST"])
@@ -30,6 +45,14 @@ def disziplin(disziplin_id: int):
         if aktion == "auto":
             _startliste_automatisch(disziplin)
             flash("Startliste aus allen Mannschaften erzeugt.", "ok")
+        elif aktion == "auslosen":
+            anzahl_heats = _vorrunde_auslosen(disziplin)
+            flash(f"Vorrunde neu ausgelost: {anzahl_heats} Läufe für alle "
+                  "Mannschaften (bisherige Startliste dieser Disziplin wurde "
+                  "ersetzt).", "ok")
+        elif aktion == "hinzufuegen":
+            _startplatz_hinzufuegen(disziplin)
+            flash("Startplatz hinzugefügt.", "ok")
         elif aktion == "speichern":
             _startzeiten_speichern(disziplin)
             flash("Startliste gespeichert.", "ok")
@@ -37,9 +60,10 @@ def disziplin(disziplin_id: int):
 
     startplaetze = (Startplatz.query
                     .filter_by(disziplin_id=disziplin.id)
-                    .order_by(Startplatz.startnummer).all())
+                    .order_by(Startplatz.heat, Startplatz.startnummer).all())
+    teams = Team.query.order_by(Team.startnummer, Team.name).all()
     return render_template("zeitplan/disziplin.html", disziplin=disziplin,
-                           startplaetze=startplaetze)
+                           startplaetze=startplaetze, teams=teams)
 
 
 def _startliste_automatisch(disziplin: Disziplin) -> None:
@@ -62,6 +86,73 @@ def _startzeiten_speichern(disziplin: Disziplin) -> None:
         sp.startzeit = request.form.get(f"zeit_{sp.id}", "").strip()
         sp.heat = request.form.get(f"heat_{sp.id}", "").strip()
     db.session.commit()
+
+
+def _startplatz_hinzufuegen(disziplin: Disziplin) -> None:
+    """Fügt manuell einen einzelnen Startplatz hinzu (z.B. um ein Team
+    einem weiteren Lauf zuzuordnen oder eine Auslosung von Hand zu
+    ergänzen)."""
+    team_id = _int_or_none(request.form.get("team_id"))
+    if not team_id:
+        return
+    db.session.add(Startplatz(
+        team_id=team_id, disziplin_id=disziplin.id,
+        startnummer=_int_or_none(request.form.get("neu_nr")),
+        startzeit=request.form.get("neu_zeit", "").strip(),
+        heat=request.form.get("neu_heat", "").strip(),
+    ))
+    db.session.commit()
+
+
+def _vorrunde_auslosen(disziplin: Disziplin, bahnen: int = BAHNEN,
+                       runden: int = 2) -> int:
+    """Lost alle Mannschaften zufällig in Gruppen zu je `bahnen` Teams aus,
+    jedes Team `runden`-mal (Standard: 2, passend zum Vorrunden-Format des
+    Siloplanen-Race). Ersetzt eine vorhandene Startliste dieser Disziplin
+    komplett. Versucht (bestmöglich, nicht garantiert), dass kein Team in
+    beiden Runden auf dieselben Gegner trifft. Gibt die Anzahl erzeugter
+    Läufe zurück.
+    """
+    teams = Team.query.order_by(Team.startnummer, Team.name).all()
+    if len(teams) < 2:
+        return 0
+
+    Startplatz.query.filter_by(disziplin_id=disziplin.id).delete()
+
+    bisherige_gegner = {t.id: set() for t in teams}
+    heat_nr = 0
+
+    for _runde in range(runden):
+        gruppen = None
+        for _versuch in range(50):
+            gemischt = teams[:]
+            random.shuffle(gemischt)
+            kandidat = [gemischt[i:i + bahnen]
+                       for i in range(0, len(gemischt), bahnen)]
+            konflikte = sum(
+                1
+                for gruppe in kandidat
+                for i, t1 in enumerate(gruppe)
+                for t2 in gruppe[i + 1:]
+                if t2.id in bisherige_gegner[t1.id]
+            )
+            if gruppen is None or konflikte == 0:
+                gruppen = kandidat
+            if konflikte == 0:
+                break
+
+        for gruppe in gruppen:
+            for t1 in gruppe:
+                bisherige_gegner[t1.id].update(
+                    t2.id for t2 in gruppe if t2 is not t1)
+            heat_nr += 1
+            for lane, team in enumerate(gruppe, start=1):
+                db.session.add(Startplatz(
+                    team_id=team.id, disziplin_id=disziplin.id,
+                    startnummer=lane, heat=f"Vorrunde {heat_nr}"))
+
+    db.session.commit()
+    return heat_nr
 
 
 def _int_or_none(wert):

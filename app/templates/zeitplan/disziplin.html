@@ -7,8 +7,15 @@
   <div class="werkzeugleiste">
     {% if darf_bearbeiten %}
     <form class="inline" method="post">
+      <input type="hidden" name="aktion" value="auslosen">
+      <button class="knopf" type="submit"
+              onclick="return confirm('Vorrunde neu auslosen? Jede Mannschaft läuft 2× gegen wechselnde Gegner in 4er-Gruppen. Eine bereits vorhandene Startliste dieser Disziplin wird dabei komplett ersetzt!');">
+        🎲 Vorrunde zufällig auslosen (alle Mannschaften)
+      </button>
+    </form>
+    <form class="inline" method="post">
       <input type="hidden" name="aktion" value="auto">
-      <button class="knopf" type="submit">Alle Mannschaften übernehmen</button>
+      <button class="knopf grau" type="submit">+ Fehlende Mannschaften einzeln anhängen</button>
     </form>
     {% endif %}
     {% if startplaetze %}
@@ -16,26 +23,57 @@
     {% endif %}
   </div>
 
+  {% if darf_bearbeiten %}
+  <form class="formular" method="post" style="max-width:100%; margin-top:1rem;">
+    <input type="hidden" name="aktion" value="hinzufuegen">
+    <div class="werkzeugleiste">
+      <select name="team_id" required>
+        <option value="">– Mannschaft wählen –</option>
+        {% for t in teams %}
+        <option value="{{ t.id }}">{{ t.startnummer if t.startnummer is not none else "–" }} – {{ t.name }}</option>
+        {% endfor %}
+      </select>
+      <input type="text" name="neu_heat" placeholder="Heat/Durchgang, z.B. Vorrunde 5" style="width:12rem">
+      <input type="number" name="neu_nr" placeholder="Bahn" style="width:6rem">
+      <input type="text" name="neu_zeit" placeholder="Startzeit, z.B. 10:30" style="width:8rem">
+      <button class="knopf grau" type="submit">+ Einzeln hinzufügen</button>
+    </div>
+  </form>
+  {% endif %}
+
   {% if startplaetze %}
   <form method="post">
     <input type="hidden" name="aktion" value="speichern">
     <table style="margin-top:1rem">
       <thead>
-        <tr><th>Start-Nr.</th><th>Mannschaft</th><th>Startzeit</th><th>Heat/Durchgang</th></tr>
+        <tr>
+          <th>Heat/Durchgang</th><th>Bahn</th><th>Mannschaft</th><th>Startzeit</th>
+          {% if darf_bearbeiten %}<th></th>{% endif %}
+        </tr>
       </thead>
       <tbody>
+        {% set ns = namespace(letzter_heat=none) %}
         {% for sp in startplaetze %}
+        {% if sp.heat != ns.letzter_heat %}
+          {% set ns.letzter_heat = sp.heat %}
+        <tr><td colspan="{{ 5 if darf_bearbeiten else 4 }}" style="background:var(--hell); font-weight:600;">
+          {{ sp.heat or "(ohne Heat/Durchgang)" }}
+        </td></tr>
+        {% endif %}
         <tr>
           {% if darf_bearbeiten %}
-          <td><input type="number" name="nr_{{ sp.id }}" value="{{ sp.startnummer if sp.startnummer is not none else '' }}" style="width:5rem"></td>
+          <td><input type="text" name="heat_{{ sp.id }}" value="{{ sp.heat }}" style="width:8rem"></td>
+          <td><input type="number" name="nr_{{ sp.id }}" value="{{ sp.startnummer if sp.startnummer is not none else '' }}" style="width:4.5rem"></td>
           <td>{{ sp.team.name }}{% if sp.team.wehr %} <small>({{ sp.team.wehr }})</small>{% endif %}</td>
           <td><input type="text" name="zeit_{{ sp.id }}" value="{{ sp.startzeit }}" placeholder="10:30" style="width:6rem"></td>
-          <td><input type="text" name="heat_{{ sp.id }}" value="{{ sp.heat }}" style="width:8rem"></td>
+          <td>
+            <button class="knopf klein gefahr" type="submit" form="loeschen_{{ sp.id }}">✕</button>
+          </td>
           {% else %}
+          <td>{{ sp.heat or "–" }}</td>
           <td>{{ sp.startnummer if sp.startnummer is not none else "–" }}</td>
           <td>{{ sp.team.name }}{% if sp.team.wehr %} <small>({{ sp.team.wehr }})</small>{% endif %}</td>
           <td>{{ sp.startzeit or "–" }}</td>
-          <td>{{ sp.heat or "–" }}</td>
           {% endif %}
         </tr>
         {% endfor %}
@@ -48,9 +86,17 @@
     </div>
     {% endif %}
   </form>
+  {% if darf_bearbeiten %}
+  {% for sp in startplaetze %}
+  <form id="loeschen_{{ sp.id }}" method="post"
+        action="{{ url_for('zeitplan.startplatz_loeschen', startplatz_id=sp.id) }}"
+        onsubmit="return confirm('Startplatz von {{ sp.team.name }} wirklich löschen?');" style="display:none">
+  </form>
+  {% endfor %}
+  {% endif %}
   {% else %}
   <p class="leer" style="margin-top:1rem">
-    {% if darf_bearbeiten %}Noch keine Startplätze. Nutze „Alle Mannschaften übernehmen".
+    {% if darf_bearbeiten %}Noch keine Startplätze. Nutze „Vorrunde zufällig auslosen" oder füge einzeln hinzu.
     {% else %}Noch keine Startliste vorhanden.{% endif %}</p>
   {% endif %}
 {% endblock %}
