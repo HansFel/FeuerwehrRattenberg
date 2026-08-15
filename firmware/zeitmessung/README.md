@@ -34,8 +34,29 @@ keinen internen Pullup). Anpassbar in `include/config.h`.
      am Veranstaltungsort kein Internet verfügbar ist
 3. Diese Werte werden im NVS gespeichert und bleiben nach einem Neustart
    erhalten – kein erneutes Flashen nötig, wenn sich z.B. die Server-IP
-   ändert (dazu über die Geräte-Weboberfläche "WLAN zurücksetzen" und das
-   Portal erneut durchlaufen).
+   ändert (dazu über die Geräte-Weboberfläche "WLAN wechseln" bzw. "Alles
+   zurücksetzen" und das Portal erneut durchlaufen, siehe unten).
+
+## WLAN wechseln (z.B. Umzug zwischen Netzwerken)
+
+Über die Geräte-Weboberfläche (`/`) gibt es zwei Knöpfe:
+
+- **"WLAN wechseln"** – öffnet das Konfigurationsportal erneut (3 Minuten
+  Timeout), **ohne** vorher etwas zu löschen. App-URL/API-Key bleiben
+  erhalten und sind im Portal vorausgefüllt; wird das Portal nicht
+  ausgefüllt oder läuft es in den Timeout, verbindet sich das Gerät
+  automatisch wieder mit dem bisherigen WLAN. Das ist der übliche Weg,
+  wenn nur das Netzwerk wechselt (z.B. Testbetrieb zu Hause → echtes WLAN
+  am Veranstaltungsort).
+- **"Alles zurücksetzen"** – löscht WLAN-Zugangsdaten UND App-URL/API-Key
+  unwiderruflich und startet neu; nur nötig, wenn wirklich bei Null
+  begonnen werden soll.
+
+Während des Konfigurationsportals ist die normale Geräte-Weboberfläche
+nicht erreichbar (das Gerät spannt währenddessen einen eigenen
+Access-Point auf) – mit Handy/Laptop kurz mit `Zeitmessung-<Geräte-ID>`
+verbinden, neues Netzwerk wählen, danach ist das Gerät wieder unter seiner
+(neuen) WLAN-IP erreichbar.
 
 ## Lokale Weboberfläche
 
@@ -46,8 +67,10 @@ oder Serial-Monitor ablesen):
   mit Sendestatus (gesendet/wartend/fehlgeschlagen) – zum Testen vor Ort, ob
   die Kontakte sauber auslösen, ohne die Haupt-App zu öffnen
 - `/status` – dieselben Daten als JSON
-- `/wlan-zuruecksetzen` – löscht die WLAN-Zugangsdaten und startet neu
-  (Captive Portal erscheint wieder)
+- `/wlan-wechseln` – startet neu ins Konfigurationsportal, OHNE etwas zu
+  löschen (App-URL/API-Key bleiben, altes WLAN bleibt als Fallback)
+- `/wlan-zuruecksetzen` – löscht WLAN-Zugangsdaten UND App-URL/API-Key und
+  startet neu (Captive Portal erscheint wieder, alle Felder leer)
 
 ## Bauen und Flashen (PlatformIO)
 

@@ -337,6 +337,64 @@ class Zeitereignis(db.Model):
         return f"<Zeitereignis Bahn {self.bahn} {self.kontakt}>"
 
 
+# ── Notfall-Zeiterfassung (manueller Fallback) ───────────────────────────────
+# Falls die automatische Zuordnung der ESP32-Ereignisse zu einem
+# Wettkampf-Lauf ausfaellt: der Startrichter traegt vorab die
+# Team-Besetzung je Bahn ein und erfasst die Zeiten danach von Hand (z.B.
+# abgelesen von der eigenstaendigen Weboberflaeche des ESP32, die auch bei
+# App-Ausfall unabhaengig weiterlaeuft).
+
+class NotfallLauf(db.Model):
+    __tablename__ = "notfall_lauf"
+
+    id = db.Column(db.Integer, primary_key=True)
+    bezeichnung = db.Column(db.String(120), default="")
+    erstellt = db.Column(db.DateTime, default=_jetzt)
+    erstellt_von = db.Column(db.String(80), default="")
+
+    bahnen = db.relationship("NotfallBahn", back_populates="lauf",
+                             cascade="all, delete-orphan",
+                             order_by="NotfallBahn.bahn_nr")
+
+    def __repr__(self) -> str:
+        return f"<NotfallLauf {self.bezeichnung!r}>"
+
+
+class NotfallBahn(db.Model):
+    """Eine Bahn eines Notfall-Laufs: ein Team mit seinen (bis zu 4) Läufern
+    aus Team.mitglieder (Reihenfolge = Startreihenfolge) und den manuell
+    erfassten Teilzeiten je Läufer."""
+    __tablename__ = "notfall_bahn"
+
+    id = db.Column(db.Integer, primary_key=True)
+    lauf_id = db.Column(db.Integer, db.ForeignKey("notfall_lauf.id"), nullable=False)
+    bahn_nr = db.Column(db.Integer, nullable=False)      # 1..4
+    team_id = db.Column(db.Integer, db.ForeignKey("team.id"))
+
+    zeit_laeufer1 = db.Column(db.Float)   # Sekunden
+    zeit_laeufer2 = db.Column(db.Float)
+    zeit_laeufer3 = db.Column(db.Float)
+    zeit_laeufer4 = db.Column(db.Float)
+
+    lauf = db.relationship("NotfallLauf", back_populates="bahnen")
+    team = db.relationship("Team")
+
+    @property
+    def zeiten(self) -> list:
+        return [self.zeit_laeufer1, self.zeit_laeufer2,
+                self.zeit_laeufer3, self.zeit_laeufer4]
+
+    @property
+    def gesamtzeit(self):
+        werte = [z for z in self.zeiten if z is not None]
+        if len(werte) != 4:
+            return None
+        return sum(werte)
+
+    def __repr__(self) -> str:
+        return f"<NotfallBahn Bahn {self.bahn_nr} Lauf {self.lauf_id}>"
+
+
 # ── Essen & Getränke (Gäste-Bestellsystem) ───────────────────────────────────
 
 KATEGORIE_ESSEN = "essen"

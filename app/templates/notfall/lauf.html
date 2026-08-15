@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block titel %}Notfall-Lauf{% if lauf.bezeichnung %} – {{ lauf.bezeichnung }}{% endif %}{% endblock %}
+{% block inhalt %}
+  <h1>🆘 Notfall-Lauf{% if lauf.bezeichnung %} – {{ lauf.bezeichnung }}{% endif %}</h1>
+  <p class="leer">Zeit je Läufer in Sekunden eintragen (z.B. von der
+     ESP32-Weboberfläche abgelesen oder per Stoppuhr gemessen). Die
+     Team-Summe wird automatisch berechnet, sobald alle 4 Zeiten einer Bahn
+     eingetragen sind.</p>
+
+  <form method="post">
+    {% for bahn in lauf.bahnen %}
+    <div class="dash-karte" style="margin-bottom:1rem;">
+      <h2>Bahn {{ bahn.bahn_nr }}{% if bahn.team %} – {{ bahn.team.name }}{% else %} – <span class="leer">kein Team</span>{% endif %}</h2>
+      {% if bahn.team %}
+      <table>
+        <thead><tr><th>Läufer</th><th>Name</th><th>Zeit (Sekunden)</th></tr></thead>
+        <tbody>
+          {% for i in range(1, 5) %}
+          {% set m = bahn.team.mitglieder[i-1] if bahn.team.mitglieder | length >= i else none %}
+          <tr>
+            <td>{{ i }}</td>
+            <td>{{ m.anzeige() if m else "–" }}</td>
+            <td>
+              <input type="number" step="0.01" min="0" style="width:6rem"
+                     name="zeit_{{ bahn.id }}_{{ i }}"
+                     value="{{ bahn.zeiten[i-1] if bahn.zeiten[i-1] is not none else '' }}">
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p><strong>Team-Summe: {{ "%.2f"|format(bahn.gesamtzeit) if bahn.gesamtzeit is not none else "–" }} s</strong></p>
+      {% else %}
+      <p class="leer">Keine Mannschaft zugewiesen.</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+
+    <div class="werkzeugleiste" style="margin-top:1rem">
+      <button class="knopf" type="submit">Zeiten speichern</button>
+      <a class="knopf grau" href="{{ url_for('notfall.liste') }}">Zurück zur Übersicht</a>
+    </div>
+  </form>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block titel %}Neuer Notfall-Lauf{% endblock %}
+{% block inhalt %}
+  <h1>🆘 Neuer Notfall-Lauf</h1>
+
+  <form class="formular" method="post">
+    <label for="bezeichnung">Bezeichnung (optional)</label>
+    <input type="text" id="bezeichnung" name="bezeichnung" placeholder="z.B. Vorrunde Lauf 3">
+
+    <fieldset style="margin-top:1rem; border:1px solid var(--rand); border-radius:6px; padding:0.5rem 1rem 1rem;">
+      <legend style="font-weight:600;">Bahnen (Team je Bahn)</legend>
+      {% for bahn_nr in range(1, 5) %}
+      <label for="team_{{ bahn_nr }}">Bahn {{ bahn_nr }}</label>
+      <select id="team_{{ bahn_nr }}" name="team_{{ bahn_nr }}">
+        <option value="">– kein Team –</option>
+        {% for t in teams %}
+        <option value="{{ t.id }}">{{ t.startnummer if t.startnummer is not none else "–" }} – {{ t.name }}</option>
+        {% endfor %}
+      </select>
+      {% endfor %}
+    </fieldset>
+
+    <div class="werkzeugleiste" style="margin-top:1rem">
+      <button class="knopf" type="submit">Lauf anlegen</button>
+      <a class="knopf grau" href="{{ url_for('notfall.liste') }}">Abbrechen</a>
+    </div>
+  </form>
+{% endblock %}

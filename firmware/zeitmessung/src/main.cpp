@@ -51,7 +51,7 @@ constexpr unsigned long WIEDERHOLUNGS_INTERVALL_MS = 3000;
 
 void ladeEinstellungen();
 void speichereEinstellungen();
-void starteWLAN();
+void starteWLAN(bool portalErzwingen);
 void starteZeitSynchronisation();
 void starteWebserver();
 void kontaktePruefen();
@@ -73,7 +73,9 @@ void setup() {
   }
 
   ladeEinstellungen();
-  starteWLAN();
+  bool portalErzwingen = einstellungen.getBool("portal_erzw", false);
+  if (portalErzwingen) einstellungen.putBool("portal_erzw", false);
+  starteWLAN(portalErzwingen);
   starteZeitSynchronisation();
   starteWebserver();
 
@@ -109,7 +111,15 @@ void speichereEinstellungen() {
 // ── WLAN (WiFiManager mit eigenen Feldern für App-URL/API-Key/Zeitserver,
 // so lassen sich diese vor Ort über die Captive-Portal-Seite anpassen,
 // ohne neu zu flashen) ──────────────────────────────────────────────────
-void starteWLAN() {
+//
+// portalErzwingen=true (gesetzt über /wlan-wechseln + Neustart) öffnet das
+// Konfigurationsportal auch dann, wenn noch WLAN-Zugangsdaten gespeichert
+// sind - im Unterschied zu /wlan-zuruecksetzen werden dabei WEDER die
+// bisherigen WLAN-Zugangsdaten NOCH App-URL/API-Key vorher gelöscht. Bricht
+// man das Portal ab oder läuft es in den Timeout, bleiben die alten Werte
+// als Fallback erhalten (WiFiManager verwirft sie erst bei erfolgreichem
+// Abschluss des Portals).
+void starteWLAN(bool portalErzwingen) {
   WiFiManagerParameter feldAppUrl(
       "app_url", "App-URL (z.B. http://192.168.1.10:8000/api/zeitmessung/event)",
       appUrl.c_str(), 160);
@@ -119,12 +129,25 @@ void starteWLAN() {
   wifiManager.addParameter(&feldAppUrl);
   wifiManager.addParameter(&feldApiKey);
   wifiManager.addParameter(&feldNtp);
-  // Kein Config-Portal-Timeout: der Access Point soll zuverlässig stehen
-  // bleiben, bis er eingerichtet wurde, statt nach ein paar Minuten
-  // wegzufallen und neu zu starten (verwirrend bei der Ersteinrichtung).
 
   String apName = String("Zeitmessung-") + GERAETE_ID;
-  wifiManager.autoConnect(apName.c_str());
+
+  if (portalErzwingen) {
+    // Netzwerk-Wechsel: Timeout, damit das Gerät nicht auf unbestimmte Zeit
+    // im Konfigurations-AP hängen bleibt, falls niemand das Portal
+    // ausfüllt - danach automatischer Versuch mit den alten Zugangsdaten.
+    wifiManager.setConfigPortalTimeout(180);
+    wifiManager.startConfigPortal(apName.c_str());
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("Netzwerk-Wechsel abgebrochen/Timeout - verbinde erneut mit bisherigem WLAN.");
+      WiFi.begin();
+    }
+  } else {
+    // Ersteinrichtung: kein Timeout, der Access Point soll zuverlässig
+    // stehen bleiben, bis er eingerichtet wurde, statt nach ein paar
+    // Minuten wegzufallen und neu zu starten (verwirrend beim ersten Mal).
+    wifiManager.autoConnect(apName.c_str());
+  }
 
   appUrl = feldAppUrl.getValue();
   apiKey = feldApiKey.getValue();
@@ -284,9 +307,13 @@ String startseiteHtml() {
   html += "<h2>Letzte Ereignisse</h2>";
   html += "<table><thead><tr><th>Bahn</th><th>Kontakt</th><th>Geraete-ms</th><th>Status</th></tr></thead>"
           "<tbody id=\"ereignisse\"></tbody></table>";
+  html += "<a class=\"knopf\" href=\"/wlan-wechseln\" "
+          "onclick=\"return confirm('Konfigurationsportal zum Wechseln des WLAN oeffnen? "
+          "App-URL/API-Key bleiben erhalten, das Geraet ist kurz nicht ueber diese Seite erreichbar.');\">"
+          "WLAN wechseln</a> ";
   html += "<a class=\"knopf\" href=\"/wlan-zuruecksetzen\" "
-          "onclick=\"return confirm('WLAN-Zugangsdaten loeschen und neu starten?');\">"
-          "WLAN zuruecksetzen</a>";
+          "onclick=\"return confirm('WLAN-Zugangsdaten UND App-URL/API-Key loeschen und neu starten?');\">"
+          "Alles zuruecksetzen</a>";
   html += "<script>"
           "async function aktualisieren(){"
           "try{"
@@ -328,6 +355,18 @@ void starteWebserver() {
     request->send(200, "text/html; charset=utf-8",
                  "<html><body>WLAN-Zugangsdaten geloescht, Neustart...</body></html>");
     wifiManager.resetSettings();
+    delay(1000);
+    ESP.restart();
+  });
+  webserver.on("/wlan-wechseln", HTTP_GET, [](AsyncWebServerRequest* request) {
+    String antwort = String("<html><body>Neustart ins Konfigurationsportal (WLAN \"Zeitmessung-") +
+                     GERAETE_ID +
+                     "\") - App-URL/API-Key bleiben erhalten. Mit Handy/Laptop mit diesem WLAN "
+                     "verbinden, um ein neues Netzwerk zu waehlen. Ohne Eingabe verbindet sich "
+                     "das Geraet nach ca. 3 Minuten automatisch wieder mit dem bisherigen "
+                     "WLAN.</body></html>";
+    request->send(200, "text/html; charset=utf-8", antwort);
+    einstellungen.putBool("portal_erzw", true);
     delay(1000);
     ESP.restart();
   });

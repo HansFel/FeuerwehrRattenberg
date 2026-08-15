@@ -32,6 +32,7 @@
       {% endif %}
       {% if dashboard_zeigt('organisator', 'startrichter') %}
         <a href="{{ url_for('zeitmessung.liste') }}">Zeitmessung</a>
+        <a href="{{ url_for('notfall.liste') }}">🆘 Notfall</a>
       {% endif %}
       {% if aktive_rolle() == 'administrator' %}
         <a href="{{ url_for('benutzer.liste') }}">Personen</a>

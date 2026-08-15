@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block titel %}Notfall-Zeiterfassung{% endblock %}
+{% block inhalt %}
+  <h1>🆘 Notfall-Zeiterfassung</h1>
+  <p class="leer">Manuelle Erfassung, falls die automatische Zuordnung der
+     ESP32-Zeitmessung zu einem Wettkampf-Lauf ausfällt. Die ESP32-eigene
+     Weboberfläche läuft unabhängig weiter und zeigt die rohen Kontaktzeiten
+     zum Ablesen.</p>
+
+  <div class="werkzeugleiste">
+    <a class="knopf" href="{{ url_for('notfall.neu') }}">+ Neuer Lauf</a>
+  </div>
+
+  {% if laeufe %}
+  <table>
+    <thead>
+      <tr><th>Zeit</th><th>Bezeichnung</th><th>Bahnen belegt</th><th>Zeiten erfasst</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for l in laeufe %}
+      <tr>
+        <td>{{ l.erstellt.strftime('%H:%M') if l.erstellt else '' }}</td>
+        <td>{{ l.bezeichnung or "–" }}</td>
+        <td>{{ l.bahnen | selectattr('team_id') | list | length }}/4</td>
+        <td>{{ l.bahnen | selectattr('gesamtzeit') | list | length }}/4</td>
+        <td><a class="knopf klein grau" href="{{ url_for('notfall.lauf', lauf_id=l.id) }}">Öffnen</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="leer">Noch keine Notfall-Läufe angelegt.</p>
+  {% endif %}
+{% endblock %}
