@@ -67,3 +67,40 @@ def test_liste_erfordert_rolle(client):
     r = client.get("/zeitmessung/", follow_redirects=True)
     assert r.status_code == 200
     assert b"Bitte zuerst anmelden" in r.data
+
+
+def test_event_mit_neuem_kontakttyp_wird_akzeptiert(client, app):
+    """Aktuelle Hardware hat nur noch 1 Kontakt pro Bahn und meldet
+    kontakt='kontakt' statt 'start'/'ziel'."""
+    r = client.post("/api/zeitmessung/event",
+                    json={"geraet_id": "esp32-1", "bahn": 3, "kontakt": "kontakt",
+                          "geraet_millis": 999},
+                    headers={"X-API-Key": API_KEY})
+    assert r.status_code == 201
+    with app.app_context():
+        e = Zeitereignis.query.one()
+        assert e.kontakt == "kontakt"
+
+
+def test_liste_zeigt_laufende_nummer_je_bahn(client, app):
+    """1.-4. Auslösung einer Bahn = Läufer 1-4 Start, 5. = Ziel, danach
+    beginnt die Zählung für den nächsten Lauf wieder bei 1."""
+    with app.app_context():
+        from app.models import Benutzer, BenutzerRolle
+        orga = Benutzer(username="orga", aktiv=True)
+        orga.set_password("pw")
+        orga.rollen.append(BenutzerRolle(rolle="organisator"))
+        db.session.add(orga)
+        db.session.commit()
+
+    for _ in range(6):
+        client.post("/api/zeitmessung/event",
+                    json={"geraet_id": "esp32-1", "bahn": 1, "kontakt": "kontakt"},
+                    headers={"X-API-Key": API_KEY})
+
+    client.post("/anmelden", data={"username": "orga", "passwort": "pw"})
+    r = client.get("/zeitmessung/")
+    assert r.status_code == 200
+    assert "Läufer 1".encode() in r.data
+    assert "Läufer 4".encode() in r.data
+    assert "(Ziel)".encode() in r.data

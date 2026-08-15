@@ -314,6 +314,12 @@ class Startplatz(db.Model):
 
 KONTAKT_START = "start"
 KONTAKT_ZIEL = "ziel"
+# Aktuelle Hardware hat nur noch einen Kontakt pro Bahn (kein separater
+# Ziel-Kontakt mehr) - jede Auslösung wird als "kontakt" gemeldet, die
+# Zuordnung Start/Ziel passiert später anhand der Reihenfolge in der
+# Auswertung. KONTAKT_START/KONTAKT_ZIEL bleiben für historische
+# Datenbestände aus der alten 8-Kontakte-Verkabelung erhalten.
+KONTAKT_KONTAKT = "kontakt"
 
 
 class Zeitereignis(db.Model):

@@ -1,9 +1,15 @@
-// Zeitmessung Siloplanen-Race: liest 4 Start- und 4 Zielkontakte, meldet
-// jede Auslösung roh (Bahn, Kontakttyp, Zeitstempel) per HTTP an die
-// FeuerwehrRattenberg-App. Siehe README.md für Verkabelung/Einrichtung.
+// Zeitmessung Siloplanen-Race: liest 4 Öffner-Kontakte (einer pro Bahn),
+// meldet jede Auslösung roh (Bahn, Zeitstempel) per HTTP an die
+// FeuerwehrRattenberg-App. Jeder Läufer löst beim Loslaufen denselben
+// Bahn-Kontakt aus, der letzte Läufer zusätzlich am Ziel - die Firmware
+// selbst kennt keine Läufe/Runden oder Läufer-Zuordnung, das macht die
+// spätere Auswertung anhand der Reihenfolge. Siehe README.md für
+// Verkabelung/Einrichtung.
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiManager.h>
+#include <WiFiClientSecure.h>
+#include <ArduinoOTA.h>
 #include <time.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
@@ -25,12 +31,13 @@ struct Kontakt {
   uint8_t pin;
   int bahn;
   const char* typ;
-  bool stabilHigh = true;
-  bool letzterRoh = true;
+  // Startwert = Ruhezustand des Oeffner-Kontakts (geschlossen = LOW).
+  bool stabilHigh = false;
+  bool letzterRoh = false;
   unsigned long letzteAenderung = 0;
 };
 
-Kontakt kontakte[ANZAHL_BAHNEN * 2];
+Kontakt kontakte[ANZAHL_BAHNEN];
 
 enum class SendeStatus { WARTEND, GESENDET, FEHLGESCHLAGEN };
 
@@ -46,6 +53,10 @@ struct EreignisEintrag {
 
 EreignisEintrag verlauf[LETZTE_EREIGNISSE_ANZEIGEN];
 int verlaufIndex = 0;
+// Schuetzt verlauf/verlaufIndex zwischen dem Haupt-Loop (Kontakte lesen,
+// schreibt neue Eintraege) und netzwerkTask (sendet/aktualisiert Status auf
+// einem eigenen FreeRTOS-Task/Core) - siehe netzwerkTask() weiter unten.
+SemaphoreHandle_t verlaufMutex;
 
 constexpr unsigned long WIEDERHOLUNGS_INTERVALL_MS = 3000;
 
@@ -63,17 +74,19 @@ String startseiteHtml();
 void serielleBefehleVerarbeiten();
 void serielleHilfeAusgeben();
 void serielleStatusAusgeben();
+void starteOTA();
+void netzwerkTask(void* parameter);
 
 void setup() {
   Serial.begin(115200);
   delay(200);
 
   for (int i = 0; i < ANZAHL_BAHNEN; i++) {
-    pinMode(PIN_START[i], INPUT_PULLUP);
-    kontakte[i] = {PIN_START[i], i + 1, "start"};
-    pinMode(PIN_ZIEL[i], INPUT_PULLUP);
-    kontakte[ANZAHL_BAHNEN + i] = {PIN_ZIEL[i], i + 1, "ziel"};
+    pinMode(PIN_KONTAKT[i], INPUT_PULLUP);
+    kontakte[i] = {PIN_KONTAKT[i], i + 1, "kontakt"};
   }
+
+  verlaufMutex = xSemaphoreCreateMutex();
 
   ladeEinstellungen();
   bool portalErzwingen = einstellungen.getBool("portal_erzw", false);
@@ -81,6 +94,12 @@ void setup() {
   starteWLAN(portalErzwingen);
   starteZeitSynchronisation();
   starteWebserver();
+  starteOTA();
+
+  // Netzwerk-Versand laeuft auf einem eigenen Task/Core, damit ein
+  // haengender/langsamer HTTP(S)-Versuch NIE die Kontakterkennung im
+  // Haupt-Loop blockiert (Timing-Genauigkeit hat Vorrang).
+  xTaskCreatePinnedToCore(netzwerkTask, "netzwerk", 8192, NULL, 1, NULL, 0);
 
   Serial.println("Bereit. 'hilfe' eingeben fuer Befehlsuebersicht.");
   serielleStatusAusgeben();
@@ -89,13 +108,39 @@ void setup() {
 void loop() {
   kontaktePruefen();
   serielleBefehleVerarbeiten();
+  ArduinoOTA.handle();
+}
 
-  unsigned long jetzt = millis();
-  for (auto& eintrag : verlauf) {
-    if (eintrag.belegt && eintrag.status != SendeStatus::GESENDET &&
-        (jetzt - eintrag.letzterVersuch) >= WIEDERHOLUNGS_INTERVALL_MS) {
-      ereignisSenden(eintrag);
+// Laeuft dauerhaft auf einem eigenen Core: sucht Ereignisse, die noch nicht
+// (erfolgreich) gesendet wurden, und versucht sie zu senden. Haelt den
+// Mutex bewusst NUR waehrend des Kopierens/Zurueckschreibens von verlauf,
+// NICHT waehrend des eigentlichen (potenziell langsamen) HTTP-Aufrufs - der
+// laeuft auf einer lokalen Kopie, damit ein zeitgleiches Ueberschreiben
+// desselben Ringpuffer-Slots durch ereignisAufzeichnen() (Haupt-Loop) nie
+// mitten in einem laufenden Sendeversuch passieren kann.
+void netzwerkTask(void* parameter) {
+  for (;;) {
+    unsigned long jetzt = millis();
+    for (int i = 0; i < LETZTE_EREIGNISSE_ANZEIGEN; i++) {
+      xSemaphoreTake(verlaufMutex, portMAX_DELAY);
+      bool sollSenden = verlauf[i].belegt &&
+                        verlauf[i].status != SendeStatus::GESENDET &&
+                        (jetzt - verlauf[i].letzterVersuch) >= WIEDERHOLUNGS_INTERVALL_MS;
+      EreignisEintrag kopie;
+      if (sollSenden) {
+        kopie = verlauf[i];
+        verlauf[i].letzterVersuch = jetzt;   // verhindert sofortiges Doppel-Senden
+      }
+      xSemaphoreGive(verlaufMutex);
+
+      if (sollSenden) {
+        ereignisSenden(kopie);
+        xSemaphoreTake(verlaufMutex, portMAX_DELAY);
+        verlauf[i].status = kopie.status;
+        xSemaphoreGive(verlaufMutex);
+      }
     }
+    vTaskDelay(pdMS_TO_TICKS(200));
   }
 }
 
@@ -185,6 +230,10 @@ String aktuelleZeitIso() {
 }
 
 // ── Kontakte lesen (entprellt, flankengetriggert) ──────────────────────
+// Oeffner-Kontakte (Schliesser waere NICHT hier gemeint) am internen
+// Pullup: Ruhezustand = Kontakt geschlossen = gegen GND kurzgeschlossen =
+// LOW. Ausloesung = Kontakt oeffnet = Pin wird vom Pullup auf HIGH gezogen.
+// Ausloesung ist also die Flanke LOW -> HIGH (nicht umgekehrt).
 void kontaktePruefen() {
   unsigned long jetzt = millis();
   for (auto& k : kontakte) {
@@ -195,7 +244,7 @@ void kontaktePruefen() {
     }
     if (roh != k.stabilHigh && (jetzt - k.letzteAenderung) >= ENTPRELL_MS) {
       k.stabilHigh = roh;
-      if (!k.stabilHigh) {   // stabile Flanke auf LOW = Kontakt ausgelöst
+      if (k.stabilHigh) {   // stabile Flanke auf HIGH = Oeffner-Kontakt ausgelöst
         ereignisAufzeichnen(k.bahn, k.typ);
       }
     }
@@ -203,6 +252,12 @@ void kontaktePruefen() {
 }
 
 void ereignisAufzeichnen(int bahn, const char* typ) {
+  // Nur den Ringpuffer-Eintrag schreiben - das eigentliche Senden macht
+  // netzwerkTask() auf einem eigenen Core, damit diese Funktion (aufgerufen
+  // aus kontaktePruefen() im Haupt-Loop) immer schnell zurückkehrt und die
+  // Kontakterkennung nie durch einen langsamen/haengenden HTTP-Aufruf
+  // blockiert wird.
+  xSemaphoreTake(verlaufMutex, portMAX_DELAY);
   EreignisEintrag& eintrag = verlauf[verlaufIndex];
   eintrag.belegt = true;
   eintrag.bahn = bahn;
@@ -212,9 +267,9 @@ void ereignisAufzeichnen(int bahn, const char* typ) {
   eintrag.status = SendeStatus::WARTEND;
   eintrag.letzterVersuch = 0;
   verlaufIndex = (verlaufIndex + 1) % LETZTE_EREIGNISSE_ANZEIGEN;
+  xSemaphoreGive(verlaufMutex);
 
   Serial.printf("Bahn %d %s ausgeloest\n", bahn, typ);
-  ereignisSenden(eintrag);
 }
 
 bool ereignisSenden(EreignisEintrag& eintrag) {
@@ -233,12 +288,33 @@ bool ereignisSenden(EreignisEintrag& eintrag) {
   String koerper;
   serializeJson(nutzlast, koerper);
 
+  // HTTPS-Ziele (z.B. der Produktionsserver hinter Traefik/Let's Encrypt)
+  // brauchen einen eigenen TLS-Client. setInsecure() verzichtet bewusst auf
+  // Zertifikatspruefung - unproblematisch fuer diese interne Zeitmessdaten,
+  // vermeidet aber das Einbetten/Pflegen eines Root-Zertifikats auf dem
+  // ESP32.
   HTTPClient http;
-  http.begin(appUrl);
+  bool gestartet;
+  WiFiClientSecure tlsClient;
+  if (appUrl.startsWith("https://")) {
+    tlsClient.setInsecure();
+    gestartet = http.begin(tlsClient, appUrl);
+  } else {
+    gestartet = http.begin(appUrl);
+  }
+  if (!gestartet) {
+    eintrag.status = SendeStatus::FEHLGESCHLAGEN;
+    Serial.printf("Senden fehlgeschlagen (Bahn %d %s): http.begin() fehlgeschlagen (App-URL: %s)\n",
+                  eintrag.bahn, eintrag.typ, appUrl.c_str());
+    return false;
+  }
   http.addHeader("Content-Type", "application/json");
   http.addHeader("X-API-Key", apiKey);
-  http.setTimeout(2000);
+  // HTTPS-TLS-Handshakes brauchen auf dem ESP32 deutlich laenger als
+  // schlichtes HTTP - 2s (frueherer Wert) reichte dafuer oft nicht.
+  http.setTimeout(10000);
   int code = http.POST(koerper);
+  String fehlertext = (code < 0) ? http.errorToString(code) : "";
   http.end();
 
   if (code == 200 || code == 201) {
@@ -246,7 +322,10 @@ bool ereignisSenden(EreignisEintrag& eintrag) {
     return true;
   }
   eintrag.status = SendeStatus::FEHLGESCHLAGEN;
-  Serial.printf("Senden fehlgeschlagen (Bahn %d %s), HTTP %d\n", eintrag.bahn, eintrag.typ, code);
+  Serial.printf("Senden fehlgeschlagen (Bahn %d %s): Code %d %s (freier Heap: %u Bytes, "
+                "groesster Block: %u Bytes)\n",
+                eintrag.bahn, eintrag.typ, code, fehlertext.c_str(),
+                ESP.getFreeHeap(), ESP.getMaxAllocHeap());
   return false;
 }
 
@@ -266,7 +345,7 @@ String statusJson() {
     JsonObject o = kontaktzustaende.add<JsonObject>();
     o["bahn"] = k.bahn;
     o["typ"] = k.typ;
-    o["offen"] = k.stabilHigh;
+    o["ausgeloest"] = k.stabilHigh;   // true = Oeffner-Kontakt gerade ausgeloest
   }
 
   JsonArray ereignisse = doc["ereignisse"].to<JsonArray>();
@@ -298,7 +377,7 @@ String startseiteHtml() {
           "table{border-collapse:collapse;width:100%;margin-top:.5rem}"
           "td,th{border:1px solid #444;padding:.3rem .6rem;text-align:left}"
           ".ok{color:#7c7}.fehler{color:#e77}.wartend{color:#cc7}"
-          ".offen{color:#7c7}.geschlossen{color:#fa3;font-weight:bold}"
+          ".bereit{color:#7c7}.ausgeloest{color:#fa3;font-weight:bold}"
           "a.knopf{display:inline-block;margin-top:1rem;padding:.4rem .8rem;"
           "background:#a33;color:#fff;text-decoration:none;border-radius:4px}</style></head><body>";
   html += "<h1>Zeitmessung " + String(GERAETE_ID) + "</h1>";
@@ -330,8 +409,8 @@ String startseiteHtml() {
           "const kt=document.getElementById('kontakte');kt.innerHTML='';"
           "d.kontaktzustaende.forEach(k=>{"
           "const tr=document.createElement('tr');"
-          "const zustand=k.offen?'offen':'GESCHLOSSEN';"
-          "const klasse=k.offen?'offen':'geschlossen';"
+          "const zustand=k.ausgeloest?'AUSGELOEST':'bereit';"
+          "const klasse=k.ausgeloest?'ausgeloest':'bereit';"
           "tr.innerHTML='<td>'+k.bahn+'</td><td>'+k.typ+'</td><td class=\"'+klasse+'\">'+zustand+'</td>';"
           "kt.appendChild(tr);});"
           "const ev=document.getElementById('ereignisse');ev.innerHTML='';"
@@ -378,6 +457,29 @@ void starteWebserver() {
   webserver.begin();
 }
 
+// ── OTA-Updates (Firmware-Update uebers WLAN, kein USB/Boot-Taste mehr
+// noetig) ─────────────────────────────────────────────────────────────────
+// Passwort ist der aktuelle API-Key (kein zusaetzliches Geheimnis zu
+// pflegen) - siehe platformio.ini fuer den Upload-Befehl.
+void starteOTA() {
+  ArduinoOTA.setHostname(GERAETE_ID);
+  ArduinoOTA.setPassword(apiKey.c_str());
+  ArduinoOTA.onStart([]() {
+    Serial.println("OTA-Update startet...");
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("OTA-Update fertig, Neustart.");
+  });
+  ArduinoOTA.onProgress([](unsigned int fortschritt, unsigned int gesamt) {
+    Serial.printf("OTA: %u%%\r", (fortschritt * 100) / gesamt);
+  });
+  ArduinoOTA.onError([](ota_error_t fehler) {
+    Serial.printf("OTA-Fehler [%u]\n", fehler);
+  });
+  ArduinoOTA.begin();
+  Serial.println("OTA bereit (Passwort = aktueller API-Key).");
+}
+
 // ── Serielle Konsole (USB) ───────────────────────────────────────────────
 // Einrichtung/Diagnose ohne Handy/Laptop im WLAN: 'pio device monitor'
 // (oder ein beliebiges serielles Terminal, 115200 Baud, Zeilenende "\n")
@@ -394,6 +496,7 @@ void serielleHilfeAusgeben() {
   Serial.println("apiurl <URL>             - App-URL setzen");
   Serial.println("apikey <Schluessel>      - API-Key setzen");
   Serial.println("ntp <Server>             - Zeitserver setzen");
+  Serial.println("testsenden               - Test-Ereignis an die App-URL senden (ohne Kontakt)");
   Serial.println("neustart                 - Geraet neu starten");
   Serial.println("────────────────────────────────────────────────────");
 }
@@ -495,6 +598,17 @@ void serielleBefehleVerarbeiten() {
       starteZeitSynchronisation();
       Serial.printf("NTP-Server gesetzt: %s\n", ntpServer.c_str());
     }
+
+  } else if (befehl == "testsenden") {
+    Serial.println("Sende Test-Ereignis...");
+    EreignisEintrag test;
+    test.belegt = true;
+    test.bahn = 0;
+    test.typ = "test";
+    test.geraetMillis = millis();
+    test.geraetZeitIso = aktuelleZeitIso();
+    bool ok = ereignisSenden(test);
+    Serial.println(ok ? "Test-Ereignis erfolgreich gesendet." : "Test-Ereignis fehlgeschlagen (siehe Fehlermeldung oben).");
 
   } else if (befehl == "neustart" || befehl == "restart") {
     Serial.println("Neustart...");

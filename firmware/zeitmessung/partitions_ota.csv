@@ -1,0 +1,14 @@
+# Eigene Partitionstabelle für 4-MB-Flash mit OTA-Unterstützung.
+#
+# Im Unterschied zum ESP-IDF-Standard-OTA-Schema (das zusätzlich SPIFFS
+# reserviert und dadurch nur ~1,25 MB pro App-Slot übrig lässt - bei diesem
+# Projekt schon rechnerisch zu knapp) wird hier bewusst KEIN SPIFFS
+# reserviert (wird nicht gebraucht), wodurch jeder der beiden App-Slots
+# 1,5 MB bekommt - genug Reserve für künftiges Firmware-Wachstum.
+#
+# Name,      Type, SubType,  Offset,   Size,     Flags
+nvs,         data, nvs,      0x9000,   0x5000,
+otadata,     data, ota,      0xe000,   0x2000,
+app0,        app,  ota_0,    0x10000,  0x180000,
+app1,        app,  ota_1,    0x190000, 0x180000,
+coredump,    data, coredump, 0x310000, 0x10000,

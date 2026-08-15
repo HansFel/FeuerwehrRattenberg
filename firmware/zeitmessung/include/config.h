@@ -5,9 +5,14 @@
 // = kurzer LOW-Impuls). Bewusst nur Pins gewählt, die INPUT_PULLUP können
 // und keine Boot-Strapping-/Flash-Pins sind (GPIO34-39 fallen raus, die
 // haben keinen internen Pullup).
+// Nur noch EIN Kontakt pro Bahn (kein separater Ziel-Kontakt): jeder
+// Läufer löst ihn beim Loslaufen (Übergabe) aus, der letzte Läufer
+// zusätzlich noch einmal am Ziel - macht 5 Auslösungen pro Bahn über den
+// gesamten Lauf (Läufer 1-4 Start + Läufer 4 Ziel). Die Zuordnung
+// "welche Auslösung war was" passiert später in der Auswertung anhand der
+// Reihenfolge, nicht mehr über zwei getrennte Pins.
 constexpr int ANZAHL_BAHNEN = 4;
-constexpr uint8_t PIN_START[ANZAHL_BAHNEN] = {32, 33, 25, 26};
-constexpr uint8_t PIN_ZIEL[ANZAHL_BAHNEN]  = {27, 14, 13, 4};
+constexpr uint8_t PIN_KONTAKT[ANZAHL_BAHNEN] = {32, 33, 25, 26};
 
 // ── Entprellung ───────────────────────────────────────────────────────────
 constexpr unsigned long ENTPRELL_MS = 30;
