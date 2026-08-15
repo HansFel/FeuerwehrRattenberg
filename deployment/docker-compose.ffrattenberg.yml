@@ -54,6 +54,15 @@ services:
       GUNICORN_WORKERS: "8"
     volumes:
       - ffrattenberg-instance-data:/opt/wettbewerb/instance
+    # Zusaetzlich direkt im lokalen Netz erreichbar (ohne Traefik/TLS/Host-
+    # Header-Routing) - fuer die ESP32-Zeitmessung, die im selben Netz wie
+    # der Server steht: der Router unterstuetzt kein zuverlaessiges NAT-
+    # Hairpin/Loopback fuer das ESP32-Geraet, ueber die oeffentliche Domain
+    # (via WLAN-Router-NAT) schlug die Verbindung fehl, direkt per lokaler
+    # IP:Port funktioniert. Port 8000 wird vom Router NICHT nach aussen
+    # weitergeleitet, bleibt also nur im LAN erreichbar.
+    ports:
+      - "8000:8000"
     networks:
       - silo-internal
       - traefik
