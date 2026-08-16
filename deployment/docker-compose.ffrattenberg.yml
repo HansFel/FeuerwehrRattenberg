@@ -48,6 +48,13 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       ADMIN_STARTPASSWORT: ${ADMIN_STARTPASSWORT}
       ZEITMESSUNG_API_KEY: ${ZEITMESSUNG_API_KEY}
+      # Nur gesetzt, wenn diese Produktion ESP32-Ereignisse NICHT direkt
+      # empfängt, sondern von der anderen Server-Produktion weitergeleitet
+      # bekommen soll (z.B. der Standby, waehrend der ESP32 weiterhin fest
+      # auf die andere App-URL zeigt - siehe AGENTS.md Rollentausch-Hinweis).
+      # Leer/unbelegt = normales Verhalten, kein Abonnement.
+      ZEITMESSUNG_QUELLE_URL: ${ZEITMESSUNG_QUELLE_URL:-}
+      ZEITMESSUNG_QUELLE_API_KEY: ${ZEITMESSUNG_QUELLE_API_KEY:-}
       FLASK_APP: run.py
       FLASK_ENV: production
       INSTANCE_NAME: ffrattenberg
