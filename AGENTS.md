@@ -29,7 +29,12 @@ ein Eintrag mit Überschneidung zum eigenen Vorhaben, NICHT einfach
 weitermachen, sondern den User informieren und abstimmen, statt parallel
 an derselben Stelle zu arbeiten.
 
-_(aktuell leer – niemand arbeitet gerade an etwas Laufendem)_
+- [Codex] 2026-08-16 – Moderator-Rolle und Dashboard; Live-Läufe, Sponsoren, Publikumsinfos und Nachrichten vom Organisator
+- [Claude] 2026-08-16 – Dritte Instanz `/generalprobe` (Generalprobe vor der
+  Veranstaltung) nach test1/test2-Muster; betrifft
+  `deployment/docker-compose.ffrattenberg-test.yml` und `.env`/Deploy auf
+  BEIDEN Servern (ffrattenberg + Standby ThinkPad). Keine Änderungen an
+  Python-Code/Modellen.
 
 ## Was ist das Projekt
 
@@ -76,6 +81,41 @@ Clients unterstützt.
 
 Zwei Testinstanzen unter `/test1` und `/test2` (Pfad-Präfix, eigene DBs) für
 Personal-Schulung, laufen mit demselben Image wie Produktion.
+
+### Ersatzserver / Standby während der Veranstaltung
+
+Zweiter Server: **`hans@hans-ThinkPad-E590`**, Linux Mint 22.3, statische
+WLAN-Adresse **`192.168.1.34/24`**, Gateway/DNS `192.168.1.1`, WLAN-MAC
+`20:79:18:b8:de:bd`. SSH vom Entwicklungs-PC erfolgt mit
+`~/.ssh/id_ed25519_ffrattenberg` (Schlüssel ist hinterlegt). Docker läuft;
+Docker Compose wurde benutzerspezifisch unter
+`~/.docker/cli-plugins/docker-compose` installiert.
+
+Der Standby ist als eigenständiger Docker-Host vorbereitet. Unter
+`~/apps/FeuerwehrRattenberg` und `~/apps/traefik` liegen Kopien der aktiven
+Konfiguration. Produktion, `/test1`, `/test2`, drei PostgreSQL-Container und
+Traefik starten automatisch und wurden lokal über die Standby-IP mit HTTP 200
+geprüft. Datenstand der initialen Kopie: **2026-08-16**, jeweils 7 Benutzer;
+Prüfsummen und Dumps liegen unter `~/backups/standby-20260816`. Der sichtbare
+App-Stand ist Build 18; neuere Builds müssen auf BEIDE Server ausgerollt und
+die Daten vor einem tatsächlichen Failover erneut synchronisiert werden.
+
+Standby-spezifische Traefik-Ergänzung:
+`~/apps/traefik/docker-compose.standby.yml` setzt `DOCKER_API_VERSION=1.52`,
+weil die Docker Engine des ThinkPads maximal API 1.52 unterstützt. Traefik
+wird dort mit beiden Dateien gestartet:
+`docker compose -f docker-compose.yml -f docker-compose.standby.yml up -d`.
+
+**Noch offen:** Die native Nextcloud-Snap-Installation des aktiven Servers
+muss konsistent exportiert und auf dem ThinkPad in einen Docker-Stack migriert
+werden. Das vorbereitete Exportskript liegt auf dem aktiven Server unter
+`/home/hans/export-nextcloud-standby.sh` und benötigt einmalig `sudo`.
+Domains und Router-Portweiterleitungen zeigen im Normalbetrieb weiterhin auf
+`ffrattenberg` (`192.168.1.238`). Im Ausfall müssen die TCP-Regeln 80/443 auf
+`192.168.1.34` umgestellt und unmittelbar zuvor aktuelle App-/Nextcloud-Daten
+auf den Standby synchronisiert werden. Im TCL-Router sollte `.34` zusätzlich
+für die genannte WLAN-MAC reserviert bzw. aus dem DHCP-Pool ausgeschlossen
+sein.
 
 ## Wichtige Architektur-Konventionen
 

@@ -11,10 +11,16 @@
 # Erreichbar unter:
 #   https://ffrattenberg.duckdns.org/test1
 #   https://ffrattenberg.duckdns.org/test2
+#   https://ffrattenberg.duckdns.org/generalprobe
 #
 # Die Datenbanken werden einmalig mit einer Kopie der Produktions-DB
 # befüllt (pg_dump/restore), danach unabhängig voneinander - Personal kann
 # dort frei testen, ohne die echten Wettbewerbsdaten zu verändern.
+#
+# /generalprobe ist zusätzlich zu test1/test2 auf BEIDEN Servern (aktiver
+# Server "ffrattenberg" UND Standby-ThinkPad) angelegt, damit vor der
+# eigentlichen Veranstaltung eine vollständige Generalprobe unter
+# realistischen Bedingungen (echte Team-Daten, beide Standorte) möglich ist.
 services:
   db-test1:
     image: postgres:17
@@ -114,14 +120,66 @@ services:
       - "traefik.http.middlewares.ffrattenberg-test2-headers.headers.customrequestheaders.X-Script-Name=/test2"
       - "traefik.http.routers.ffrattenberg-test2.middlewares=ffrattenberg-test2-headers"
 
+  db-generalprobe:
+    image: postgres:17
+    container_name: db-ffrattenberg-generalprobe
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wettbewerb
+      POSTGRES_USER: silo_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD_GENERALPROBE}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U silo_user -d wettbewerb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - db-ffrattenberg-generalprobe-data:/var/lib/postgresql/data
+    networks:
+      - generalprobe-internal
+
+  app-generalprobe:
+    image: ffrattenberg-app:${BUILD_TAG}
+    container_name: app-ffrattenberg-generalprobe
+    restart: unless-stopped
+    depends_on:
+      db-generalprobe:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://silo_user:${DB_PASSWORD_GENERALPROBE}@db-generalprobe:5432/wettbewerb
+      SECRET_KEY: ${SECRET_KEY_GENERALPROBE}
+      ADMIN_STARTPASSWORT: ${ADMIN_STARTPASSWORT_GENERALPROBE}
+      FLASK_APP: run.py
+      FLASK_ENV: production
+      APPLICATION_PREFIX: /generalprobe
+      INSTANCE_NAME: ffrattenberg-generalprobe
+      GUNICORN_WORKERS: "2"
+    volumes:
+      - ffrattenberg-generalprobe-instance-data:/opt/wettbewerb/instance
+    networks:
+      - generalprobe-internal
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.ffrattenberg-generalprobe.rule=Host(`ffrattenberg.duckdns.org`) && PathPrefix(`/generalprobe`)"
+      - "traefik.http.routers.ffrattenberg-generalprobe.entrypoints=websecure"
+      - "traefik.http.routers.ffrattenberg-generalprobe.tls.certresolver=duckdns"
+      - "traefik.http.services.ffrattenberg-generalprobe.loadbalancer.server.port=8000"
+      - "traefik.http.middlewares.ffrattenberg-generalprobe-headers.headers.customrequestheaders.X-Script-Name=/generalprobe"
+      - "traefik.http.routers.ffrattenberg-generalprobe.middlewares=ffrattenberg-generalprobe-headers"
+
 volumes:
   db-ffrattenberg-test1-data:
   ffrattenberg-test1-instance-data:
   db-ffrattenberg-test2-data:
   ffrattenberg-test2-instance-data:
+  db-ffrattenberg-generalprobe-data:
+  ffrattenberg-generalprobe-instance-data:
 
 networks:
   test1-internal:
   test2-internal:
+  generalprobe-internal:
   traefik:
     external: true
