@@ -30,11 +30,6 @@ weitermachen, sondern den User informieren und abstimmen, statt parallel
 an derselben Stelle zu arbeiten.
 
 - [Codex] 2026-08-16 – Moderator-Rolle und Dashboard; Live-Läufe, Sponsoren, Publikumsinfos und Nachrichten vom Organisator
-- [Claude] 2026-08-16 – Dritte Instanz `/generalprobe` (Generalprobe vor der
-  Veranstaltung) nach test1/test2-Muster; betrifft
-  `deployment/docker-compose.ffrattenberg-test.yml` und `.env`/Deploy auf
-  BEIDEN Servern (ffrattenberg + Standby ThinkPad). Keine Änderungen an
-  Python-Code/Modellen.
 
 ## Was ist das Projekt
 
@@ -82,6 +77,25 @@ Clients unterstützt.
 Zwei Testinstanzen unter `/test1` und `/test2` (Pfad-Präfix, eigene DBs) für
 Personal-Schulung, laufen mit demselben Image wie Produktion.
 
+Dritte Instanz unter `/generalprobe` (gleiches Muster, eigene DB) für die
+Generalprobe vor der Veranstaltung – einmalig mit einer vollständigen Kopie
+der echten Produktionsdaten befüllt (`pg_dump --clean --if-exists` aus
+`db-ffrattenberg`, restored in `db-ffrattenberg-generalprobe`), danach
+unabhängig. Existiert auf BEIDEN Servern (ffrattenberg + Standby), jeweils
+mit dem lokalen `db-ffrattenberg`-Stand dieses Servers befüllt. Alle drei
+Test-Instanzen liegen in `deployment/docker-compose.ffrattenberg-test.yml`
++ `deployment/.env.test` (BUILD_TAG dort unabhängig von der Produktion,
+muss beim Update mit hochgezogen werden, sonst laufen sie auf altem Code).
+
+**Achtung Compose-Falle:** `docker-compose.ffrattenberg.yml` (Produktion)
+und `docker-compose.ffrattenberg-test.yml` (test1/test2/generalprobe)
+laufen im SELBEN Verzeichnis und teilen sich daher denselben
+Docker-Compose-Projektnamen. `docker compose ... up -d --remove-orphans`
+auf der EINEN Datei hält die Container der ANDEREN Datei für "verwaist"
+und entfernt sie! `--remove-orphans` deshalb bei diesen beiden Dateien
+NIE verwenden (oder `-p <eigener-projektname>` bzw. `--remove-orphans`
+nur mit vorherigem `docker compose -f <richtige-datei> ps` zur Kontrolle).
+
 ### Ersatzserver / Standby während der Veranstaltung
 
 Zweiter Server: **`hans@hans-ThinkPad-E590`**, Linux Mint 22.3, statische
@@ -99,6 +113,13 @@ geprüft. Datenstand der initialen Kopie: **2026-08-16**, jeweils 7 Benutzer;
 Prüfsummen und Dumps liegen unter `~/backups/standby-20260816`. Der sichtbare
 App-Stand ist Build 18; neuere Builds müssen auf BEIDE Server ausgerollt und
 die Daten vor einem tatsächlichen Failover erneut synchronisiert werden.
+
+Git-Deploy auf dem Standby: eigener Read-only-Deploy-Key
+`~/.ssh/id_ed25519_github_deploy` (separat vom Deploy-Key des aktiven
+Servers, als eigener Eintrag "ffrattenberg-standby-readonly" bei den
+Repo-Deploy-Keys auf GitHub hinterlegt) + `~/.ssh/config` mit
+`Host github.com`-Eintrag; ohne das schlägt `git pull` mit
+"Permission denied (publickey)" fehl.
 
 Standby-spezifische Traefik-Ergänzung:
 `~/apps/traefik/docker-compose.standby.yml` setzt `DOCKER_API_VERSION=1.52`,
