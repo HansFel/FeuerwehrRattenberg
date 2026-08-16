@@ -12,6 +12,25 @@ stattdessen `ANFORDERUNGEN.md` (wird automatisch aus der App exportiert,
 _(Stand 2026-08-15. Bei Widersprüchen zum aktuellen Code gilt der Code -
 diese Datei kann veralten.)_
 
+## Aktuell in Bearbeitung
+
+**Vor größeren/mehrschrittigen Änderungen** (neues Feature, Refactoring,
+Datenmodell-Änderung) hier einen Eintrag ergänzen, damit eine andere KI
+nicht gleichzeitig an derselben Stelle arbeitet und sich die Änderungen
+nicht gegenseitig überschreiben. **Nach Abschluss** (oder wenn die Session
+endet) den eigenen Eintrag wieder entfernen. Format:
+
+```
+- [KI-Name] [Datum/Uhrzeit] – [Kurzbeschreibung, betroffene Dateien/Bereiche]
+```
+
+Vor dem Start eigener größerer Änderungen: diese Liste lesen. Steht dort
+ein Eintrag mit Überschneidung zum eigenen Vorhaben, NICHT einfach
+weitermachen, sondern den User informieren und abstimmen, statt parallel
+an derselben Stelle zu arbeiten.
+
+_(aktuell leer – niemand arbeitet gerade an etwas Laufendem)_
+
 ## Was ist das Projekt
 
 Flask-Web-App zur Organisation des **Jubiläums-Wettbewerbs "120 Jahre
