@@ -119,14 +119,22 @@ SSH-Alias-Namen bleiben unverändert, nur wer tatsächlich Live-Traffic
 bekommt hat sich geändert). **Vor jeder Aktion, die "den aktiven Server"
 betrifft, den User fragen, welcher gerade gemeint ist**, bis dieser
 Abschnitt vollständig aktualisiert ist. Insbesondere:
-- Router-Portweiterleitung 80/443 auf `.34` umzustellen liegt außerhalb
-  meiner Werkzeuge (SSH auf die Server, kein Router-Zugriff) - vom User
-  selbst zu bestätigen/durchzuführen.
+- Router-Portweiterleitung 80/443 auf `.34` wurde vom User bereits
+  umgestellt und bestätigt funktionsfähig (2026-08-16).
 - Der ESP32 spricht wegen des Hairpin-NAT-Workarounds eine FEST
   eingestellte lokale App-URL (nicht die Domain) an - die muss beim User
   vor Ort auf `http://192.168.1.34:8000/api/zeitmessung/event` umgestellt
   werden (seriell: `appurl <url>`, oder `http://<esp32-ip>/wlan-wechseln`
   im Browser im selben LAN) - kann NICHT remote per SSH erledigt werden.
+- **Hairpin-NAT betrifft bestätigt auch normale Handy-Browser, nicht nur
+  das ESP32** (2026-08-16): `curl` gegen die öffentliche Domain von BEIDEN
+  Servern aus (selbst im Veranstaltungs-WLAN) schlägt mit "Connection
+  refused" fehl - identischer Fehler wie beim User im Handy-Browser
+  (`net::ERR_CONNECTION_REFUSED`, getestet mit DuckDuckGo-Browser) beim
+  Aufruf von `https://ffrattenberg.duckdns.org/` aus demselben WLAN.
+  Fix: Geräte IM Veranstaltungs-WLAN müssen die lokalen Adressen nutzen,
+  nicht die öffentliche Domain (siehe LAN-Ports oben, Produktion `:8000`,
+  test1/test2/generalprobe `:8001`-`:8003`).
 
 ### Ersatzserver / Standby während der Veranstaltung
 
