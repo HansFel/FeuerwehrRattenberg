@@ -30,6 +30,7 @@ ROLLEN = {
     "punkterichter": "Punkterichter",
     "kellner": "Kellner",
     "ausschank": "Ausschank",
+    "moderator": "Moderator",
 }
 
 
@@ -315,6 +316,26 @@ class Startplatz(db.Model):
 
     team = db.relationship("Team", back_populates="startplaetze")
     disziplin = db.relationship("Disziplin", back_populates="startplaetze")
+
+
+class ModeratorStatus(db.Model):
+    """Vom Organisator gepflegte Live-Informationen für die Moderation.
+
+    Es wird genau ein Datensatz mit ID 1 verwendet. Der aktuelle Lauf
+    verweist bewusst auf Disziplin + Heat-Bezeichnung statt auf einzelne
+    Startplätze, damit alle Bahnen gemeinsam angezeigt werden.
+    """
+    __tablename__ = "moderator_status"
+
+    id = db.Column(db.Integer, primary_key=True, default=1)
+    disziplin_id = db.Column(db.Integer, db.ForeignKey("disziplin.id"))
+    heat = db.Column(db.String(120), default="")
+    publikumsinfo = db.Column(db.Text, default="")
+    sponsoren = db.Column(db.Text, default="")
+    aktualisiert = db.Column(db.DateTime, default=_jetzt, onupdate=_jetzt)
+    aktualisiert_von = db.Column(db.String(80), default="")
+
+    disziplin = db.relationship("Disziplin")
 
 
 KONTAKT_START = "start"

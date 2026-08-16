@@ -1,0 +1,7 @@
+# Ergänzung für den Ersatzserver hans-ThinkPad-E590.
+# Dessen Docker Engine unterstützt API 1.52; die Basis-Konfiguration des
+# aktiven Servers setzt wegen Docker 29.7 API 1.55.
+services:
+  traefik:
+    environment:
+      DOCKER_API_VERSION: "1.52"

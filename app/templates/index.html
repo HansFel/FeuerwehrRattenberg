@@ -41,6 +41,16 @@
 
   <div class="dash">
 
+    {% if dashboard_zeigt('moderator', 'organisator') %}
+    <section class="dash-karte">
+      <h2>🎙️ Moderation</h2>
+      <p class="leer">Aktueller Lauf, Sponsoren, Publikumsinfos und Nachrichten.</p>
+      <div class="werkzeugleiste">
+        <a class="knopf" href="{{ url_for('moderator.dashboard') }}">Zum Moderator-Dashboard</a>
+      </div>
+    </section>
+    {% endif %}
+
     {% if dashboard_zeigt('punkterichter') %}
     <section class="dash-karte">
       <h2>🏁 Ergebnisse erfassen</h2>

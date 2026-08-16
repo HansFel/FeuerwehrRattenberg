@@ -34,6 +34,9 @@
         <a href="{{ url_for('zeitmessung.liste') }}">Zeitmessung</a>
         <a href="{{ url_for('notfall.liste') }}">🆘 Notfall</a>
       {% endif %}
+      {% if dashboard_zeigt('moderator', 'organisator') %}
+        <a href="{{ url_for('moderator.dashboard') }}">🎙️ Moderation</a>
+      {% endif %}
       {% if aktive_rolle() == 'administrator' %}
         <a href="{{ url_for('benutzer.liste') }}">Personen</a>
         <a href="{{ url_for('benutzer.rollen') }}">Rollen</a>

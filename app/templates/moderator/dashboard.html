@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block titel %}Moderator{% endblock %}
+{% block inhalt %}
+<div class="moderator-kopf">
+  <div>
+    <h1>🎙️ Moderator-Dashboard</h1>
+    <p class="leer">Live-Überblick für die Moderation des Wettbewerbs.</p>
+  </div>
+  <button class="knopf grau" type="button" onclick="location.reload()">↻ Aktualisieren</button>
+</div>
+
+<section class="moderator-live">
+  <div class="moderator-live-titel">GERADE IM BEWERB</div>
+  {% if status.disziplin and laufende_teams %}
+    <h2>{{ status.disziplin.name }}{% if status.heat %} · {{ status.heat }}{% endif %}</h2>
+    <div class="moderator-bahnen">
+      {% for sp in laufende_teams %}
+      <article class="moderator-bahn">
+        <span>Bahn {{ sp.startnummer or loop.index }}</span>
+        <strong>{{ sp.team.name }}</strong>
+        {% if sp.team.wehr %}<small>{{ sp.team.wehr }}</small>{% endif %}
+      </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <h2>Noch kein aktueller Lauf ausgewählt</h2>
+  {% endif %}
+</section>
+
+<div class="moderator-grid">
+  <section class="dash-karte moderator-info">
+    <h2>📣 Informationen fürs Publikum</h2>
+    {% if status.publikumsinfo %}
+      <div class="moderator-text">{{ status.publikumsinfo }}</div>
+    {% else %}<p class="leer">Derzeit keine besonderen Hinweise.</p>{% endif %}
+  </section>
+
+  <section class="dash-karte moderator-sponsoren">
+    <h2>🤝 Unsere Sponsoren</h2>
+    {% if status.sponsoren %}
+      <ul>{% for sponsor in status.sponsoren.splitlines() if sponsor.strip() %}<li>{{ sponsor }}</li>{% endfor %}</ul>
+    {% else %}<p class="leer">Noch keine Sponsoren eingetragen.</p>{% endif %}
+  </section>
+</div>
+
+<section class="dash-karte" style="margin-top:1rem">
+  <h2>📨 Nachrichten an die Moderation</h2>
+  {% for n in nachrichten %}
+    <div class="nachricht {{ '' if n.ist_gelesen_von(current_user.id) else 'moderator-neu' }}">
+      <div class="anforderung-text">{{ n.text }}</div>
+      <div class="anforderung-meta">
+        <span class="leer">von {{ n.absender or '?' }} · {{ n.erstellt.strftime('%H:%M') if n.erstellt else '' }}</span>
+        {% if not n.ist_gelesen_von(current_user.id) %}
+        <form class="inline" method="post" action="{{ url_for('nachrichten.gelesen', nachricht_id=n.id) }}">
+          <input type="hidden" name="next" value="{{ url_for('moderator.dashboard') }}">
+          <button class="knopf klein" type="submit">✓ gelesen</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  {% else %}<p class="leer">Noch keine Nachrichten.</p>{% endfor %}
+</section>
+
+{% if darf('organisator') %}
+<hr style="margin:2rem 0; border:none; border-top:1px solid var(--rand);">
+<h2>🗂️ Anzeige als Organisator steuern</h2>
+<div class="moderator-grid">
+  <form class="formular" method="post" action="{{ url_for('moderator.status_speichern') }}" style="max-width:none">
+    <label for="lauf">Aktueller Lauf</label>
+    <select id="lauf" name="lauf">
+      <option value="">– kein aktueller Lauf –</option>
+      {% for option in lauf_optionen %}
+      <option value="{{ option.wert }}" {% if status.disziplin_id and option.wert == (status.disziplin_id|string ~ '|' ~ status.heat) %}selected{% endif %}>{{ option.text }}</option>
+      {% endfor %}
+    </select>
+    <label for="publikumsinfo">Publikumsinformationen</label>
+    <textarea id="publikumsinfo" name="publikumsinfo" placeholder="Zeitplan, Hinweise, nächste Programmpunkte …">{{ status.publikumsinfo }}</textarea>
+    <label for="sponsoren">Sponsoren – einer pro Zeile</label>
+    <textarea id="sponsoren" name="sponsoren" placeholder="Sponsor 1&#10;Sponsor 2">{{ status.sponsoren }}</textarea>
+    <button class="knopf" type="submit">Anzeige speichern</button>
+  </form>
+
+  <form class="formular" method="post" action="{{ url_for('moderator.nachricht_senden') }}" style="max-width:none">
+    <label for="nachricht">Direkte Nachricht an den Moderator</label>
+    <textarea id="nachricht" name="text" placeholder="Bitte jetzt Sponsor X erwähnen …" required></textarea>
+    <button class="knopf" type="submit">Nachricht senden</button>
+  </form>
+</div>
+{% endif %}
+{% if aktive_rolle() == 'moderator' %}
+<script>window.setTimeout(function () { window.location.reload(); }, 15000);</script>
+{% endif %}
+{% endblock %}
