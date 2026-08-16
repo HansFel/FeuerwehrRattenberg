@@ -369,6 +369,26 @@ class Zeitereignis(db.Model):
         return f"<Zeitereignis Bahn {self.bahn} {self.kontakt}>"
 
 
+class ZeitmessungAbonnent(db.Model):
+    """Andere Instanz (z.B. test1/test2/generalprobe), die sich selbst als
+    Weiterleitungs-Ziel für ESP32-Zeitmessung-Ereignisse angemeldet hat
+    (siehe app/blueprints/zeitmessung.py:abonnieren).
+
+    Bewusst in der DB statt im Prozessspeicher: Gunicorn läuft mit mehreren
+    Worker-PROZESSEN (nicht nur Threads), die sich KEINEN Speicher teilen -
+    ein In-Memory-Dict wäre nur im jeweils zufällig treffenden Worker
+    sichtbar. Meldet sich periodisch neu an (ablauf verlängert sich);
+    abgelaufene Einträge werden bei der Weiterleitung einfach ignoriert,
+    kein separates Aufräumen nötig.
+    """
+    __tablename__ = "zeitmessung_abonnent"
+
+    id = db.Column(db.Integer, primary_key=True)
+    ziel_url = db.Column(db.String(300), unique=True, nullable=False)
+    api_key = db.Column(db.String(200), nullable=False)
+    ablauf = db.Column(db.DateTime, nullable=False)
+
+
 # ── Notfall-Zeiterfassung (manueller Fallback) ───────────────────────────────
 # Falls die automatische Zuordnung der ESP32-Ereignisse zu einem
 # Wettkampf-Lauf ausfaellt: der Startrichter traegt vorab die

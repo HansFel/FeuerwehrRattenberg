@@ -3,7 +3,7 @@ import pytest
 
 from app import create_app
 from app.blueprints import zeitmessung
-from app.models import db, Zeitereignis
+from app.models import db, Zeitereignis, ZeitmessungAbonnent
 
 API_KEY = "test-key"
 
@@ -23,16 +23,6 @@ def app(tmp_path):
 @pytest.fixture
 def client(app):
     return app.test_client()
-
-
-@pytest.fixture(autouse=True)
-def _abonnenten_zuruecksetzen():
-    """_abonnenten ist Modul-globaler Zustand (bewusst kein DB-Modell, siehe
-    zeitmessung.py) - zwischen Tests zurücksetzen, sonst leckt er über
-    verschiedene app()-Instanzen hinweg."""
-    zeitmessung._abonnenten.clear()
-    yield
-    zeitmessung._abonnenten.clear()
 
 
 class _SofortigerThread:
@@ -205,14 +195,28 @@ def test_abonnieren_validierung(client, nutzlast, erwarteter_status):
     assert r.status_code == erwarteter_status
 
 
-def test_abonnieren_erfolgreich(client):
+def test_abonnieren_erfolgreich(client, app):
     r = client.post("/api/zeitmessung/abonnieren",
                     json={"ziel_url": "http://app-test1:8000/api/zeitmessung/event",
                           "api_key": "ziel-key"},
                     headers={"X-API-Key": API_KEY})
     assert r.status_code == 200
-    assert "http://app-test1:8000/api/zeitmessung/event" in zeitmessung._abonnenten
-    assert zeitmessung._abonnenten["http://app-test1:8000/api/zeitmessung/event"]["api_key"] == "ziel-key"
+    with app.app_context():
+        abonnent = ZeitmessungAbonnent.query.filter_by(
+            ziel_url="http://app-test1:8000/api/zeitmessung/event").one()
+        assert abonnent.api_key == "ziel-key"
+
+
+def test_abonnieren_erneuert_bestehenden_eintrag_statt_duplikat(client, app):
+    """Wiederholtes Anmelden derselben ziel_url (Selbst-Anmeldung alle 60s)
+    darf keine Duplikate anlegen, sondern nur die Ablaufzeit verlängern."""
+    for _ in range(3):
+        client.post("/api/zeitmessung/abonnieren",
+                    json={"ziel_url": "http://app-test1:8000/api/zeitmessung/event",
+                          "api_key": "ziel-key"},
+                    headers={"X-API-Key": API_KEY})
+    with app.app_context():
+        assert ZeitmessungAbonnent.query.count() == 1
 
 
 def test_event_wird_an_abonnenten_weitergeleitet(client, monkeypatch):
@@ -263,11 +267,14 @@ def test_event_ohne_abonnenten_keine_weiterleitung(client, monkeypatch):
     assert r.status_code == 201
 
 
-def test_abgelaufenes_abonnement_wird_nicht_mehr_beliefert(client, monkeypatch):
+def test_abgelaufenes_abonnement_wird_nicht_mehr_beliefert(client, app, monkeypatch):
+    from datetime import datetime, timedelta
     monkeypatch.setattr(zeitmessung.threading, "Thread", _SofortigerThread)
-    zeitmessung._abonnenten["http://abgelaufen:8000/api/zeitmessung/event"] = {
-        "api_key": "x", "ablauf": zeitmessung.time.monotonic() - 1,
-    }
+    with app.app_context():
+        db.session.add(ZeitmessungAbonnent(
+            ziel_url="http://abgelaufen:8000/api/zeitmessung/event", api_key="x",
+            ablauf=datetime.utcnow() - timedelta(seconds=1)))
+        db.session.commit()
 
     def urlopen_darf_nicht_aufgerufen_werden(*a, **kw):
         raise AssertionError("abgelaufenes Abonnement darf nicht beliefert werden")
