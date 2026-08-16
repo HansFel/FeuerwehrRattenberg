@@ -28,6 +28,15 @@
 # selbst kennt weiterhin nur EIN Ziel, siehe app/blueprints/zeitmessung.py
 # (abonnieren()/_an_abonnenten_weiterleiten()) und
 # app/__init__.py:_bei_quelle_anmelden().
+#
+# Zusätzlich direkt im lokalen Netz erreichbar (ohne Traefik/TLS, wie schon
+# bei der Produktion auf Port 8000) - Grund hier: die öffentliche Domain
+# wird von Google Safe Browsing als "gefährlich" gemeldet (generisches
+# duckdns.org-Login-Formular, siehe AGENTS.md), Personal vor Ort kann die
+# App bis zur Google-Überprüfung trotzdem über das lokale WLAN nutzen:
+#   test1        -> http://<server-lan-ip>:8001/
+#   test2        -> http://<server-lan-ip>:8002/
+#   generalprobe -> http://<server-lan-ip>:8003/
 services:
   db-test1:
     image: postgres:17
@@ -68,6 +77,8 @@ services:
       GUNICORN_WORKERS: "2"
     volumes:
       - ffrattenberg-test1-instance-data:/opt/wettbewerb/instance
+    ports:
+      - "8001:8000"
     networks:
       - test1-internal
       - traefik
@@ -120,6 +131,8 @@ services:
       GUNICORN_WORKERS: "2"
     volumes:
       - ffrattenberg-test2-instance-data:/opt/wettbewerb/instance
+    ports:
+      - "8002:8000"
     networks:
       - test2-internal
       - traefik
@@ -172,6 +185,8 @@ services:
       GUNICORN_WORKERS: "2"
     volumes:
       - ffrattenberg-generalprobe-instance-data:/opt/wettbewerb/instance
+    ports:
+      - "8003:8000"
     networks:
       - generalprobe-internal
       - traefik
