@@ -72,7 +72,6 @@ services:
       ZEITMESSUNG_QUELLE_API_KEY: ${ZEITMESSUNG_API_KEY_PRODUKTION}
       FLASK_APP: run.py
       FLASK_ENV: production
-      APPLICATION_PREFIX: /test1
       INSTANCE_NAME: ffrattenberg-test1
       GUNICORN_WORKERS: "2"
     volumes:
@@ -126,7 +125,6 @@ services:
       ZEITMESSUNG_QUELLE_API_KEY: ${ZEITMESSUNG_API_KEY_PRODUKTION}
       FLASK_APP: run.py
       FLASK_ENV: production
-      APPLICATION_PREFIX: /test2
       INSTANCE_NAME: ffrattenberg-test2
       GUNICORN_WORKERS: "2"
     volumes:
@@ -180,7 +178,6 @@ services:
       ZEITMESSUNG_QUELLE_API_KEY: ${ZEITMESSUNG_API_KEY_PRODUKTION}
       FLASK_APP: run.py
       FLASK_ENV: production
-      APPLICATION_PREFIX: /generalprobe
       INSTANCE_NAME: ffrattenberg-generalprobe
       GUNICORN_WORKERS: "2"
     volumes:

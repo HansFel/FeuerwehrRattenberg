@@ -51,7 +51,6 @@ services:
       ADMIN_STARTPASSWORT: ${ADMIN_STARTPASSWORT}
       FLASK_APP: run.py
       FLASK_ENV: production
-      APPLICATION_PREFIX: /silo
       INSTANCE_NAME: silo
       # Anzahl Gunicorn-Worker (gleichzeitige Anfragen). Bei Bedarf (z.B.
       # Lastspitzen am Eventtag) hier erhöhen und Container neu starten -

@@ -67,10 +67,24 @@ jedem Code-Stand hochgezählt werden, sonst kein echter Rebuild!),
 für Deployment vorbereiteten Stand von Hand hochzählen — einziges
 zuverlässiges Signal, ob ein Deployment den neuesten Code hat.
 
-App ist zusätzlich **direkt im lokalen Netz auf Port 8000 erreichbar** (ohne
-Traefik/TLS) — wichtig für Hardware im selben LAN wie der Server (z.B.
-Zeitmessung), weil der Router kein zuverlässiges NAT-Hairpin für manche
-Clients unterstützt.
+App ist zusätzlich **direkt im lokalen Netz erreichbar** (ohne Traefik/TLS):
+Produktion Port 8000, test1/test2/generalprobe Port 8001/8002/8003. Wichtig
+für (a) Hardware im selben LAN wie der Server (z.B. Zeitmessung, Router
+unterstützt kein zuverlässiges NAT-Hairpin für manche Clients) und (b) seit
+2026-08-16: `ffrattenberg.duckdns.org` wird von Google Safe Browsing
+fälschlich als "gefährlich" gemeldet (generisches Login-Formular auf
+duckdns.org-Subdomain löst Googles Heuristik aus) - Personal vor Ort kann
+die Instanzen bis zur Google-Überprüfung über diese LAN-Ports nutzen.
+Überprüfung anstoßen: https://safebrowsing.google.com/safebrowsing/report_error/
+oder Google Search Console (Property + Sicherheitsprobleme).
+
+**Wichtige Falle dabei gefunden und gefixt:** `PrefixMiddleware`
+(`app/__init__.py`) reagiert seit Build 22 NUR noch auf den
+`X-Script-Name`-Header von Traefik, nicht mehr zusätzlich auf eine statische
+`APPLICATION_PREFIX`-Umgebungsvariable (die es dafür nicht mehr gibt).
+Vorher erzeugte z.B. test1 beim direkten Port-Zugriff (ohne Traefik davor,
+also ohne Header) trotzdem Links mit `/test1`-Präfix, die ins Leere liefen.
+Test dafür: `tests/test_prefix_middleware.py`.
 
 Zwei Testinstanzen unter `/test1` und `/test2` (Pfad-Präfix, eigene DBs) für
 Personal-Schulung, laufen mit demselben Image wie Produktion.

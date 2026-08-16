@@ -16,19 +16,26 @@ from .wertung import format_zeit
 
 
 class PrefixMiddleware:
-    """WSGI-Middleware: setzt SCRIPT_NAME aus Header oder Umgebungsvariable.
+    """WSGI-Middleware: setzt SCRIPT_NAME aus dem 'X-Script-Name'-Header.
 
     Nötig, damit url_for() hinter einem Reverse-Proxy mit Pfad-Prefix
-    (z.B. Traefik PathPrefix("/silo")) weiterhin korrekte Links erzeugt.
+    (z.B. Traefik PathPrefix("/test1")) weiterhin korrekte Links erzeugt.
     Übernommen aus dem MGRSoftware-Deployment-Muster.
+
+    Reagiert bewusst NUR auf den Header pro Anfrage, nicht (mehr) auf einen
+    statischen Konfigurationswert: dieselbe Instanz ist zusätzlich direkt im
+    lokalen Netz erreichbar (ohne Traefik, siehe "ports:" in den
+    docker-compose-Dateien - z.B. wenn die öffentliche Domain durch einen
+    Google-Safe-Browsing-Fehlalarm blockiert ist). Ohne Traefik davor fehlt
+    der Header, es darf dann KEIN Präfix angewendet werden, sonst zeigen
+    alle generierten Links ins Leere.
     """
 
-    def __init__(self, app, prefix: str = ""):
+    def __init__(self, app):
         self.app = app
-        self.prefix = prefix
 
     def __call__(self, environ, start_response):
-        prefix = environ.get("HTTP_X_SCRIPT_NAME", self.prefix or "")
+        prefix = environ.get("HTTP_X_SCRIPT_NAME", "")
         if prefix:
             environ["SCRIPT_NAME"] = prefix
             pfad = environ.get("PATH_INFO", "")
@@ -40,10 +47,12 @@ class PrefixMiddleware:
 def create_app(test_config: dict | None = None) -> Flask:
     app = Flask(__name__, instance_relative_config=True)
 
-    # Pfad-Prefix für Reverse-Proxy (z.B. /silo hinter Traefik)
-    prefix = os.environ.get("APPLICATION_PREFIX", "")
-    if prefix:
-        app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=prefix)
+    # Reverse-Proxy-Pfad-Präfix (z.B. /test1 hinter Traefik) wird pro
+    # Anfrage über den 'X-Script-Name'-Header erkannt (siehe
+    # PrefixMiddleware) - IMMER registriert, damit dieselbe Instanz sowohl
+    # über Traefik (mit Präfix) als auch direkt im LAN (ohne Präfix)
+    # funktioniert.
+    app.wsgi_app = PrefixMiddleware(app.wsgi_app)
 
     # X-Forwarded-Proto/-Host von Traefik vertrauen, damit url_for(_external=True)
     # (z.B. für QR-Code-Links) korrekt "https://" statt "http://" erzeugt.
