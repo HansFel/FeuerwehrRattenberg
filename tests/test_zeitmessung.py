@@ -2,6 +2,7 @@
 import pytest
 
 from app import create_app
+from app.blueprints import zeitmessung
 from app.models import db, Zeitereignis
 
 API_KEY = "test-key"
@@ -22,6 +23,30 @@ def app(tmp_path):
 @pytest.fixture
 def client(app):
     return app.test_client()
+
+
+@pytest.fixture(autouse=True)
+def _abonnenten_zuruecksetzen():
+    """_abonnenten ist Modul-globaler Zustand (bewusst kein DB-Modell, siehe
+    zeitmessung.py) - zwischen Tests zurücksetzen, sonst leckt er über
+    verschiedene app()-Instanzen hinweg."""
+    zeitmessung._abonnenten.clear()
+    yield
+    zeitmessung._abonnenten.clear()
+
+
+class _SofortigerThread:
+    """Ersetzt threading.Thread in Tests: führt das Ziel sofort synchron aus,
+    statt einen echten Hintergrund-Thread zu starten - macht die
+    Fire-and-forget-Weiterleitung in Tests deterministisch prüfbar."""
+
+    def __init__(self, target, args=(), kwargs=None, daemon=None):
+        self._target = target
+        self._args = args
+        self._kwargs = kwargs or {}
+
+    def start(self):
+        self._target(*self._args, **self._kwargs)
 
 
 def test_event_ohne_api_key_abgelehnt(client):
@@ -160,3 +185,96 @@ def test_ereignisse_loeschen_nur_organisator(client, app):
     assert "gelöscht".encode() in r.data
     with app.app_context():
         assert Zeitereignis.query.count() == 0
+
+
+def test_abonnieren_ohne_api_key_abgelehnt(client):
+    r = client.post("/api/zeitmessung/abonnieren",
+                    json={"ziel_url": "http://app-test1:8000/api/zeitmessung/event",
+                          "api_key": "irgendwas"})
+    assert r.status_code == 401
+
+
+@pytest.mark.parametrize("nutzlast,erwarteter_status", [
+    ({"ziel_url": "", "api_key": "x"}, 400),
+    ({"ziel_url": "keine-url", "api_key": "x"}, 400),
+    ({"ziel_url": "http://app-test1:8000/api/zeitmessung/event", "api_key": ""}, 400),
+])
+def test_abonnieren_validierung(client, nutzlast, erwarteter_status):
+    r = client.post("/api/zeitmessung/abonnieren", json=nutzlast,
+                    headers={"X-API-Key": API_KEY})
+    assert r.status_code == erwarteter_status
+
+
+def test_abonnieren_erfolgreich(client):
+    r = client.post("/api/zeitmessung/abonnieren",
+                    json={"ziel_url": "http://app-test1:8000/api/zeitmessung/event",
+                          "api_key": "ziel-key"},
+                    headers={"X-API-Key": API_KEY})
+    assert r.status_code == 200
+    assert "http://app-test1:8000/api/zeitmessung/event" in zeitmessung._abonnenten
+    assert zeitmessung._abonnenten["http://app-test1:8000/api/zeitmessung/event"]["api_key"] == "ziel-key"
+
+
+def test_event_wird_an_abonnenten_weitergeleitet(client, monkeypatch):
+    monkeypatch.setattr(zeitmessung.threading, "Thread", _SofortigerThread)
+    aufrufe = []
+
+    class GefaelschteAntwort:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+    def gefaelschtes_urlopen(anfrage, timeout=None):
+        aufrufe.append({
+            "url": anfrage.full_url,
+            "api_key": anfrage.get_header("X-api-key"),
+            "body": anfrage.data,
+        })
+        return GefaelschteAntwort()
+
+    monkeypatch.setattr(zeitmessung.urllib.request, "urlopen", gefaelschtes_urlopen)
+
+    client.post("/api/zeitmessung/abonnieren",
+               json={"ziel_url": "http://app-test1:8000/api/zeitmessung/event",
+                     "api_key": "ziel-key"},
+               headers={"X-API-Key": API_KEY})
+
+    client.post("/api/zeitmessung/event",
+               json={"geraet_id": "esp32-1", "bahn": 1, "kontakt": "kontakt",
+                     "geraet_millis": 42},
+               headers={"X-API-Key": API_KEY})
+
+    assert len(aufrufe) == 1
+    assert aufrufe[0]["url"] == "http://app-test1:8000/api/zeitmessung/event"
+    assert aufrufe[0]["api_key"] == "ziel-key"
+    assert b'"bahn": 1' in aufrufe[0]["body"]
+
+
+def test_event_ohne_abonnenten_keine_weiterleitung(client, monkeypatch):
+    monkeypatch.setattr(zeitmessung.threading, "Thread", _SofortigerThread)
+
+    def urlopen_darf_nicht_aufgerufen_werden(*a, **kw):
+        raise AssertionError("urlopen sollte ohne Abonnenten nicht aufgerufen werden")
+
+    monkeypatch.setattr(zeitmessung.urllib.request, "urlopen", urlopen_darf_nicht_aufgerufen_werden)
+
+    r = client.post("/api/zeitmessung/event",
+                    json={"geraet_id": "esp32-1", "bahn": 1, "kontakt": "kontakt"},
+                    headers={"X-API-Key": API_KEY})
+    assert r.status_code == 201
+
+
+def test_abgelaufenes_abonnement_wird_nicht_mehr_beliefert(client, monkeypatch):
+    monkeypatch.setattr(zeitmessung.threading, "Thread", _SofortigerThread)
+    zeitmessung._abonnenten["http://abgelaufen:8000/api/zeitmessung/event"] = {
+        "api_key": "x", "ablauf": zeitmessung.time.monotonic() - 1,
+    }
+
+    def urlopen_darf_nicht_aufgerufen_werden(*a, **kw):
+        raise AssertionError("abgelaufenes Abonnement darf nicht beliefert werden")
+
+    monkeypatch.setattr(zeitmessung.urllib.request, "urlopen", urlopen_darf_nicht_aufgerufen_werden)
+
+    r = client.post("/api/zeitmessung/event",
+                    json={"geraet_id": "esp32-1", "bahn": 1, "kontakt": "kontakt"},
+                    headers={"X-API-Key": API_KEY})
+    assert r.status_code == 201

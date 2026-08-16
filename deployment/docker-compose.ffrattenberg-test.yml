@@ -21,6 +21,13 @@
 # Server "ffrattenberg" UND Standby-ThinkPad) angelegt, damit vor der
 # eigentlichen Veranstaltung eine vollständige Generalprobe unter
 # realistischen Bedingungen (echte Team-Daten, beide Standorte) möglich ist.
+#
+# Alle drei Instanzen melden sich selbst bei der Produktion
+# (app-ffrattenberg, erreichbar über das gemeinsame "traefik"-Docker-Netz)
+# als Weiterleitungs-Ziel für ESP32-Zeitmessung-Ereignisse an - der ESP32
+# selbst kennt weiterhin nur EIN Ziel, siehe app/blueprints/zeitmessung.py
+# (abonnieren()/_an_abonnenten_weiterleiten()) und
+# app/__init__.py:_bei_quelle_anmelden().
 services:
   db-test1:
     image: postgres:17
@@ -51,6 +58,9 @@ services:
       DATABASE_URL: postgresql://silo_user:${DB_PASSWORD_TEST1}@db-test1:5432/wettbewerb
       SECRET_KEY: ${SECRET_KEY_TEST1}
       ADMIN_STARTPASSWORT: ${ADMIN_STARTPASSWORT_TEST1}
+      ZEITMESSUNG_API_KEY: ${ZEITMESSUNG_API_KEY_TEST1}
+      ZEITMESSUNG_QUELLE_URL: http://app-ffrattenberg:8000/api/zeitmessung/abonnieren
+      ZEITMESSUNG_QUELLE_API_KEY: ${ZEITMESSUNG_API_KEY_PRODUKTION}
       FLASK_APP: run.py
       FLASK_ENV: production
       APPLICATION_PREFIX: /test1
@@ -100,6 +110,9 @@ services:
       DATABASE_URL: postgresql://silo_user:${DB_PASSWORD_TEST2}@db-test2:5432/wettbewerb
       SECRET_KEY: ${SECRET_KEY_TEST2}
       ADMIN_STARTPASSWORT: ${ADMIN_STARTPASSWORT_TEST2}
+      ZEITMESSUNG_API_KEY: ${ZEITMESSUNG_API_KEY_TEST2}
+      ZEITMESSUNG_QUELLE_URL: http://app-ffrattenberg:8000/api/zeitmessung/abonnieren
+      ZEITMESSUNG_QUELLE_API_KEY: ${ZEITMESSUNG_API_KEY_PRODUKTION}
       FLASK_APP: run.py
       FLASK_ENV: production
       APPLICATION_PREFIX: /test2
@@ -149,6 +162,9 @@ services:
       DATABASE_URL: postgresql://silo_user:${DB_PASSWORD_GENERALPROBE}@db-generalprobe:5432/wettbewerb
       SECRET_KEY: ${SECRET_KEY_GENERALPROBE}
       ADMIN_STARTPASSWORT: ${ADMIN_STARTPASSWORT_GENERALPROBE}
+      ZEITMESSUNG_API_KEY: ${ZEITMESSUNG_API_KEY_GENERALPROBE}
+      ZEITMESSUNG_QUELLE_URL: http://app-ffrattenberg:8000/api/zeitmessung/abonnieren
+      ZEITMESSUNG_QUELLE_API_KEY: ${ZEITMESSUNG_API_KEY_PRODUKTION}
       FLASK_APP: run.py
       FLASK_ENV: production
       APPLICATION_PREFIX: /generalprobe

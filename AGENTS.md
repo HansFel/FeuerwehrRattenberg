@@ -94,6 +94,26 @@ und entfernt sie! `--remove-orphans` deshalb bei diesen beiden Dateien
 NIE verwenden (oder `-p <eigener-projektname>` bzw. `--remove-orphans`
 nur mit vorherigem `docker compose -f <richtige-datei> ps` zur Kontrolle).
 
+### ⚠️ 2026-08-16 (Nachmittag): Rollentausch aktiv/Standby
+
+Der User hat einen **echten, dauerhaften Wechsel** bestätigt: **das ThinkPad
+(`192.168.1.34`) ist ab jetzt der aktive Server**, `ffrattenberg`
+(`192.168.1.238`) wird zum Standby. Die Rollenbezeichnungen im Abschnitt
+unten ("aktiver Server" = ffrattenberg, "Standby" = ThinkPad) sind seitdem
+NICHT mehr aktuell und wurden bewusst nicht überall nachgezogen (Domain/
+SSH-Alias-Namen bleiben unverändert, nur wer tatsächlich Live-Traffic
+bekommt hat sich geändert). **Vor jeder Aktion, die "den aktiven Server"
+betrifft, den User fragen, welcher gerade gemeint ist**, bis dieser
+Abschnitt vollständig aktualisiert ist. Insbesondere:
+- Router-Portweiterleitung 80/443 auf `.34` umzustellen liegt außerhalb
+  meiner Werkzeuge (SSH auf die Server, kein Router-Zugriff) - vom User
+  selbst zu bestätigen/durchzuführen.
+- Der ESP32 spricht wegen des Hairpin-NAT-Workarounds eine FEST
+  eingestellte lokale App-URL (nicht die Domain) an - die muss beim User
+  vor Ort auf `http://192.168.1.34:8000/api/zeitmessung/event` umgestellt
+  werden (seriell: `appurl <url>`, oder `http://<esp32-ip>/wlan-wechseln`
+  im Browser im selben LAN) - kann NICHT remote per SSH erledigt werden.
+
 ### Ersatzserver / Standby während der Veranstaltung
 
 Zweiter Server: **`hans@hans-ThinkPad-E590`**, Linux Mint 22.3, statische
@@ -125,6 +145,22 @@ weil die Docker Engine des ThinkPads maximal API 1.52 unterstützt. Traefik
 wird dort mit beiden Dateien gestartet:
 `docker compose -f docker-compose.yml -f docker-compose.standby.yml up -d`.
 
+**USB-Sicherung (seit 2026-08-16, auf dem ThinkPad):** `deployment/usb-backup-mount-einrichten.sh`
+(einmalig, sudo, fstab-Eintrag per USB-UUID nach `/mnt/usb-backups`) +
+`deployment/usb-instanz-backup.sh` (Cron alle 5 Min., `pg_dump` je Instanz
+nach `<instanz>_sicherung_<zeitstempel>.sql.gz`, überspringt unveränderte
+DBs anhand `pg_stat_database`, sha256-Prüfsumme, Rotation auf die letzten
+288 Sicherungen je Instanz). Läuft nachweislich (verifiziert 2026-08-16).
+Noch NICHT auf `ffrattenberg` (.238) eingerichtet - dortiger USB-Stick hat
+eine andere UUID als in `usb-backup-mount-einrichten.sh` hinterlegt, Skript
+müsste dafür angepasst werden.
+
+**Deckel/Sleep-Schutz (seit 2026-08-16, auf dem ThinkPad):**
+`deployment/thinkpad-kein-standby.sh` (einmalig, sudo) deaktiviert
+Suspend/Hibernate/Lid-Switch-Aktionen systemweit - wichtig, seit das
+ThinkPad der aktive Server ist (siehe Rollentausch-Hinweis oben). Bereits
+angewendet, verifiziert 2026-08-16.
+
 **Noch offen:** Die native Nextcloud-Snap-Installation des aktiven Servers
 muss konsistent exportiert und auf dem ThinkPad in einen Docker-Stack migriert
 werden. Das vorbereitete Exportskript liegt auf dem aktiven Server unter
@@ -135,6 +171,19 @@ Domains und Router-Portweiterleitungen zeigen im Normalbetrieb weiterhin auf
 auf den Standby synchronisiert werden. Im TCL-Router sollte `.34` zusätzlich
 für die genannte WLAN-MAC reserviert bzw. aus dem DHCP-Pool ausgeschlossen
 sein.
+
+Der USB-Speicher am Standby (`FELFERTRANS`, UUID `B483-A120`) dient für
+automatische Datenbank-Sicherungen. `/home/hans/usb-instanz-backup.sh` läuft
+alle 5 Minuten per Benutzer-Cronjob und sichert bei tatsächlichen
+Datenbankänderungen `ffrattenberg`,
+`ffrattenberg-generalprobe`, `ffrattenberg-test1` und `ffrattenberg-test2`.
+Jeder Dateiname enthält zwingend den Instanznamen, z.B.
+`ffrattenberg-test1_sicherung_YYYYMMDD_HHMMSS.sql.gz`; daneben liegt jeweils
+eine SHA-256-Datei. Pro Instanz werden 288 Sicherungen aufbewahrt (mindestens
+24 Stunden bei durchgehenden Änderungen im 5-Minuten-Takt). Für einen
+stabilen Mount nach Neustarts muss einmalig
+`sudo /home/hans/usb-backup-mount-einrichten.sh` ausgeführt werden; Ziel ist
+danach `/mnt/usb-backups/ffrattenberg-backups`.
 
 ## Wichtige Architektur-Konventionen
 
@@ -168,6 +217,22 @@ sein.
   der 5 Auslösungen pro Bahn war welcher Läufer" ist noch nicht
   automatisiert (passiert bisher nur visuell über die laufende Nummer in
   der Zeitmessung-Übersicht `/zeitmessung/`).
+- Zeitmessung-Weiterleitung an mehrere Instanzen (seit Build 20): Der ESP32
+  kennt weiterhin nur EIN Ziel (keine Firmware-Änderung). Stattdessen
+  melden sich test1/test2/generalprobe beim Start selbst bei der
+  Produktions-Instanz an (`POST /api/zeitmessung/abonnieren`, erreichbar
+  über das gemeinsame Docker-Netz `traefik` als `app-ffrattenberg:8000`)
+  und erneuern das Abonnement alle 60s (Ablauf nach 180s ohne Erneuerung -
+  heilt sich nach einem Neustart der Produktion oder des Abonnenten von
+  selbst, kein manuelles Aufräumen nötig). Jedes eingehende ESP32-Ereignis
+  wird serverseitig per Fire-and-forget an alle aktiven Abonnenten
+  weitergereicht. Siehe `app/blueprints/zeitmessung.py`
+  (`abonnieren`/`_an_abonnenten_weiterleiten`, Abonnentenliste bewusst nur
+  im Prozessspeicher) und `app/__init__.py` (`_bei_quelle_anmelden`,
+  Konfiguration über `ZEITMESSUNG_QUELLE_URL`/`ZEITMESSUNG_QUELLE_API_KEY`).
+  Je Server unabhängig (Standby-Instanzen melden sich nur bei der
+  Produktion DES EIGENEN Servers an, keine serverübergreifende
+  Weiterleitung).
 - Startfreigabe-Button für den Startrichter (offiziellen Start-Zeitpunkt
   eines Laufs markieren) wurde angefragt, ist noch nicht gebaut.
 

@@ -1,7 +1,12 @@
 """Flask-App-Factory für die Wettbewerbs-Organisation."""
 from __future__ import annotations
 
+import json
 import os
+import threading
+import time
+import urllib.request
+from urllib.error import URLError
 
 from flask import Flask
 
@@ -67,6 +72,13 @@ def create_app(test_config: dict | None = None) -> Flask:
         # überschreiben.
         ZEITMESSUNG_API_KEY=os.environ.get(
             "ZEITMESSUNG_API_KEY", "dev-nur-lokal-zeitmessung"),
+        # Falls gesetzt: diese Instanz meldet sich selbst als Weiterleitungs-
+        # Ziel bei einer anderen (produktiven) Instanz an, um dieselben
+        # ESP32-Zeitmessung-Ereignisse live mitzubekommen (z.B. test1/test2/
+        # generalprobe bei der Produktion). Siehe _bei_quelle_anmelden()
+        # unten sowie app/blueprints/zeitmessung.py:abonnieren().
+        ZEITMESSUNG_QUELLE_URL=os.environ.get("ZEITMESSUNG_QUELLE_URL", ""),
+        ZEITMESSUNG_QUELLE_API_KEY=os.environ.get("ZEITMESSUNG_QUELLE_API_KEY", ""),
     )
     if test_config:
         app.config.update(test_config)
@@ -131,7 +143,45 @@ def create_app(test_config: dict | None = None) -> Flask:
         _schema_migrieren()
         _standard_admin_anlegen(app)
 
+    _bei_quelle_anmelden(app)
+
     return app
+
+
+def _bei_quelle_anmelden(app: Flask) -> None:
+    """Meldet diese Instanz bei ZEITMESSUNG_QUELLE_URL als Weiterleitungs-
+    Ziel für ESP32-Zeitmessung-Ereignisse an (falls konfiguriert) und
+    erneuert die Anmeldung periodisch in einem Hintergrund-Thread.
+
+    Erneuerung statt einmaliger Anmeldung, damit sich das System von selbst
+    heilt, egal ob diese Instanz oder die Quelle neu startet - kein
+    manuelles Aufräumen von Alteinträgen auf der Quelle nötig (siehe
+    ABONNEMENT_GUELTIGKEIT_S in zeitmessung.py).
+    """
+    quelle_url = app.config["ZEITMESSUNG_QUELLE_URL"]
+    if not quelle_url:
+        return
+    eigene_ziel_url = f"http://app-{app.config['INSTANCE_NAME']}:8000/api/zeitmessung/event"
+    nutzlast = json.dumps({
+        "ziel_url": eigene_ziel_url,
+        "api_key": app.config["ZEITMESSUNG_API_KEY"],
+    }).encode("utf-8")
+    quelle_api_key = app.config["ZEITMESSUNG_QUELLE_API_KEY"]
+
+    def schleife() -> None:
+        while True:
+            try:
+                anfrage = urllib.request.Request(
+                    quelle_url, data=nutzlast, method="POST",
+                    headers={"Content-Type": "application/json",
+                             "X-API-Key": quelle_api_key})
+                urllib.request.urlopen(anfrage, timeout=5)
+            except (URLError, OSError, ValueError) as exc:
+                app.logger.warning(
+                    "Zeitmessung-Abonnement bei %s fehlgeschlagen: %s", quelle_url, exc)
+            time.sleep(60)
+
+    threading.Thread(target=schleife, daemon=True).start()
 
 
 def _spalten_ergaenzen(tabelle: str, neue_spalten: dict[str, str]) -> None:
