@@ -29,8 +29,6 @@ ein Eintrag mit Überschneidung zum eigenen Vorhaben, NICHT einfach
 weitermachen, sondern den User informieren und abstimmen, statt parallel
 an derselben Stelle zu arbeiten.
 
-- [Codex] 2026-08-16 – Moderator-Rolle und Dashboard; Live-Läufe, Sponsoren, Publikumsinfos und Nachrichten vom Organisator
-
 ## Was ist das Projekt
 
 Flask-Web-App zur Organisation des **Jubiläums-Wettbewerbs "120 Jahre
@@ -52,7 +50,7 @@ SQLite, um dieselbe DB wie Produktion zu testen).
 ## Rollensystem
 
 `administrator`, `organisator`, `startrichter`, `punkterichter`, `kellner`,
-`ausschank` (siehe `ROLLEN` in `app/models.py`). `darf(*rollen)` prüft ALLE
+`ausschank`, `moderator` (siehe `ROLLEN` in `app/models.py`). `darf(*rollen)` prüft ALLE
 zugewiesenen Rollen einer Person; `dashboard_zeigt(*rollen)` bzw. die
 Menüleiste in `base.html` richten sich nach der gerade AKTIVEN Rolle
 (Personen mit mehreren Rollen können umschalten). Admin erfüllt implizit
