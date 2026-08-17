@@ -240,6 +240,13 @@ def _schema_migrieren() -> None:
         "pfand_pro_einheit": f"{gleitkomma} NOT NULL DEFAULT 0.0",
         "pfand_zurueckgegeben": "INTEGER NOT NULL DEFAULT 0",
     })
+    _spalten_ergaenzen("notfall_lauf", {
+        "aktiv": "BOOLEAN NOT NULL DEFAULT FALSE",
+        "aktiviert_um": "TIMESTAMP",
+    })
+    _spalten_ergaenzen("zeitereignis", {
+        "client_event_id": "VARCHAR(64)",
+    })
 
 
 def _standard_admin_anlegen(app: Flask) -> None:

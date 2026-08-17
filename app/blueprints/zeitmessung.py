@@ -9,7 +9,8 @@ from urllib.error import URLError
 
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 
-from ..models import db, Zeitereignis, ZeitmessungAbonnent, KONTAKT_START, KONTAKT_ZIEL, KONTAKT_KONTAKT
+from ..models import (db, Zeitereignis, ZeitmessungAbonnent, NotfallLauf,
+                       KONTAKT_START, KONTAKT_ZIEL, KONTAKT_KONTAKT)
 from ..auth import rolle_noetig
 
 bp = Blueprint("zeitmessung", __name__)
@@ -58,22 +59,41 @@ def event_empfangen():
         return jsonify(fehler="kontakt muss 'kontakt' (aktuelle Hardware) "
                               "oder 'start'/'ziel' (alte Hardware) sein."), 400
 
+    # client_event_id: optionale, vom Sender vergebene ID (z.B. Desktop-App
+    # bei gepufferten Ereignissen nach einem Sync-Timeout) - macht ein
+    # wiederholtes Senden desselben Ereignisses idempotent, statt ein
+    # Duplikat anzulegen (das würde die automatische 5-Auslösungen-Zuordnung
+    # in _automatische_zuordnung_pruefen verfälschen).
+    client_event_id = str(daten.get("client_event_id", "")).strip()[:64] or None
+    if client_event_id:
+        bestehend = Zeitereignis.query.filter_by(client_event_id=client_event_id).first()
+        if bestehend:
+            return jsonify(status="ok", id=bestehend.id, bereits_vorhanden=True), 200
+
     ereignis = Zeitereignis(
         geraet_id=geraet_id,
         bahn=bahn,
         kontakt=kontakt,
         geraet_millis=daten.get("geraet_millis"),
         geraet_zeit_iso=str(daten.get("geraet_zeit_iso", ""))[:40],
+        client_event_id=client_event_id,
     )
     db.session.add(ereignis)
     db.session.commit()
-    _an_abonnenten_weiterleiten({
-        "geraet_id": ereignis.geraet_id,
-        "bahn": ereignis.bahn,
-        "kontakt": ereignis.kontakt,
-        "geraet_millis": ereignis.geraet_millis,
-        "geraet_zeit_iso": ereignis.geraet_zeit_iso,
-    })
+    _automatische_zuordnung_pruefen(ereignis.bahn)
+    # Ein bereits weitergeleitetes Ereignis NIE erneut weiterleiten - sonst
+    # reicht eine einzige fehlerhafte Abonnenten-Verkettung (oder gar eine
+    # versehentliche Selbst-Anmeldung) für eine Endlosschleife. Jedes
+    # Ereignis macht dadurch bewusst nur GENAU EINEN Hop vom ursprünglichen
+    # Empfänger zu dessen direkten Abonnenten, nie weiter.
+    if request.headers.get("X-Weitergeleitet") != "1":
+        _an_abonnenten_weiterleiten({
+            "geraet_id": ereignis.geraet_id,
+            "bahn": ereignis.bahn,
+            "kontakt": ereignis.kontakt,
+            "geraet_millis": ereignis.geraet_millis,
+            "geraet_zeit_iso": ereignis.geraet_zeit_iso,
+        })
     return jsonify(status="ok", id=ereignis.id), 201
 
 
@@ -128,13 +148,44 @@ def _an_abonnenten_weiterleiten(nutzlast: dict) -> None:
         try:
             anfrage = urllib.request.Request(
                 ziel_url, data=rohdaten, method="POST",
-                headers={"Content-Type": "application/json", "X-API-Key": api_key})
+                headers={"Content-Type": "application/json", "X-API-Key": api_key,
+                         "X-Weitergeleitet": "1"})
             urllib.request.urlopen(anfrage, timeout=3)
         except (URLError, OSError, ValueError) as exc:
             _log.warning("Weiterleitung an Abonnent %s fehlgeschlagen: %s", ziel_url, exc)
 
     for ziel_url, api_key in abonnenten:
         threading.Thread(target=senden, args=(ziel_url, api_key), daemon=True).start()
+
+
+def _automatische_zuordnung_pruefen(bahn: int) -> None:
+    """Ordnet ein neu eingetroffenes Kontaktereignis automatisch einer Bahn
+    des aktuell AKTIVEN NotfallLaufs zu, sobald 5 Auslösungen seit dessen
+    Aktivierung vorliegen (1.-4. = Läufer-Start/Übergabe, 5. = Ziel - siehe
+    firmware/zeitmessung/README.md). Läuft bei jedem Ereignis mit, egal ob
+    die Quelle ein ESP32 oder die Desktop-App/Arduino-Mega ist. Greift nur,
+    solange die Bahn noch nicht vollständig zugeordnet ist (idempotent) -
+    ein manuell schon fertig ausgefüllter Notfall-Eintrag wird nie
+    überschrieben."""
+    aktiver_lauf = NotfallLauf.query.filter_by(aktiv=True).first()
+    if not aktiver_lauf or not aktiver_lauf.aktiviert_um:
+        return
+    notfall_bahn = next((b for b in aktiver_lauf.bahnen
+                          if b.bahn_nr == bahn and b.team_id), None)
+    if notfall_bahn is None or notfall_bahn.zeit_laeufer4 is not None:
+        return
+    ereignisse = (Zeitereignis.query
+                  .filter(Zeitereignis.bahn == bahn,
+                          Zeitereignis.server_empfangen >= aktiver_lauf.aktiviert_um)
+                  .order_by(Zeitereignis.server_empfangen.asc())
+                  .limit(5).all())
+    if len(ereignisse) < 5:
+        return
+    zeitstempel = [e.server_empfangen for e in ereignisse]
+    for i in range(4):
+        delta = (zeitstempel[i + 1] - zeitstempel[i]).total_seconds()
+        setattr(notfall_bahn, f"zeit_laeufer{i + 1}", delta)
+    db.session.commit()
 
 
 @bp.route("/zeitmessung/")

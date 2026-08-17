@@ -1,13 +1,18 @@
 """Speisekarte (Essen & Getränke) und Tisch-QR-Code-Aufkleber – Organisator."""
 import io
+from xml.sax.saxutils import escape
 
 import qrcode
 from flask import (Blueprint, Response, flash, redirect, render_template,
                    request, url_for)
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
+from reportlab.platypus import (Paragraph, SimpleDocTemplate, Spacer, Table,
+                                TableStyle)
 
 from ..models import db, Artikel, BestellPosition, KATEGORIEN, KATEGORIE_GETRAENK
 from ..auth import rolle_noetig
@@ -93,6 +98,100 @@ def _aus_formular(a: Artikel) -> Artikel:
         a.reihenfolge = 0
     a.aktiv = bool(request.form.get("aktiv"))
     return a
+
+
+# -- Speisekarten-Aushang -----------------------------------------------------
+
+ROT = colors.HexColor("#b71c1c")
+DUNKELGRAU = colors.HexColor("#263238")
+HELLGRAU = colors.HexColor("#f2f4f5")
+
+
+def _euro(betrag: float) -> str:
+    return f"{betrag:.2f}".replace(".", ",") + " EUR"
+
+
+@bp.route("/aushang.pdf")
+@rolle_noetig("organisator")
+def aushang_pdf():
+    """Druckfreundliche A4-Speisekarte mit allen aktiven Artikeln."""
+    artikel = (Artikel.query.filter_by(aktiv=True)
+               .order_by(Artikel.kategorie, Artikel.reihenfolge, Artikel.name)
+               .all())
+
+    puffer = io.BytesIO()
+    dokument = SimpleDocTemplate(
+        puffer, pagesize=A4, title="Speisekarte - Feuerwehr Rattenberg",
+        topMargin=16 * mm, bottomMargin=16 * mm,
+        leftMargin=18 * mm, rightMargin=18 * mm,
+    )
+    stile = getSampleStyleSheet()
+    titel = ParagraphStyle(
+        "SpeisekartenTitel", parent=stile["Title"], fontName="Helvetica-Bold",
+        fontSize=28, leading=32, textColor=ROT, spaceAfter=3 * mm,
+    )
+    untertitel = ParagraphStyle(
+        "SpeisekartenUntertitel", parent=stile["Normal"], fontSize=12,
+        leading=15, textColor=DUNKELGRAU, spaceAfter=8 * mm,
+    )
+    kategorie_stil = ParagraphStyle(
+        "SpeisekartenKategorie", parent=stile["Heading2"],
+        fontName="Helvetica-Bold", fontSize=19, leading=23,
+        textColor=ROT, spaceBefore=2 * mm, spaceAfter=3 * mm,
+        keepWithNext=True,
+    )
+    normal = ParagraphStyle(
+        "SpeisekartenArtikel", parent=stile["Normal"], fontSize=13,
+        leading=17, textColor=DUNKELGRAU,
+    )
+    preis = ParagraphStyle(
+        "SpeisekartenPreis", parent=normal, fontName="Helvetica-Bold",
+        alignment=2,
+    )
+
+    story = [
+        Paragraph("120 Jahre Feuerwehr Rattenberg", untertitel),
+        Paragraph("Speisekarte", titel),
+        Paragraph("Essen &amp; Getränke", untertitel),
+    ]
+
+    hat_eintraege = False
+    for kategorie, bezeichnung in KATEGORIEN.items():
+        eintraege = [a for a in artikel if a.kategorie == kategorie]
+        if not eintraege:
+            continue
+        hat_eintraege = True
+        zeilen = []
+        for a in eintraege:
+            name = Paragraph(escape(a.name), normal)
+            preis_text = _euro(a.preis)
+            if a.pfand_pro_einheit:
+                preis_text += f"<br/><font size=\"9\">zzgl. {_euro(a.pfand_pro_einheit)} Pfand</font>"
+            zeilen.append([name, Paragraph(preis_text, preis)])
+        tabelle = Table(zeilen, colWidths=[125 * mm, 45 * mm], hAlign="LEFT")
+        tabelle.setStyle(TableStyle([
+            ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, HELLGRAU]),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4 * mm),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4 * mm),
+            ("TOPPADDING", (0, 0), (-1, -1), 3 * mm),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3 * mm),
+            ("LINEBELOW", (0, 0), (-1, -1), 0.25, colors.HexColor("#d5dadd")),
+        ]))
+        ueberschrift = "Getränke" if kategorie == KATEGORIE_GETRAENK else bezeichnung
+        story.extend([Paragraph(ueberschrift, kategorie_stil), tabelle,
+                      Spacer(1, 5 * mm)])
+
+    if not hat_eintraege:
+        story.append(Paragraph("Derzeit sind keine Artikel verfügbar.", normal))
+
+    dokument.build(story)
+    puffer.seek(0)
+    return Response(
+        puffer.getvalue(), mimetype="application/pdf",
+        headers={"Content-Disposition":
+                 'attachment; filename="speisekarte_aushang.pdf"'},
+    )
 
 
 # ── Tisch-QR-Code-Aufkleber ───────────────────────────────────────────────────

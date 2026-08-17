@@ -122,21 +122,6 @@
     </section>
     {% endif %}
 
-    {% if dashboard_zeigt('ausschank') %}
-    <section class="dash-karte">
-      <h2>🥤 Ausschank</h2>
-      <p class="leer">Eingehende Bestellungen ansehen und Pfand zurückbuchen.</p>
-      <div class="werkzeugleiste">
-        <a class="knopf" href="{{ url_for('bestellung.uebersicht') }}">Bestellungen ansehen</a>
-      </div>
-      <form method="post" action="{{ url_for('bestellung.pfand_suche') }}"
-            class="werkzeugleiste" style="margin-top:0.6rem">
-        <input type="number" name="tisch" min="1" placeholder="Tischnr." style="width:6rem" required>
-        <button class="knopf grau" type="submit">🥤 Pfand zurückgeben</button>
-      </form>
-    </section>
-    {% endif %}
-
     {% if aktive_rolle() == 'administrator' %}
     <section class="dash-karte">
       <h2>🛡️ Verwaltung</h2>

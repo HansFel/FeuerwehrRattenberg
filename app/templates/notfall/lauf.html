@@ -2,10 +2,24 @@
 {% block titel %}Notfall-Lauf{% if lauf.bezeichnung %} – {{ lauf.bezeichnung }}{% endif %}{% endblock %}
 {% block inhalt %}
   <h1>🆘 Notfall-Lauf{% if lauf.bezeichnung %} – {{ lauf.bezeichnung }}{% endif %}</h1>
-  <p class="leer">Zeit je Läufer in Sekunden eintragen (z.B. von der
-     ESP32-Weboberfläche abgelesen oder per Stoppuhr gemessen). Die
-     Team-Summe wird automatisch berechnet, sobald alle 4 Zeiten einer Bahn
-     eingetragen sind.</p>
+  {% if lauf.aktiv %}
+  <p class="hinweis">🟢 Aktiv – eingehende Kontaktereignisse werden automatisch
+     zugeordnet. Zeiten unten füllen sich von selbst, sobald 5 Auslösungen je
+     Bahn vorliegen.</p>
+  <form method="post" action="{{ url_for('notfall.deaktivieren', lauf_id=lauf.id) }}" style="display:inline">
+    <button class="knopf klein grau" type="submit">Automatik deaktivieren</button>
+  </form>
+  {% else %}
+  <p class="leer">Nicht aktiv – Zeiten müssen unten von Hand eingetragen werden
+     (z.B. von der ESP32-Weboberfläche abgelesen oder per Stoppuhr gemessen).
+     Team-Besetzung zuerst vollständig eintragen, dann aktivieren, damit
+     neue Kontaktereignisse automatisch zugeordnet werden.</p>
+  <form method="post" action="{{ url_for('notfall.aktivieren', lauf_id=lauf.id) }}" style="display:inline">
+    <button class="knopf klein" type="submit">Automatik aktivieren</button>
+  </form>
+  {% endif %}
+  <p class="leer" style="margin-top:0.5rem">Die Team-Summe wird automatisch
+     berechnet, sobald alle 4 Zeiten einer Bahn eingetragen sind.</p>
 
   <form method="post">
     {% for bahn in lauf.bahnen %}

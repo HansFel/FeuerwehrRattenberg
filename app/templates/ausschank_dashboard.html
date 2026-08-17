@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block titel %}Ausschank{% endblock %}
+{% block inhalt %}
+  <div class="ausschank-dashboard">
+    <h1>🥤 Ausschank</h1>
+
+    <form method="post" id="ausschank-formular">
+      <label class="ausschank-gruppe" for="team_id">
+        <strong>1. Gruppe auswählen</strong>
+        <select id="team_id" name="team_id" required>
+          <option value="">– Gruppe wählen –</option>
+          {% for team in teams %}
+            <option value="{{ team.id }}">{{ team.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <h2>2. Getränke antippen</h2>
+      {% if getraenke %}
+      <div class="kasse-grid">
+        {% for artikel in getraenke %}
+        <div class="kasse-kachel kasse-getraenk">
+          <button type="button" class="kasse-tipp"
+                  data-preis="{{ artikel.preis + (artikel.pfand_pro_einheit or 0) }}"
+                  onclick="ausschankMenge('menge_{{ artikel.id }}', 1)">
+            <strong>{{ artikel.name }}</strong>
+            <span>{{ "%.2f"|format(artikel.preis) }} €
+              {% if artikel.punkte_pro_einheit %} · {{ artikel.punkte_pro_einheit }} Punkte{% endif %}
+            </span>
+          </button>
+          <div class="kasse-zaehler">
+            <button type="button" class="knopf klein grau"
+                    onclick="ausschankMenge('menge_{{ artikel.id }}', -1)">−</button>
+            <span id="anzeige_menge_{{ artikel.id }}" class="kasse-anzahl">0</span>
+            <input type="hidden" id="menge_{{ artikel.id }}"
+                   name="menge_{{ artikel.id }}" value="0">
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+        <p class="meldung error">Noch keine Getränke angelegt.</p>
+      {% endif %}
+
+      {% set pfand_artikel = getraenke | selectattr('pfand_pro_einheit') | list %}
+      {% if pfand_artikel %}
+      <h2>3. Pfandrückgabe berechnen</h2>
+      <p class="leer">Nur für die Abrechnung – ohne Tisch- oder Gruppenzuordnung.</p>
+      <div class="kasse-grid">
+        {% for artikel in pfand_artikel %}
+        <div class="kasse-kachel kasse-pfand">
+          <button type="button" class="kasse-tipp"
+                  data-rueckgabepreis="{{ artikel.pfand_pro_einheit }}"
+                  onclick="ausschankMenge('rueckgabe_{{ artikel.id }}', 1)">
+            <strong>{{ artikel.name }} zurück</strong>
+            <span>−{{ "%.2f"|format(artikel.pfand_pro_einheit) }} € Pfand</span>
+          </button>
+          <div class="kasse-zaehler">
+            <button type="button" class="knopf klein grau"
+                    onclick="ausschankMenge('rueckgabe_{{ artikel.id }}', -1)">−</button>
+            <span id="anzeige_rueckgabe_{{ artikel.id }}" class="kasse-anzahl">0</span>
+            <input type="hidden" id="rueckgabe_{{ artikel.id }}"
+                   name="rueckgabe_{{ artikel.id }}" value="0">
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <section class="ausschank-rueckgeld">
+        <h2>4. Rückgeld berechnen</h2>
+        <div><span>Zu bezahlen</span><strong id="ausschank-summe">0,00 €</strong></div>
+        <label for="gegeben">Gegeben (€)</label>
+        <input id="gegeben" type="number" min="0" step="0.01" inputmode="decimal"
+               placeholder="0,00" oninput="ausschankAktualisieren()">
+        <div><span>Rückgeld</span><strong id="ausschank-rueckgeld">0,00 €</strong></div>
+      </section>
+
+      <div class="ausschank-abschluss">
+        <strong id="ausschank-auswahl">Noch kein Getränk gewählt</strong>
+        <button class="knopf gross" type="submit" {% if not getraenke or not teams %}disabled{% endif %}
+                onclick="return confirm('Bestellung und Bezahlung wirklich bestätigen?')">
+          Bestellung und Bezahlung
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    function ausschankMenge(feldId, delta) {
+      var feld = document.getElementById(feldId);
+      var menge = Math.max(0, parseInt(feld.value || '0', 10) + delta);
+      feld.value = menge;
+      document.getElementById('anzeige_' + feldId).textContent = menge;
+
+      ausschankAktualisieren();
+    }
+
+    function ausschankAktualisieren() {
+      var getraenke = 0;
+      var rueckgaben = 0;
+      var summe = 0;
+      document.querySelectorAll('.kasse-getraenk').forEach(function (kachel) {
+        var menge = parseInt(kachel.querySelector('input').value || '0', 10);
+        getraenke += menge;
+        summe += menge * parseFloat(kachel.querySelector('.kasse-tipp').dataset.preis || '0');
+      });
+      document.querySelectorAll('.kasse-pfand').forEach(function (kachel) {
+        var menge = parseInt(kachel.querySelector('input').value || '0', 10);
+        rueckgaben += menge;
+        summe -= menge * parseFloat(kachel.querySelector('.kasse-tipp').dataset.rueckgabepreis || '0');
+      });
+      document.getElementById('ausschank-auswahl').textContent =
+        getraenke + ' Getränke · ' + rueckgaben + ' Pfand zurück';
+      document.getElementById('ausschank-summe').textContent = euro(summe);
+      var gegebenFeld = document.getElementById('gegeben');
+      document.getElementById('ausschank-rueckgeld').textContent = gegebenFeld.value
+        ? euro(parseFloat(gegebenFeld.value) - summe)
+        : '–';
+    }
+
+    function euro(betrag) {
+      return betrag.toLocaleString('de-AT', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
+    }
+  </script>
+{% endblock %}

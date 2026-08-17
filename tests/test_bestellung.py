@@ -155,6 +155,80 @@ def test_ausschank_kein_zugriff_auf_speisekarte(client):
     assert Artikel.query.filter_by(name="Verboten").first() is None
 
 
+def test_ausschank_startseite_leitet_auf_einfaches_dashboard(client):
+    _login(client, "ausschank1", "pw")
+    r = client.get("/", follow_redirects=True)
+    assert r.status_code == 200
+    assert "Gruppe auswählen".encode() in r.data
+    assert "Bestellung und Bezahlung".encode() in r.data
+    assert "Pfand zurückgeben".encode() not in r.data
+    assert "Aktives Dashboard".encode() not in r.data
+
+
+def test_ausschank_verbucht_getraenke_sofort_bezahlt(client, app):
+    _login(client, "ausschank1", "pw")
+    with app.app_context():
+        bier = Artikel.query.filter_by(name="Bier").first()
+        team = Team.query.filter_by(name="Team A").first()
+        bier_id, team_id = bier.id, team.id
+
+    r = client.post("/ausschank/", data={
+        "team_id": str(team_id),
+        f"menge_{bier_id}": "3",
+    }, follow_redirects=True)
+    assert r.status_code == 200
+    assert "Bestellung und Bezahlung bestätigt".encode() in r.data
+
+    with app.app_context():
+        bestellung = Bestellung.query.filter_by(tisch_nummer=0).one()
+        assert bestellung.erfasst_von == "ausschank1"
+        assert bestellung.bezahlt is True
+        assert bestellung.bezahlt_am is not None
+        assert len(bestellung.positionen) == 1
+        assert bestellung.positionen[0].team_id == team_id
+        assert bestellung.positionen[0].menge == 3
+        assert bestellung.gesamtpunkte == 6
+
+
+def test_ausschank_braucht_gruppe_und_getraenk(client, app):
+    _login(client, "ausschank1", "pw")
+    with app.app_context():
+        bier = Artikel.query.filter_by(name="Bier").first()
+        team = Team.query.filter_by(name="Team A").first()
+        bier_id, team_id = bier.id, team.id
+
+    r = client.post("/ausschank/", data={f"menge_{bier_id}": "1"},
+                    follow_redirects=True)
+    assert "Bitte zuerst eine Gruppe".encode() in r.data
+    assert Bestellung.query.count() == 0
+
+    r = client.post("/ausschank/", data={"team_id": str(team_id)},
+                    follow_redirects=True)
+    assert "mindestens ein Getränk".encode() in r.data
+    assert Bestellung.query.count() == 0
+
+
+def test_ausschank_pfandrueckgabe_wird_nur_berechnet(client, app):
+    _login(client, "ausschank1", "pw")
+    with app.app_context():
+        bier = Artikel.query.filter_by(name="Bier").first()
+        team = Team.query.filter_by(name="Team A").first()
+        bier_id, team_id = bier.id, team.id
+
+    # 2 Bier: 9,00 Euro inklusive Pfand; 1 Pfand retour: Zahlbetrag 8,00.
+    r = client.post("/ausschank/", data={
+        "team_id": str(team_id),
+        f"menge_{bier_id}": "2",
+        f"rueckgabe_{bier_id}": "1",
+    }, follow_redirects=True)
+    assert "Zahlbetrag 8.00 €".encode() in r.data
+
+    with app.app_context():
+        position = BestellPosition.query.one()
+        assert position.pfand_zurueckgegeben == 0
+        assert position.team_id == team_id
+
+
 def test_bezahlt_umschalten(client, app):
     with app.app_context():
         gulasch = Artikel.query.filter_by(name="Gulasch").first()
@@ -222,6 +296,28 @@ def test_qrcode_pdf_organisator(client, app):
 def test_qrcode_pdf_kein_zugriff_ohne_rolle(client):
     r = client.get("/speisekarte/tische/qrcodes.pdf?von=1&bis=3",
                    follow_redirects=True)
+    assert "anmelden".encode() in r.data.lower()
+
+
+def test_speisekarte_aushang_pdf_organisator(client, app):
+    with app.app_context():
+        org = Benutzer(username="orga_pdf", aktiv=True)
+        org.set_password("pw")
+        org.rollen.append(BenutzerRolle(rolle="organisator"))
+        db.session.add(org)
+        db.session.commit()
+
+    _login(client, "orga_pdf", "pw")
+    r = client.get("/speisekarte/aushang.pdf")
+    assert r.status_code == 200
+    assert r.headers["Content-Type"] == "application/pdf"
+    assert r.headers["Content-Disposition"] == (
+        'attachment; filename="speisekarte_aushang.pdf"')
+    assert r.data[:4] == b"%PDF"
+
+
+def test_speisekarte_aushang_pdf_kein_zugriff_ohne_rolle(client):
+    r = client.get("/speisekarte/aushang.pdf", follow_redirects=True)
     assert "anmelden".encode() in r.data.lower()
 
 

@@ -14,6 +14,7 @@ diese Datei kann veralten.)_
 
 ## Aktuell in Bearbeitung
 
+
 **Vor größeren/mehrschrittigen Änderungen** (neues Feature, Refactoring,
 Datenmodell-Änderung) hier einen Eintrag ergänzen, damit eine andere KI
 nicht gleichzeitig an derselben Stelle arbeitet und sich die Änderungen
@@ -56,6 +57,16 @@ Menüleiste in `base.html` richten sich nach der gerade AKTIVEN Rolle
 (Personen mit mehreren Rollen können umschalten). Admin erfüllt implizit
 jede Rollenprüfung.
 
+Die aktive Rolle `ausschank` wird von der allgemeinen Startseite direkt auf
+`/ausschank/` weitergeleitet. Dieses bewusst reduzierte Dashboard zeigt
+Gruppenauswahl, Getränke-Tippbuttons, eine reine Pfandrückgabe-Berechnung ohne
+Tisch-/Gruppenzuordnung sowie eine Rückgeldberechnung. „Bestellung und Bezahlung" erzeugt
+eine bereits bezahlte Bestellung mit `tisch_nummer=0`, ordnet alle
+Getränkepunkte der gewählten Gruppe zu und kehrt sofort zur leeren
+Ausschankmaske zurück. Die allgemeine Bestellübersicht und Tischsuche gehören
+nicht in dieses Dashboard; die dort eingegebene Pfandrückgabe ist nur ein
+Rechenposten und verändert keine gespeicherten Pfandbestände.
+
 ## Produktions-Deployment
 
 Eigener Ubuntu-Server "ffrattenberg" (Docker, Traefik-Reverse-Proxy,
@@ -77,6 +88,23 @@ duckdns.org-Subdomain löst Googles Heuristik aus) - Personal vor Ort kann
 die Instanzen bis zur Google-Überprüfung über diese LAN-Ports nutzen.
 Überprüfung anstoßen: https://safebrowsing.google.com/safebrowsing/report_error/
 oder Google Search Console (Property + Sicherheitsprobleme).
+
+**Kritischer Bug gefunden und gefixt (2026-08-16):** Bei einem
+serverübergreifenden Abonnement (ThinkPad-Produktion abonniert bei
+ffrattenberg-Produktion) geriet ffrattenberg versehentlich als Abonnent
+BEI SICH SELBST in die `zeitmessung_abonnent`-Tabelle (vermutlich Artefakt
+eines manuellen Debug-Tests) - Ergebnis: Endlosschleife, jedes Ereignis
+wurde an sich selbst weitergeleitet, kam erneut an, wurde wieder
+weitergeleitet usw. Zehntausende Duplikate in Minuten, auch auf dem
+ThinkPad (der ja ebenfalls Abonnent war). **Fix:** `event_empfangen()` in
+`app/blueprints/zeitmessung.py` leitet ein Ereignis NIE weiter, wenn es
+selbst schon den Header `X-Weitergeleitet: 1` trägt (wird beim
+Weiterleiten gesetzt) - jedes Ereignis macht dadurch maximal EINEN Hop,
+unabhängig von der Abonnenten-Topologie. Test:
+`test_weitergeleitetes_ereignis_wird_nicht_erneut_weitergeleitet` in
+`tests/test_zeitmessung.py`. **Zusätzlich beim Prüfen von
+Abonnenten-Listen immer auf Selbstreferenzen achten**
+(`ziel_url` == eigener Event-Endpunkt).
 
 **Wichtige Falle dabei gefunden und gefixt:** `PrefixMiddleware`
 (`app/__init__.py`) reagiert seit Build 22 NUR noch auf den
@@ -111,21 +139,31 @@ nur mit vorherigem `docker compose -f <richtige-datei> ps` zur Kontrolle).
 ### ⚠️ 2026-08-16 (Nachmittag): Rollentausch aktiv/Standby
 
 Der User hat einen **echten, dauerhaften Wechsel** bestätigt: **das ThinkPad
-(`192.168.1.34`) ist ab jetzt der aktive Server**, `ffrattenberg`
-(`192.168.1.238`) wird zum Standby. Die Rollenbezeichnungen im Abschnitt
-unten ("aktiver Server" = ffrattenberg, "Standby" = ThinkPad) sind seitdem
-NICHT mehr aktuell und wurden bewusst nicht überall nachgezogen (Domain/
-SSH-Alias-Namen bleiben unverändert, nur wer tatsächlich Live-Traffic
-bekommt hat sich geändert). **Vor jeder Aktion, die "den aktiven Server"
-betrifft, den User fragen, welcher gerade gemeint ist**, bis dieser
-Abschnitt vollständig aktualisiert ist. Insbesondere:
-- Router-Portweiterleitung 80/443 auf `.34` wurde vom User bereits
-  umgestellt und bestätigt funktionsfähig (2026-08-16).
+ist ab jetzt der aktive Server**, `ffrattenberg` (`192.168.1.238`) wird zum
+Standby. Die Rollenbezeichnungen im Abschnitt unten ("aktiver Server" =
+ffrattenberg, "Standby" = ThinkPad) sind seitdem NICHT mehr aktuell und
+wurden bewusst nicht überall nachgezogen (Domain/SSH-Alias-Namen bleiben
+unverändert, nur wer tatsächlich Live-Traffic bekommt hat sich geändert).
+**Vor jeder Aktion, die "den aktiven Server" betrifft, den User fragen,
+welcher gerade gemeint ist**, bis dieser Abschnitt vollständig aktualisiert
+ist. Insbesondere:
+- **ThinkPad-IP ist NICHT stabil** - **keine DHCP-Reservierung** eingerichtet.
+  War zunächst `192.168.1.34`, hat sich am 2026-08-16 (später am Tag) auf
+  `192.168.1.14` geändert (per SSH verifiziert: `hostname` →
+  `hans-ThinkPad-E590`, laufende Produktions-Container). **Bei jeder
+  netzwerkbezogenen Aktion (Router-Portweiterleitung, AdGuard-DNS-Rewrite,
+  ESP32/Desktop-App-URL) zuerst die AKTUELLE IP per SSH verifizieren, nicht
+  blind eine hier notierte IP übernehmen** - sie kann sich jederzeit wieder
+  ändern.
+- Router-Portweiterleitung 80/443 wurde vom User bereits auf den aktiven
+  Server umgestellt und bestätigt funktionsfähig (2026-08-16).
 - Der ESP32 spricht wegen des Hairpin-NAT-Workarounds eine FEST
-  eingestellte lokale App-URL (nicht die Domain) an - die muss beim User
-  vor Ort auf `http://192.168.1.34:8000/api/zeitmessung/event` umgestellt
-  werden (seriell: `appurl <url>`, oder `http://<esp32-ip>/wlan-wechseln`
-  im Browser im selben LAN) - kann NICHT remote per SSH erledigt werden.
+  eingestellte lokale App-URL (nicht die Domain) an - muss beim User vor Ort
+  auf `http://<aktuelle-ThinkPad-IP>:8000/api/zeitmessung/event` umgestellt
+  werden (seriell: `appurl <url>`, oder `http://<esp32-ip>/wlan-wechseln` im
+  Browser im selben LAN) - kann NICHT remote per SSH erledigt werden. **Seit
+  dem Hardware-Wechsel auf Arduino Mega + Desktop-App (siehe oben) betrifft
+  das nur noch die alte ESP32-Firmware, nicht mehr den produktiven Weg.**
 - **Hairpin-NAT betrifft bestätigt auch normale Handy-Browser, nicht nur
   das ESP32** (2026-08-16): `curl` gegen die öffentliche Domain von BEIDEN
   Servern aus (selbst im Veranstaltungs-WLAN) schlägt mit "Connection
@@ -134,7 +172,44 @@ Abschnitt vollständig aktualisiert ist. Insbesondere:
   Aufruf von `https://ffrattenberg.duckdns.org/` aus demselben WLAN.
   Fix: Geräte IM Veranstaltungs-WLAN müssen die lokalen Adressen nutzen,
   nicht die öffentliche Domain (siehe LAN-Ports oben, Produktion `:8000`,
-  test1/test2/generalprobe `:8001`-`:8003`).
+  test1/test2/generalprobe `:8001`-`:8003`) - **ODER siehe den neuen
+  Abschnitt "Netzwerk: Split-DNS für internen Zugriff" direkt unten, der das
+  seit 2026-08-17 für die Domain selbst löst.**
+
+### Netzwerk: Split-DNS für internen Zugriff auf die Domain (seit 2026-08-17)
+
+Der TCL-Router (Modell HH132VM, LTE/4G) hat **in seiner Weboberfläche kein
+Feld, um Clients per DHCP einen eigenen DNS-Server zuzuweisen** - weder
+unter LAN/DHCP-Server noch unter WAN (direkt in der UI geprüft, beide Seiten
+durchgesehen). Eine netzweite automatische Lösung des Hairpin-NAT-Problems
+über diesen Router ist damit nicht möglich.
+
+**Umgesetzte Lösung: AdGuard Home** läuft als Docker-Container auf dem
+aktiven Server (`~/apps/adguard/docker-compose.yml`):
+- DNS-Dienst an die LAN-IP des Servers gebunden (NICHT `0.0.0.0` - Konflikt
+  mit `systemd-resolved`, das schon auf mehreren spezifischen Adressen
+  lauscht). Docker-Compose-Ports deshalb explizit `<LAN-IP>:53:53` statt
+  `53:53`.
+- Admin-Weboberfläche NICHT auf dem AdGuard-Standard-Port 80 (kollidiert mit
+  Traefik), sondern auf `<LAN-IP>:3001` gemappt (Container hört intern auf
+  80, wenn im Setup-Assistenten der vorgeschlagene Port übernommen wurde).
+- DNS-Rewrite unter „Filters → DNS-Umschreibungen": `ffrattenberg.duckdns.org`
+  → aktuelle LAN-IP des Servers. Normale Domains werden weiterhin korrekt an
+  Upstream weitergeleitet (kein Full-Pihole-Ersatz nötig).
+
+**Da der Router den DNS nicht automatisch verteilt, muss JEDER Client
+manuell auf den AdGuard-DNS umgestellt werden** (Netzwerkadapter-
+Einstellungen, DNS-Server = AdGuard-IP). Verifizierter Stolperstein dabei
+(2026-08-17): Ein Windows-Client hatte zusätzlich einen alten, falschen
+`ffrattenberg*.duckdns.org`-Eintrag in `C:\Windows\System32\drivers\etc\hosts`,
+der die AdGuard-Auflösung überschrieben hat - erst nach Entfernen dieses
+Eintrags (PowerShell als Administrator, `Set-Content` auf die hosts-Datei) +
+`ipconfig /flushdns` funktionierte der Zugriff auf die Domain von diesem
+Client aus. **How to apply:** Bei "von innen nicht erreichbar" IMMER zuerst
+prüfen, ob der Client (a) den AdGuard-DNS überhaupt eingetragen hat und (b)
+keine alte `hosts`-Zeile die AdGuard-Auflösung überschreibt. Bis DNS auf
+allen benötigten Geräten manuell umgestellt ist, bleibt Port 8000 (siehe
+oben) der Fallback.
 
 ### Ersatzserver / Standby während der Veranstaltung
 
@@ -236,9 +311,27 @@ danach `/mnt/usb-backups/ffrattenberg-backups`.
   Rangliste-Ansicht unter `/zeitplan/`.
 - Zeitmessung: nur noch 1 Öffner-Kontakt pro Bahn (nicht mehr Start+Ziel
   getrennt), siehe `firmware/zeitmessung/README.md`. Die Zuordnung "welche
-  der 5 Auslösungen pro Bahn war welcher Läufer" ist noch nicht
-  automatisiert (passiert bisher nur visuell über die laufende Nummer in
-  der Zeitmessung-Übersicht `/zeitmessung/`).
+  der 5 Auslösungen pro Bahn war welcher Läufer" ist **seit 2026-08-16
+  automatisiert**, sofern ein `NotfallLauf` mit Team-Besetzung je Bahn
+  aktiviert ist (`NotfallLauf.aktiv`) - siehe
+  `app/blueprints/zeitmessung.py:_automatische_zuordnung_pruefen()` und
+  `app/blueprints/notfall.py:aktivieren()`. Ohne Aktivierung (oder falls die
+  Automatik ausfällt) bleibt die manuelle Handeingabe unter `/notfall/` der
+  Fallback; die visuelle laufende Nummer in `/zeitmessung/` bleibt zusätzlich
+  bestehen, unabhängig von der Automatik.
+- **Zeitmessung-Hardware seit 2026-08-16 gewechselt: Arduino Mega 2560 statt
+  ESP32.** Grund: Bedenken der Veranstalter bei Strom-/WLAN-Ausfall am
+  Veranstaltungsort. Der Mega hat kein WLAN, meldet Kontaktauslösungen nur
+  über USB-Seriell an eine neue lokale **Desktop-App** (`desktop-app/`,
+  PySide6), die die Ereignisse zuerst in einer eigenen SQLite puffert und
+  erst danach an denselben `/api/zeitmessung/event`-Endpoint sendet wie
+  vorher der ESP32 (Endpoint selbst unverändert, ihm ist die Quelle egal).
+  Ein Sync-Retry nach Timeout erzeugt dank `client_event_id`
+  (`Zeitereignis.client_event_id`, Dedup-Prüfung in `event_empfangen()`)
+  KEIN Duplikat. Firmware: `firmware/zeitmessung-mega/README.md` (serielles
+  Zeilenprotokoll `READY`/`HEARTBEAT`/`EVENT`). Der bisherige ESP32-Weg
+  (`firmware/zeitmessung/`) bleibt als Code erhalten, wird aber nicht mehr
+  eingesetzt. Zeitnehmungs-PC beim Event: `hans@felferlinuxlab` (Linux).
 - Zeitmessung-Weiterleitung an mehrere Instanzen (seit Build 20): Der ESP32
   kennt weiterhin nur EIN Ziel (keine Firmware-Änderung). Stattdessen
   melden sich test1/test2/generalprobe beim Start selbst bei der
@@ -267,8 +360,16 @@ prüfen lassen, nicht einfach als fertig annehmen.
 
 ## Firmware-Doku
 
-Für die ESP32-Zeitmessung immer zuerst `firmware/zeitmessung/README.md`
-lesen (sehr ausführlich: Verkabelung, serielle Konsole, OTA-Updates,
-bekannte Stolperfallen beim Flashen). Diese Entwicklungsumgebung hat
-PlatformIO nicht vorinstalliert (`pip install platformio` nötig), COM4 ist
-aber direkt verfügbar.
+**Aktuell eingesetzt:** `firmware/zeitmessung-mega/README.md` (Arduino Mega
+2560, seit 2026-08-16) - seriell statt WLAN, siehe oben. Entwicklungs-PC hat
+PlatformIO nicht vorinstalliert (`pip install platformio` nötig), der Mega
+hängt an COM3.
+
+**Nicht mehr eingesetzt, Code bleibt erhalten:** `firmware/zeitmessung/README.md`
+(ESP32, WLAN/HTTP direkt an die Webapp, COM4).
+
+## Desktop-App-Doku
+
+Für die neue Zeitmessung-Desktop-App (liest den Mega seriell aus, puffert
+lokal, synct mit der Webapp) immer zuerst `desktop-app/README.md` lesen
+(Architektur-Tabelle, Setup, End-to-End-Testnachweis vom 2026-08-16).

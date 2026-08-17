@@ -27,7 +27,9 @@
       {% if dashboard_zeigt('organisator') %}
         <a href="{{ url_for('speisekarte.liste') }}">Speisekarte</a>
       {% endif %}
-      {% if dashboard_zeigt('kellner', 'organisator', 'ausschank') %}
+      {% if aktive_rolle() == 'ausschank' %}
+        <a href="{{ url_for('bestellung.ausschank_dashboard') }}">Ausschank</a>
+      {% elif dashboard_zeigt('kellner', 'organisator') %}
         <a href="{{ url_for('bestellung.uebersicht') }}">Bestellungen</a>
       {% endif %}
       {% if dashboard_zeigt('organisator', 'startrichter') %}

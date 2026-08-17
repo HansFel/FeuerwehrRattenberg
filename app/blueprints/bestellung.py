@@ -6,10 +6,75 @@ from flask import (Blueprint, flash, redirect, render_template, request,
                    session, url_for)
 from flask_login import current_user
 
-from ..models import db, Artikel, Bestellung, BestellPosition, Team, KATEGORIEN
+from ..models import (db, Artikel, Bestellung, BestellPosition, Team,
+                      KATEGORIEN, KATEGORIE_GETRAENK)
 from ..auth import darf, rolle_noetig
 
 bp = Blueprint("bestellung", __name__)
+
+
+@bp.route("/ausschank/", methods=["GET", "POST"])
+@rolle_noetig("ausschank")
+def ausschank_dashboard():
+    """Bewusst reduzierte Ausschank-Kasse: Team wählen, Getränke antippen
+    und Bestellung, Pfandrückgabe sowie Bezahlung in einem Schritt verbuchen."""
+    getraenke = (Artikel.query
+                 .filter_by(aktiv=True, kategorie=KATEGORIE_GETRAENK)
+                 .order_by(Artikel.reihenfolge, Artikel.name).all())
+    teams = Team.query.order_by(Team.name).all()
+
+    if request.method == "POST":
+        team_id = request.form.get("team_id", type=int)
+        team = db.session.get(Team, team_id) if team_id else None
+        if team is None:
+            flash("Bitte zuerst eine Gruppe auswählen.", "error")
+            return redirect(url_for("bestellung.ausschank_dashboard"))
+
+        bestellung = Bestellung(
+            tisch_nummer=0,
+            erfasst_von=current_user.username,
+            bezahlt=True,
+            bezahlt_am=datetime.now(timezone.utc),
+        )
+        for artikel in getraenke:
+            menge = _int_or_null(request.form.get(f"menge_{artikel.id}"))
+            if not menge or menge <= 0:
+                continue
+            bestellung.positionen.append(BestellPosition(
+                artikel_id=artikel.id,
+                artikel_name=artikel.name,
+                einzelpreis=artikel.preis,
+                menge=menge,
+                team_id=team.id,
+                punkte_gesamt=(artikel.punkte_pro_einheit or 0) * menge,
+                pfand_pro_einheit=artikel.pfand_pro_einheit or 0.0,
+            ))
+
+        pfand_gutschrift = 0.0
+        for artikel in getraenke:
+            if not artikel.pfand_pro_einheit:
+                continue
+            anzahl = _int_or_null(request.form.get(f"rueckgabe_{artikel.id}"))
+            if anzahl and anzahl > 0:
+                pfand_gutschrift += anzahl * artikel.pfand_pro_einheit
+
+        if not bestellung.positionen:
+            flash("Bitte mindestens ein Getränk auswählen.", "error")
+            return redirect(url_for("bestellung.ausschank_dashboard"))
+
+        db.session.add(bestellung)
+        db.session.commit()
+        zahlbetrag = bestellung.gesamtbetrag - pfand_gutschrift
+        flash(
+            f"Bestellung und Bezahlung bestätigt: {team.name}, "
+            f"Zahlbetrag {zahlbetrag:.2f} €, "
+            f"{bestellung.gesamtpunkte} Getränkepunkte.",
+            "ok",
+        )
+        return redirect(url_for("bestellung.ausschank_dashboard"))
+
+    return render_template("ausschank_dashboard.html", getraenke=getraenke,
+                           teams=teams)
 
 
 @bp.route("/bestellen/<int:tisch>", methods=["GET", "POST"])

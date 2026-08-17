@@ -1,8 +1,11 @@
-"""Manuelle Notfall-Zeiterfassung: falls die automatische Zuordnung der
-ESP32-Zeitmessung zu einem Wettkampf-Lauf ausfällt, kann der Startrichter
-hier vorab die Team-Besetzung je Bahn eintragen und die Zeiten danach von
-Hand erfassen (z.B. abgelesen von der eigenständigen Weboberfläche des
-ESP32, die auch bei App-Ausfall unabhängig weiterläuft)."""
+"""Notfall-Zeiterfassung: der Startrichter/Organisator trägt vorab die
+Team-Besetzung je Bahn ein. Wird ein Lauf zusätzlich AKTIVIERT, ordnet
+app/blueprints/zeitmessung.py eingehende Kontaktereignisse (ESP32 oder
+Desktop-App/Arduino-Mega) automatisch zu und füllt die Läuferzeiten selbst
+aus. Ohne Aktivierung (oder falls die Automatik ausfällt) bleibt die
+Handeingabe hier der Fallback."""
+from datetime import datetime
+
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
@@ -59,6 +62,35 @@ def lauf(lauf_id: int):
         flash("Zeiten gespeichert.", "ok")
         return redirect(url_for("notfall.lauf", lauf_id=lauf_id))
     return render_template("notfall/lauf.html", lauf=l)
+
+
+@bp.route("/<int:lauf_id>/aktivieren", methods=["POST"])
+@rolle_noetig("startrichter", "organisator")
+def aktivieren(lauf_id: int):
+    """Markiert diesen Lauf als aktiv für die automatische Zuordnung.
+
+    Es kann immer nur EIN Lauf gleichzeitig aktiv sein - ein vorher aktiver
+    Lauf wird automatisch deaktiviert (seine bereits zugeordneten Zeiten
+    bleiben erhalten, nur neue Ereignisse werden ihm nicht mehr zugeordnet).
+    """
+    l = db.get_or_404(NotfallLauf, lauf_id)
+    NotfallLauf.query.filter(NotfallLauf.id != lauf_id).update({"aktiv": False})
+    l.aktiv = True
+    l.aktiviert_um = datetime.utcnow()
+    db.session.commit()
+    flash(f"Lauf „{l.bezeichnung or l.id}“ ist jetzt aktiv - neue Kontaktereignisse "
+          f"werden automatisch zugeordnet.", "ok")
+    return redirect(url_for("notfall.lauf", lauf_id=lauf_id))
+
+
+@bp.route("/<int:lauf_id>/deaktivieren", methods=["POST"])
+@rolle_noetig("startrichter", "organisator")
+def deaktivieren(lauf_id: int):
+    l = db.get_or_404(NotfallLauf, lauf_id)
+    l.aktiv = False
+    db.session.commit()
+    flash("Automatische Zuordnung für diesen Lauf deaktiviert.", "ok")
+    return redirect(url_for("notfall.lauf", lauf_id=lauf_id))
 
 
 @bp.route("/<int:lauf_id>/loeschen", methods=["POST"])

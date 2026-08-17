@@ -209,6 +209,23 @@ form.formular textarea { min-height: 4rem; }
 }
 .kasse-summenleiste strong { font-size: 1.5rem; color: var(--rot-dunkel); margin-right: auto; }
 
+/* Reduziertes Ausschank-Dashboard */
+.ausschank-dashboard { max-width: 900px; margin: 0 auto; }
+.ausschank-gruppe { display: flex; flex-direction: column; gap: 0.5rem; margin: 1rem 0 1.5rem; }
+.ausschank-gruppe strong { font-size: 1.25rem; }
+.ausschank-gruppe select { font: inherit; font-size: 1.15rem; padding: 0.9rem; border: 2px solid var(--rand); border-radius: 8px; background: #fff; }
+.ausschank-abschluss { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; padding: 1rem; border: 2px solid var(--rot); border-radius: 10px; background: #fff; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); }
+.ausschank-rueckgeld { margin: 1.5rem 0; padding: 1rem; background: #fff; border: 2px solid var(--rand); border-radius: 10px; }
+.ausschank-rueckgeld h2 { margin-top: 0; }
+.ausschank-rueckgeld div { display: flex; justify-content: space-between; gap: 1rem; padding: 0.45rem 0; font-size: 1.2rem; }
+.ausschank-rueckgeld label { display: block; margin: 0.7rem 0 0.3rem; font-weight: 700; }
+.ausschank-rueckgeld input { width: 100%; box-sizing: border-box; padding: 0.8rem; font: inherit; font-size: 1.3rem; border: 2px solid var(--rand); border-radius: 8px; }
+
+@media (max-width:600px) {
+  .ausschank-abschluss { align-items: stretch; flex-direction: column; }
+  .ausschank-abschluss .knopf { width: 100%; }
+}
+
 /* Moderator-Dashboard */
 .moderator-kopf { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
 .moderator-live { background:#1f2937; color:#fff; border-radius:12px; padding:1.4rem; }

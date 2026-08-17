@@ -361,9 +361,18 @@ class Zeitereignis(db.Model):
     geraet_id = db.Column(db.String(80), nullable=False)
     bahn = db.Column(db.Integer, nullable=False)             # 1-4
     kontakt = db.Column(db.String(10), nullable=False)        # start/ziel
-    geraet_millis = db.Column(db.BigInteger)                  # millis() des ESP32
+    geraet_millis = db.Column(db.BigInteger)                  # millis() des ESP32/Mega
     geraet_zeit_iso = db.Column(db.String(40), default="")    # NTP-Zeit, falls synchron
     server_empfangen = db.Column(db.DateTime, default=_jetzt)
+    # Optionale, vom SENDER vergebene ID (z.B. Desktop-App/Arduino-Mega bei
+    # gepufferten Ereignissen) - macht wiederholtes Senden desselben
+    # Ereignisses nach einem Sync-Timeout idempotent (siehe
+    # app/blueprints/zeitmessung.py:event_empfangen). Der ESP32 setzt das
+    # Feld nicht. BEWUSST ohne DB-UNIQUE-Constraint (SQLite erlaubt keine
+    # UNIQUE-Spalte über ALTER TABLE ADD COLUMN, siehe
+    # app/__init__.py:_schema_migrieren) - Eindeutigkeit wird stattdessen in
+    # event_empfangen() per Abfrage vor dem Einfügen sichergestellt.
+    client_event_id = db.Column(db.String(64))
 
     def __repr__(self) -> str:
         return f"<Zeitereignis Bahn {self.bahn} {self.kontakt}>"
@@ -389,12 +398,18 @@ class ZeitmessungAbonnent(db.Model):
     ablauf = db.Column(db.DateTime, nullable=False)
 
 
-# ── Notfall-Zeiterfassung (manueller Fallback) ───────────────────────────────
-# Falls die automatische Zuordnung der ESP32-Ereignisse zu einem
-# Wettkampf-Lauf ausfaellt: der Startrichter traegt vorab die
-# Team-Besetzung je Bahn ein und erfasst die Zeiten danach von Hand (z.B.
-# abgelesen von der eigenstaendigen Weboberflaeche des ESP32, die auch bei
-# App-Ausfall unabhaengig weiterlaeuft).
+# ── Notfall-Zeiterfassung (inkl. automatischer Zuordnung) ────────────────────
+# Der Startrichter/Organisator traegt vorab die Team-Besetzung je Bahn ein.
+# Ist der Lauf ANSCHLIESSEND als "aktiv" markiert, ordnet
+# app/blueprints/zeitmessung.py:_automatische_zuordnung_pruefen() eingehende
+# Zeitmessung-Ereignisse (ESP32 oder Desktop-App/Arduino-Mega, egal welche
+# Quelle) automatisch dieser Bahn zu und fuellt zeit_laeufer1-4 selbst aus,
+# sobald 5 Ausloesungen seit der Aktivierung vorliegen. Bleibt ein Lauf ohne
+# Aktivierung (oder faellt die automatische Zuordnung aus), tippt der
+# Startrichter dieselben Felder stattdessen von Hand ein (z.B. abgelesen von
+# der eigenstaendigen Weboberflaeche des ESP32, die auch bei App-Ausfall
+# unabhaengig weiterlaeuft) - "Notfall" im Namen bezieht sich auf diesen
+# Handeingabe-Fallback, nicht auf die Automatik selbst.
 
 class NotfallLauf(db.Model):
     __tablename__ = "notfall_lauf"
@@ -403,6 +418,8 @@ class NotfallLauf(db.Model):
     bezeichnung = db.Column(db.String(120), default="")
     erstellt = db.Column(db.DateTime, default=_jetzt)
     erstellt_von = db.Column(db.String(80), default="")
+    aktiv = db.Column(db.Boolean, nullable=False, default=False)
+    aktiviert_um = db.Column(db.DateTime)
 
     bahnen = db.relationship("NotfallBahn", back_populates="lauf",
                              cascade="all, delete-orphan",

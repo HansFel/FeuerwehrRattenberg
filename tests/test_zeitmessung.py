@@ -177,6 +177,31 @@ def test_ereignisse_loeschen_nur_organisator(client, app):
         assert Zeitereignis.query.count() == 0
 
 
+def test_event_mit_client_event_id_wird_gespeichert(client, app):
+    r = client.post("/api/zeitmessung/event",
+                    json={"geraet_id": "mega-laptop1", "bahn": 1, "kontakt": "kontakt",
+                          "client_event_id": "abc-123"},
+                    headers={"X-API-Key": API_KEY})
+    assert r.status_code == 201
+    with app.app_context():
+        e = Zeitereignis.query.one()
+        assert e.client_event_id == "abc-123"
+
+
+def test_event_mit_gleicher_client_event_id_wird_nicht_dupliziert(client, app):
+    """Simuliert einen Sync-Retry der Desktop-App: dieselbe client_event_id
+    zweimal gesendet darf nur EINE Zeile anlegen."""
+    nutzlast = {"geraet_id": "mega-laptop1", "bahn": 1, "kontakt": "kontakt",
+                "client_event_id": "retry-1"}
+    r1 = client.post("/api/zeitmessung/event", json=nutzlast, headers={"X-API-Key": API_KEY})
+    r2 = client.post("/api/zeitmessung/event", json=nutzlast, headers={"X-API-Key": API_KEY})
+    assert r1.status_code == 201
+    assert r2.status_code == 200
+    assert r2.get_json()["bereits_vorhanden"] is True
+    with app.app_context():
+        assert Zeitereignis.query.count() == 1
+
+
 def test_abonnieren_ohne_api_key_abgelehnt(client):
     r = client.post("/api/zeitmessung/abonnieren",
                     json={"ziel_url": "http://app-test1:8000/api/zeitmessung/event",
@@ -232,6 +257,7 @@ def test_event_wird_an_abonnenten_weitergeleitet(client, monkeypatch):
             "url": anfrage.full_url,
             "api_key": anfrage.get_header("X-api-key"),
             "body": anfrage.data,
+            "weitergeleitet_markiert": anfrage.get_header("X-weitergeleitet"),
         })
         return GefaelschteAntwort()
 
@@ -251,6 +277,31 @@ def test_event_wird_an_abonnenten_weitergeleitet(client, monkeypatch):
     assert aufrufe[0]["url"] == "http://app-test1:8000/api/zeitmessung/event"
     assert aufrufe[0]["api_key"] == "ziel-key"
     assert b'"bahn": 1' in aufrufe[0]["body"]
+    assert aufrufe[0]["weitergeleitet_markiert"] == "1"
+
+
+def test_weitergeleitetes_ereignis_wird_nicht_erneut_weitergeleitet(client, monkeypatch):
+    """Verhindert Endlosschleifen bei fehlerhafter Abonnenten-Verkettung
+    (z.B. eine versehentliche Selbst-Anmeldung, wie real passiert): ein
+    bereits weitergeleitetes Ereignis (X-Weitergeleitet-Header) darf NICHT
+    noch einmal weitergereicht werden, egal wie viele Abonnenten
+    registriert sind."""
+    monkeypatch.setattr(zeitmessung.threading, "Thread", _SofortigerThread)
+
+    def urlopen_darf_nicht_aufgerufen_werden(*a, **kw):
+        raise AssertionError("ein weitergeleitetes Ereignis darf nicht erneut weitergeleitet werden")
+
+    monkeypatch.setattr(zeitmessung.urllib.request, "urlopen", urlopen_darf_nicht_aufgerufen_werden)
+
+    client.post("/api/zeitmessung/abonnieren",
+               json={"ziel_url": "http://app-test1:8000/api/zeitmessung/event",
+                     "api_key": "ziel-key"},
+               headers={"X-API-Key": API_KEY})
+
+    r = client.post("/api/zeitmessung/event",
+                    json={"geraet_id": "esp32-1", "bahn": 1, "kontakt": "kontakt"},
+                    headers={"X-API-Key": API_KEY, "X-Weitergeleitet": "1"})
+    assert r.status_code == 201
 
 
 def test_event_ohne_abonnenten_keine_weiterleitung(client, monkeypatch):
