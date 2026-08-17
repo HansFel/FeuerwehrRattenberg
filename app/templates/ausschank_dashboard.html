@@ -77,8 +77,8 @@
 
       <div class="ausschank-abschluss">
         <strong id="ausschank-auswahl">Noch kein Getränk gewählt</strong>
-        <button class="knopf gross" type="submit" {% if not getraenke or not teams %}disabled{% endif %}
-                onclick="return confirm('Bestellung und Bezahlung wirklich bestätigen?')">
+        <button class="knopf gross" type="submit" id="ausschank-absenden"
+                {% if not getraenke or not teams %}disabled{% endif %}>
           Bestellung und Bezahlung
         </button>
       </div>
@@ -115,8 +115,15 @@
       });
       var summe = getraenkeSumme + pfandNeu - pfandZurueck;
 
+      var absenden = document.getElementById('ausschank-absenden');
+      if (absenden) {
+        absenden.disabled = getraenke === 0;
+      }
+
       document.getElementById('ausschank-auswahl').textContent =
-        getraenke + ' Getränke · ' + rueckgaben + ' Pfand zurück';
+        getraenke > 0
+          ? getraenke + ' Getränke · ' + rueckgaben + ' Pfand zurück'
+          : 'Noch kein Getränk gewählt';
       document.getElementById('ausschank-getraenke-summe').textContent = euro(getraenkeSumme);
       document.getElementById('ausschank-pfand-neu').textContent = euro(pfandNeu);
       document.getElementById('ausschank-pfand-zurueck').textContent = '− ' + euro(pfandZurueck);
