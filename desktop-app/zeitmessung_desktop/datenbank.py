@@ -83,3 +83,13 @@ def letzte_ereignisse(verbindung: sqlite3.Connection, limit: int = 20) -> list[s
     return verbindung.execute(
         "SELECT * FROM ereignis ORDER BY id DESC LIMIT ?", (limit,)
     ).fetchall()
+
+
+def alle_loeschen(verbindung: sqlite3.Connection) -> int:
+    """Löscht ALLE lokal gepufferten Ereignisse (z.B. nach einem Testlauf,
+    bevor der echte Wettkampf beginnt). Betrifft NUR den lokalen Puffer,
+    NICHT die bereits synchronisierten Zeilen in der Webapp-Datenbank -
+    dafür den bestehenden 'Löschen'-Knopf unter /zeitmessung/ verwenden."""
+    cursor = verbindung.execute("DELETE FROM ereignis")
+    verbindung.commit()
+    return cursor.rowcount

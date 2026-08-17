@@ -41,6 +41,17 @@ def test_versuch_vermerken_aendert_status_nicht(db):
     assert zeile["sync_status"] == "ausstehend"
 
 
+def test_alle_loeschen(db):
+    datenbank.ereignis_hinzufuegen(db, bahn=1, geraet_millis=1, empfangen_um="t1",
+                                   client_event_id="a")
+    datenbank.ereignis_hinzufuegen(db, bahn=2, geraet_millis=2, empfangen_um="t2",
+                                   client_event_id="b")
+    anzahl = datenbank.alle_loeschen(db)
+    assert anzahl == 2
+    assert datenbank.letzte_ereignisse(db) == []
+    assert datenbank.anzahl_ausstehend(db) == 0
+
+
 def test_client_event_id_muss_eindeutig_sein(db):
     datenbank.ereignis_hinzufuegen(db, bahn=1, geraet_millis=1, empfangen_um="t1",
                                    client_event_id="doppelt")

@@ -6,7 +6,7 @@ aus. Ohne Aktivierung (oder falls die Automatik ausfällt) bleibt die
 Handeingabe hier der Fallback."""
 from datetime import datetime
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user
 
 from ..models import db, NotfallLauf, NotfallBahn, Team
@@ -101,6 +101,41 @@ def loeschen(lauf_id: int):
     db.session.commit()
     flash("Notfall-Lauf gelöscht.", "ok")
     return redirect(url_for("notfall.liste"))
+
+
+@bp.route("/api/aktiv")
+def api_aktiver_lauf():
+    """Liefert den aktuell aktiven Lauf (Bahn/Team/Läuferzeiten) als JSON -
+    für die Desktop-App (Live-Anzeige), kein Benutzer-Login vorhanden, daher
+    Authentifizierung über denselben API-Key wie die Zeitmessung-Ereignisse
+    ('X-API-Key'-Header, siehe app/blueprints/zeitmessung.py)."""
+    erwarteter_key = current_app.config["ZEITMESSUNG_API_KEY"]
+    if request.headers.get("X-API-Key") != erwarteter_key:
+        return jsonify(fehler="Ungültiger oder fehlender API-Key."), 401
+
+    lauf = NotfallLauf.query.filter_by(aktiv=True).first()
+    if not lauf:
+        return jsonify(aktiv=False)
+
+    bahnen = []
+    for bahn in lauf.bahnen:
+        laeufer = []
+        if bahn.team:
+            for i, zeit in enumerate(bahn.zeiten, start=1):
+                mitglied = (bahn.team.mitglieder[i - 1]
+                           if len(bahn.team.mitglieder) >= i else None)
+                laeufer.append({
+                    "nummer": i,
+                    "name": mitglied.anzeige() if mitglied else None,
+                    "zeit": zeit,
+                })
+        bahnen.append({
+            "bahn_nr": bahn.bahn_nr,
+            "team_name": bahn.team.name if bahn.team else None,
+            "laeufer": laeufer,
+            "gesamtzeit": bahn.gesamtzeit,
+        })
+    return jsonify(aktiv=True, lauf_id=lauf.id, bezeichnung=lauf.bezeichnung, bahnen=bahnen)
 
 
 def _int_or_none(wert):

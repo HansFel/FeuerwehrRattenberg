@@ -13,6 +13,13 @@
 //   HEARTBEAT;<millis>                 - alle HEARTBEAT_INTERVALL_MS, auch
 //                                         ohne Auslösung (Lebenszeichen)
 //   EVENT;<bahn>;<millis>               - bei jeder Kontaktauslösung
+//   STATE;<millis>;<b1>;<b2>;<b3>;<b4>  - alle STATE_INTERVALL_MS, aktueller
+//                                         entprellter Pin-Zustand je Bahn
+//                                         (0=bereit/LOW, 1=ausgelöst/HIGH) -
+//                                         nur für die Live-Anzeige beim
+//                                         Verkabeln/Testen, KEIN Ersatz für
+//                                         EVENT (das bleibt die einzige
+//                                         Quelle für echte Zeitmessung)
 #include <Arduino.h>
 #include "config.h"
 
@@ -27,8 +34,10 @@ struct Kontakt {
 
 Kontakt kontakte[ANZAHL_BAHNEN];
 unsigned long letzterHeartbeat = 0;
+unsigned long letzterStatus = 0;
 
 void kontaktePruefen();
+void statusSenden();
 
 void setup() {
   Serial.begin(115200);
@@ -53,6 +62,20 @@ void loop() {
     Serial.print("HEARTBEAT;");
     Serial.println(jetzt);
   }
+  if (jetzt - letzterStatus >= STATE_INTERVALL_MS) {
+    letzterStatus = jetzt;
+    statusSenden();
+  }
+}
+
+void statusSenden() {
+  Serial.print("STATE;");
+  Serial.print(millis());
+  for (auto& k : kontakte) {
+    Serial.print(";");
+    Serial.print(k.stabilHigh ? 1 : 0);
+  }
+  Serial.println();
 }
 
 // ── Kontakte lesen (entprellt, flankengetriggert) ──────────────────────

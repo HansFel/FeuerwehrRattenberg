@@ -21,12 +21,19 @@ Flanke LOW → HIGH.
 
 | Bahn | Kontakt-Pin |
 |------|-------------|
-| 1    | 22          |
+| 1    | 30          |
 | 2    | 24          |
 | 3    | 26          |
-| 4    | 28          |
+| 4    | 32          |
 
-Anpassbar in `include/config.h`.
+Anpassbar in `include/config.h`. **Bahn 1/4 am 2026-08-17 von 22/28 auf
+30/32 umgelegt**: Kontakte per Multimeter als elektrisch einwandfrei
+verifiziert (Spannung wechselt beim Betätigen zuverlässig), Pins 22/28 haben
+den Wechsel aber nicht registriert (Live-Zustand blieb dauerhaft auf
+"ausgelöst" hängen, auch bei betätigtem/geschlossenem Kontakt) - Verdacht
+auf ein Pin-spezifisches Problem auf diesem konkreten Board. Nach dem
+Umstecken auf 30/32 noch nicht erneut mit den echten Kontakten verifiziert
+(Stand dieser Doku-Aktualisierung).
 
 ## Serielles Protokoll
 

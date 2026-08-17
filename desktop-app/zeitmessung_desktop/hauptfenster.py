@@ -7,11 +7,12 @@ from __future__ import annotations
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import (
     QDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow,
-    QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout,
-    QWidget,
+    QMessageBox, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem,
+    QVBoxLayout, QWidget,
 )
 
 from . import datenbank, einstellungen as einstellungen_modul
+from .lauf_worker import LaufWorker
 from .seriell_worker import SeriellWorker
 from .sicherung import SicherungWorker
 from .sync_worker import SyncWorker
@@ -63,11 +64,12 @@ class EinstellungenDialog(QDialog):
 
 class Hauptfenster(QMainWindow):
     ereignis_empfangen = Signal(dict)
+    lauf_aktualisiert = Signal(dict)
 
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Zeitmessung Siloplanen-Race – Desktop")
-        self.resize(720, 480)
+        self.resize(720, 640)
 
         self.einstellungen = einstellungen_modul.laden()
         self.db = datenbank.verbinden(self.einstellungen.db_pfad)
@@ -75,9 +77,11 @@ class Hauptfenster(QMainWindow):
         self._seriell_worker: SeriellWorker | None = None
         self._sync_worker: SyncWorker | None = None
         self._sicherung_worker: SicherungWorker | None = None
+        self._lauf_worker: LaufWorker | None = None
 
         self._aufbauen()
         self.ereignis_empfangen.connect(self._auf_ereignis)
+        self.lauf_aktualisiert.connect(self._lauf_anzeigen)
         self._worker_starten()
 
         self._aktualisierungs_timer = QTimer(self)
@@ -99,7 +103,31 @@ class Hauptfenster(QMainWindow):
         einstellungen_knopf = QPushButton("Einstellungen…")
         einstellungen_knopf.clicked.connect(self._einstellungen_oeffnen)
         statuszeile.addWidget(einstellungen_knopf)
+        loeschen_knopf = QPushButton("Alle löschen")
+        loeschen_knopf.clicked.connect(self._alle_loeschen)
+        statuszeile.addWidget(loeschen_knopf)
         layout.addLayout(statuszeile)
+
+        zustandszeile = QHBoxLayout()
+        zustandszeile.addWidget(QLabel("Live-Zustand:"))
+        self.zustand_labels: list[QLabel] = []
+        for bahn in range(1, 5):
+            label = QLabel(f"Bahn {bahn}: –")
+            label.setMinimumWidth(110)
+            self.zustand_labels.append(label)
+            zustandszeile.addWidget(label)
+        zustandszeile.addStretch()
+        layout.addLayout(zustandszeile)
+
+        self.lauf_label = QLabel("Aktiver Lauf: –")
+        layout.addWidget(self.lauf_label)
+
+        self.lauf_tabelle = QTableWidget(0, 4)
+        self.lauf_tabelle.setHorizontalHeaderLabels(
+            ["Bahn", "Team", "Läuferzeiten (s, ms)", "Summe"])
+        self.lauf_tabelle.horizontalHeader().setStretchLastSection(True)
+        self.lauf_tabelle.setMaximumHeight(160)
+        layout.addWidget(self.lauf_tabelle)
 
         self.ereignis_tabelle = QTableWidget(0, 3)
         self.ereignis_tabelle.setHorizontalHeaderLabels(["Bahn", "Empfangen", "Sync-Status"])
@@ -109,7 +137,8 @@ class Hauptfenster(QMainWindow):
         self._tabelle_neu_laden()
 
     def _worker_starten(self) -> None:
-        for worker in (self._seriell_worker, self._sync_worker, self._sicherung_worker):
+        for worker in (self._seriell_worker, self._sync_worker, self._sicherung_worker,
+                      self._lauf_worker):
             if worker is not None:
                 worker.stoppen()
 
@@ -131,6 +160,13 @@ class Hauptfenster(QMainWindow):
         )
         self._sicherung_worker.start()
 
+        self._lauf_worker = LaufWorker(
+            self.einstellungen.webapp_url, self.einstellungen.api_key,
+            self.einstellungen.sync_intervall_s,
+            auf_lauf_aktualisiert=lambda daten: self.lauf_aktualisiert.emit(daten),
+        )
+        self._lauf_worker.start()
+
     def _einstellungen_oeffnen(self) -> None:
         dialog = EinstellungenDialog(self.einstellungen, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -149,6 +185,55 @@ class Hauptfenster(QMainWindow):
                 f"Seriell: {'verbunden' if status['verbunden'] else 'getrennt'}")
         if status.get("neues_ereignis"):
             self._tabelle_neu_laden()
+        if status.get("zustaende") is not None:
+            self._zustaende_anzeigen(status["zustaende"])
+
+    def _zustaende_anzeigen(self, zustaende: list[int]) -> None:
+        for bahn0, (label, zustand) in enumerate(zip(self.zustand_labels, zustaende)):
+            bahn = bahn0 + 1
+            if zustand:
+                label.setText(f"Bahn {bahn}: AUSGELÖST")
+                label.setStyleSheet("color: #b30000; font-weight: bold;")
+            else:
+                label.setText(f"Bahn {bahn}: bereit")
+                label.setStyleSheet("color: #1a7a1a;")
+
+    def _lauf_anzeigen(self, daten: dict) -> None:
+        if not daten.get("aktiv"):
+            self.lauf_label.setText("Aktiver Lauf: –")
+            self.lauf_tabelle.setRowCount(0)
+            return
+        self.lauf_label.setText(f"Aktiver Lauf: {daten.get('bezeichnung') or daten['lauf_id']}")
+        bahnen = daten.get("bahnen", [])
+        self.lauf_tabelle.setRowCount(len(bahnen))
+        for row, bahn in enumerate(bahnen):
+            zeiten_text = "  ".join(
+                f"L{l['nummer']}: {l['zeit']:.3f}" if l["zeit"] is not None
+                else f"L{l['nummer']}: –"
+                for l in bahn.get("laeufer", [])
+            )
+            summe = bahn.get("gesamtzeit")
+            summe_text = f"{summe:.3f} s" if summe is not None else "–"
+            self.lauf_tabelle.setItem(row, 0, QTableWidgetItem(str(bahn["bahn_nr"])))
+            self.lauf_tabelle.setItem(row, 1, QTableWidgetItem(bahn.get("team_name") or "–"))
+            self.lauf_tabelle.setItem(row, 2, QTableWidgetItem(zeiten_text or "–"))
+            self.lauf_tabelle.setItem(row, 3, QTableWidgetItem(summe_text))
+
+    def _alle_loeschen(self) -> None:
+        """Löscht NUR den lokalen Puffer (z.B. nach einem Testlauf) - bereits
+        synchronisierte Ereignisse in der Webapp-Datenbank bleiben davon
+        unberührt, dafür den Knopf unter /zeitmessung/ in der Webapp
+        verwenden."""
+        antwort = QMessageBox.question(
+            self, "Alle löschen",
+            "Wirklich ALLE lokal gepufferten Ereignisse löschen?\n"
+            "Betrifft nur diesen Rechner, nicht die Webapp-Datenbank.",
+        )
+        if antwort != QMessageBox.StandardButton.Yes:
+            return
+        anzahl = datenbank.alle_loeschen(self.db)
+        self._tabelle_neu_laden()
+        QMessageBox.information(self, "Alle löschen", f"{anzahl} Ereignis(se) gelöscht.")
 
     def _status_aktualisieren(self) -> None:
         ausstehend = datenbank.anzahl_ausstehend(self.db)
@@ -163,7 +248,8 @@ class Hauptfenster(QMainWindow):
             self.ereignis_tabelle.setItem(row, 2, QTableWidgetItem(zeile["sync_status"]))
 
     def closeEvent(self, event) -> None:
-        for worker in (self._seriell_worker, self._sync_worker, self._sicherung_worker):
+        for worker in (self._seriell_worker, self._sync_worker, self._sicherung_worker,
+                      self._lauf_worker):
             if worker is not None:
                 worker.stoppen()
         super().closeEvent(event)

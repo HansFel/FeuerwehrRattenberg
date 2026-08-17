@@ -117,7 +117,7 @@ def test_zeiten_erfassen_und_summe(client, app):
         assert bahn.zeit_laeufer3 == pytest.approx(13.0)
         assert bahn.zeit_laeufer4 == pytest.approx(10.8)
         assert bahn.gesamtzeit == pytest.approx(12.5 + 11.2 + 13.0 + 10.8)
-        assert "47.50".encode() in r.data or "47,50".encode() in r.data
+        assert "47.500".encode() in r.data or "47,500".encode() in r.data
 
 
 def test_teilweise_erfasste_zeiten_keine_summe(client, app):
@@ -154,3 +154,49 @@ def test_organisator_darf_loeschen_startrichter_nicht(client, app):
     assert "rolle".encode() in r.data.lower()
     with app.app_context():
         assert db.session.get(NotfallLauf, lauf_id) is not None
+
+
+API_KEY = "dev-nur-lokal-zeitmessung"
+
+
+def test_api_aktiv_ohne_api_key_abgelehnt(client):
+    r = client.get("/notfall/api/aktiv")
+    assert r.status_code == 401
+
+
+def test_api_aktiv_ohne_aktiven_lauf(client):
+    r = client.get("/notfall/api/aktiv", headers={"X-API-Key": API_KEY})
+    assert r.status_code == 200
+    assert r.get_json() == {"aktiv": False}
+
+
+def test_api_aktiv_liefert_bahnen_und_laeuferzeiten(client, app):
+    with app.app_context():
+        t1 = Team.query.filter_by(name="FF Rattenberg").first()
+        lauf = NotfallLauf(bezeichnung="API-Test", aktiv=True)
+        bahn = NotfallBahn(bahn_nr=1, team_id=t1.id, zeit_laeufer1=10.123,
+                           zeit_laeufer2=11.5, zeit_laeufer3=9.75, zeit_laeufer4=12.0)
+        lauf.bahnen.append(bahn)
+        lauf.bahnen.append(NotfallBahn(bahn_nr=2))
+        db.session.add(lauf)
+        db.session.commit()
+        lauf_id = lauf.id
+
+    r = client.get("/notfall/api/aktiv", headers={"X-API-Key": API_KEY})
+    assert r.status_code == 200
+    daten = r.get_json()
+    assert daten["aktiv"] is True
+    assert daten["lauf_id"] == lauf_id
+    assert daten["bezeichnung"] == "API-Test"
+    assert len(daten["bahnen"]) == 2
+
+    bahn1 = next(b for b in daten["bahnen"] if b["bahn_nr"] == 1)
+    assert bahn1["team_name"] == "FF Rattenberg"
+    assert bahn1["gesamtzeit"] == pytest.approx(10.123 + 11.5 + 9.75 + 12.0)
+    assert len(bahn1["laeufer"]) == 4
+    assert bahn1["laeufer"][0]["zeit"] == pytest.approx(10.123)
+    assert bahn1["laeufer"][0]["name"] == "Läufer1 FF Rattenberg"
+
+    bahn2 = next(b for b in daten["bahnen"] if b["bahn_nr"] == 2)
+    assert bahn2["team_name"] is None
+    assert bahn2["laeufer"] == []

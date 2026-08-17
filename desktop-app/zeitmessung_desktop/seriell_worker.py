@@ -68,3 +68,9 @@ class SeriellWorker(threading.Thread):
                 empfangen_um=empfangen_um, client_event_id=client_event_id,
             )
             self._auf_status_geaendert({"neues_ereignis": geparst})
+
+        elif geparst["typ"] == "state":
+            # Nur Live-Anzeige (Verkabeln/Testen) - bewusst NICHT in der
+            # Datenbank gespeichert, EVENT bleibt die einzige Quelle für
+            # echte Zeitmessung.
+            self._auf_status_geaendert({"zustaende": geparst["zustaende"]})

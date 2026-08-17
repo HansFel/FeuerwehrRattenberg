@@ -27,7 +27,7 @@
       <h2>Bahn {{ bahn.bahn_nr }}{% if bahn.team %} – {{ bahn.team.name }}{% else %} – <span class="leer">kein Team</span>{% endif %}</h2>
       {% if bahn.team %}
       <table>
-        <thead><tr><th>Läufer</th><th>Name</th><th>Zeit (Sekunden)</th></tr></thead>
+        <thead><tr><th>Läufer</th><th>Name</th><th>Zeit (Sek., Millisek.)</th></tr></thead>
         <tbody>
           {% for i in range(1, 5) %}
           {% set m = bahn.team.mitglieder[i-1] if bahn.team.mitglieder | length >= i else none %}
@@ -35,15 +35,16 @@
             <td>{{ i }}</td>
             <td>{{ m.anzeige() if m else "–" }}</td>
             <td>
-              <input type="number" step="0.01" min="0" style="width:6rem"
+              <input type="number" step="0.001" min="0" style="width:7rem"
                      name="zeit_{{ bahn.id }}_{{ i }}"
-                     value="{{ bahn.zeiten[i-1] if bahn.zeiten[i-1] is not none else '' }}">
+                     value="{{ '%.3f'|format(bahn.zeiten[i-1]) if bahn.zeiten[i-1] is not none else '' }}">
+              <span class="leer">s</span>
             </td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
-      <p><strong>Team-Summe: {{ "%.2f"|format(bahn.gesamtzeit) if bahn.gesamtzeit is not none else "–" }} s</strong></p>
+      <p><strong>Team-Summe: {{ "%.3f"|format(bahn.gesamtzeit) if bahn.gesamtzeit is not none else "–" }} s</strong></p>
       {% else %}
       <p class="leer">Keine Mannschaft zugewiesen.</p>
       {% endif %}
