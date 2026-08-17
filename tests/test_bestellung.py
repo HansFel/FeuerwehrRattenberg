@@ -219,7 +219,7 @@ def test_ausschank_pfandrueckgabe_wird_nur_berechnet(client, app):
     r = client.post("/ausschank/", data={
         "team_id": str(team_id),
         f"menge_{bier_id}": "2",
-        f"rueckgabe_{bier_id}": "1",
+        "pfand_zurueck": "1",
     }, follow_redirects=True)
     assert "Zahlbetrag 8.00 €".encode() in r.data
 

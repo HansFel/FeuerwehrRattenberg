@@ -44,30 +44,24 @@
         <p class="meldung error">Noch keine Getränke angelegt.</p>
       {% endif %}
 
-      {% set pfand_artikel = getraenke | selectattr('pfand_pro_einheit') | list %}
-      {% if pfand_artikel %}
       <h2>3. Pfandrückgabe</h2>
-      <p class="leer">Zurückgegebene Pfandbehälter abziehen – nur für die Abrechnung, ohne Tisch- oder Gruppenzuordnung.</p>
+      <p class="leer">Zurückgegebene Behälter abziehen – 1,00 € pro Stück, nur für die Abrechnung.</p>
       <div class="kasse-grid">
-        {% for artikel in pfand_artikel %}
         <div class="kasse-kachel kasse-pfand">
           <button type="button" class="kasse-tipp"
-                  data-rueckgabepreis="{{ artikel.pfand_pro_einheit }}"
-                  onclick="ausschankMenge('rueckgabe_{{ artikel.id }}', 1)">
-            <strong>{{ artikel.name }} zurück</strong>
-            <span>−{{ "%.2f"|format(artikel.pfand_pro_einheit) }} € Pfand</span>
+                  data-rueckgabepreis="1.00"
+                  onclick="ausschankMenge('pfand_zurueck', 1)">
+            <strong>Pfand zurück</strong>
+            <span>−1,00 € pro Stück</span>
           </button>
           <div class="kasse-zaehler">
             <button type="button" class="knopf klein grau"
-                    onclick="ausschankMenge('rueckgabe_{{ artikel.id }}', -1)">−</button>
-            <span id="anzeige_rueckgabe_{{ artikel.id }}" class="kasse-anzahl">0</span>
-            <input type="hidden" id="rueckgabe_{{ artikel.id }}"
-                   name="rueckgabe_{{ artikel.id }}" value="0">
+                    onclick="ausschankMenge('pfand_zurueck', -1)">−</button>
+            <span id="anzeige_pfand_zurueck" class="kasse-anzahl">0</span>
+            <input type="hidden" id="pfand_zurueck" name="pfand_zurueck" value="0">
           </div>
         </div>
-        {% endfor %}
       </div>
-      {% endif %}
 
       <section class="ausschank-rueckgeld">
         <h2>4. Rückgeld berechnen</h2>

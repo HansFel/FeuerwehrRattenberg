@@ -50,13 +50,8 @@ def ausschank_dashboard():
                 pfand_pro_einheit=artikel.pfand_pro_einheit or 0.0,
             ))
 
-        pfand_gutschrift = 0.0
-        for artikel in getraenke:
-            if not artikel.pfand_pro_einheit:
-                continue
-            anzahl = _int_or_null(request.form.get(f"rueckgabe_{artikel.id}"))
-            if anzahl and anzahl > 0:
-                pfand_gutschrift += anzahl * artikel.pfand_pro_einheit
+        pfand_zurueck = _int_or_null(request.form.get("pfand_zurueck")) or 0
+        pfand_gutschrift = pfand_zurueck * 1.0
 
         if not bestellung.positionen:
             flash("Bitte mindestens ein Getränk auswählen.", "error")
