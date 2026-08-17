@@ -2,7 +2,8 @@
 from flask import (Blueprint, flash, redirect, render_template, request,
                    url_for)
 
-from ..models import db, Team, Disziplin, Ergebnis, WERTUNG_ZEIT
+from ..models import (db, Team, Disziplin, Ergebnis, WERTUNG_ZEIT,
+                      BestellPosition, Strafe)
 from ..wertung import rangliste_disziplin, gesamtwertung
 from ..auth import darf
 
@@ -15,6 +16,25 @@ def uebersicht():
                                             Disziplin.name).all()
     teams = Team.query.all()
     tabelle = gesamtwertung(teams, disziplinen)
+
+    # Getraenkepunkte je Team (aus dem Bestellsystem/Ausschank)
+    getraenkepunkte: dict[int, int] = {}
+    for pos in BestellPosition.query.all():
+        if pos.team_id and pos.punkte_gesamt:
+            getraenkepunkte[pos.team_id] = (
+                getraenkepunkte.get(pos.team_id, 0) + pos.punkte_gesamt)
+
+    # Strafsekunden je Team (aus dem Strafenkatalog der Startrichter)
+    strafsekunden: dict[int, float] = {}
+    for s in Strafe.query.all():
+        strafsekunden[s.team_id] = (
+            strafsekunden.get(s.team_id, 0.0) + s.sekunden)
+
+    for zeile in tabelle:
+        tid = zeile["team"].id
+        zeile["getraenkepunkte"] = getraenkepunkte.get(tid, 0)
+        zeile["strafsekunden"] = strafsekunden.get(tid, 0.0)
+
     return render_template("wertung/uebersicht.html",
                            disziplinen=disziplinen, tabelle=tabelle)
 

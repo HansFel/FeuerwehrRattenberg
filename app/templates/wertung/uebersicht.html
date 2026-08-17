@@ -13,7 +13,13 @@
   {% if tabelle %}
   <table>
     <thead>
-      <tr><th class="rang">Rang</th><th>Mannschaft</th><th>Rangpunkte</th></tr>
+      <tr>
+        <th class="rang">Rang</th>
+        <th>Mannschaft</th>
+        <th>Rangpunkte</th>
+        <th>🥤 Getränkepunkte</th>
+        <th>📋 Strafsekunden</th>
+      </tr>
     </thead>
     <tbody>
       {% for zeile in tabelle %}
@@ -21,6 +27,8 @@
         <td class="rang">{{ zeile.rang }}</td>
         <td>{{ zeile.team.name }}{% if zeile.team.wehr %} <small>({{ zeile.team.wehr }})</small>{% endif %}</td>
         <td>{{ zeile.punkte }}</td>
+        <td>{{ zeile.getraenkepunkte }}</td>
+        <td>{{ zeile.strafsekunden|round(0) }}</td>
       </tr>
       {% endfor %}
     </tbody>
