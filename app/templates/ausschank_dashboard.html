@@ -7,7 +7,7 @@
     <form method="post" id="ausschank-formular">
       <label class="ausschank-gruppe" for="team_id">
         <strong>1. Gruppe auswählen</strong>
-        <select id="team_id" name="team_id" required>
+        <select id="team_id" name="team_id" required onchange="ausschankAktualisieren()">
           <option value="">– Gruppe wählen –</option>
           {% for team in teams %}
             <option value="{{ team.id }}">{{ team.name }}</option>
@@ -115,15 +115,23 @@
       });
       var summe = getraenkeSumme + pfandNeu - pfandZurueck;
 
+      var teamFeld = document.getElementById('team_id');
+      var teamGewaehlt = teamFeld && teamFeld.value !== '';
+
       var absenden = document.getElementById('ausschank-absenden');
       if (absenden) {
-        absenden.disabled = getraenke === 0;
+        absenden.disabled = getraenke === 0 || !teamGewaehlt;
       }
 
-      document.getElementById('ausschank-auswahl').textContent =
-        getraenke > 0
-          ? getraenke + ' Getränke · ' + rueckgaben + ' Pfand zurück'
-          : 'Noch kein Getränk gewählt';
+      var status;
+      if (getraenke === 0) {
+        status = 'Noch kein Getränk gewählt';
+      } else if (!teamGewaehlt) {
+        status = getraenke + ' Getränke · bitte Gruppe wählen';
+      } else {
+        status = getraenke + ' Getränke · ' + rueckgaben + ' Pfand zurück';
+      }
+      document.getElementById('ausschank-auswahl').textContent = status;
       document.getElementById('ausschank-getraenke-summe').textContent = euro(getraenkeSumme);
       document.getElementById('ausschank-pfand-neu').textContent = euro(pfandNeu);
       document.getElementById('ausschank-pfand-zurueck').textContent = '− ' + euro(pfandZurueck);
