@@ -442,6 +442,13 @@ class NotfallBahn(db.Model):
     lauf_id = db.Column(db.Integer, db.ForeignKey("notfall_lauf.id"), nullable=False)
     bahn_nr = db.Column(db.Integer, nullable=False)      # 1..4
     team_id = db.Column(db.Integer, db.ForeignKey("team.id"))
+    # Gesetzt, wenn dieser Lauf über "Zeitmessung freigeben" aus der
+    # Startliste (Startplatz, siehe moderator.py:_laufende_teams) erzeugt
+    # wurde - dient dazu, das Ergebnis nach Abschluss automatisch in
+    # Startplatz.ergebnis_sekunden zurückzuschreiben (siehe
+    # app/blueprints/zeitmessung.py:_automatische_zuordnung_pruefen).
+    # NULL bei manuell/per Notfall-Handeingabe angelegten Läufen.
+    startplatz_id = db.Column(db.Integer, db.ForeignKey("startplatz.id"))
 
     zeit_laeufer1 = db.Column(db.Float)   # Sekunden
     zeit_laeufer2 = db.Column(db.Float)
@@ -450,6 +457,7 @@ class NotfallBahn(db.Model):
 
     lauf = db.relationship("NotfallLauf", back_populates="bahnen")
     team = db.relationship("Team")
+    startplatz = db.relationship("Startplatz")
 
     @property
     def zeiten(self) -> list:

@@ -22,6 +22,11 @@
       </article>
       {% endfor %}
     </div>
+    {% if darf("startrichter", "organisator") %}
+    <form method="post" action="{{ url_for('notfall.aus_startliste_freigeben') }}" style="margin-top:0.75rem">
+      <button class="knopf" type="submit">⏱️ Zeitmessung für diesen Lauf freigeben</button>
+    </form>
+    {% endif %}
   {% else %}
     <h2>Noch kein aktueller Lauf ausgewählt</h2>
   {% endif %}

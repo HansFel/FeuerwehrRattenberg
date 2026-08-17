@@ -14,7 +14,6 @@ diese Datei kann veralten.)_
 
 ## Aktuell in Bearbeitung
 
-
 **Vor größeren/mehrschrittigen Änderungen** (neues Feature, Refactoring,
 Datenmodell-Änderung) hier einen Eintrag ergänzen, damit eine andere KI
 nicht gleichzeitig an derselben Stelle arbeitet und sich die Änderungen
@@ -463,6 +462,33 @@ danach `/mnt/usb-backups/ffrattenberg-backups`.
   Weiterleitung).
 - Startfreigabe-Button für den Startrichter (offiziellen Start-Zeitpunkt
   eines Laufs markieren) wurde angefragt, ist noch nicht gebaut.
+- **Brücke Startliste → Zeitmessung (seit 2026-08-17):** Bisher waren
+  Zeitplan (`Startplatz`: Team/Disziplin/Bahn/Heat/Startzeit) und
+  Zeitmessung-Automatik (`NotfallLauf`) komplett getrennt - der
+  Organisator musste die Team-Besetzung für jeden Lauf doppelt eintragen.
+  Jetzt: Knopf **„Zeitmessung für diesen Lauf freigeben"** im
+  Moderator-Dashboard (`app/blueprints/notfall.py:
+  aus_startliste_freigeben()`) erzeugt und aktiviert automatisch einen
+  `NotfallLauf` aus dem dort eingestellten aktuellen Heat
+  (`ModeratorStatus`) - Team-Besetzung kommt aus den `Startplatz`-
+  Datensätzen dieses Heats. Jede erzeugte `NotfallBahn` bekommt
+  `startplatz_id` gesetzt; sobald die Automatik die Zeiten vollständig
+  zuordnet, wird `Startplatz.ergebnis_sekunden` automatisch zurück-
+  geschrieben (`app/blueprints/zeitmessung.py:
+  _automatische_zuordnung_pruefen()`). Schließt den Kreis Startliste →
+  Messung → Ergebnis, OHNE die bestehende manuelle `/notfall/neu`-Eingabe
+  zu ersetzen (bleibt Fallback für Läufe ohne Startplatz-Bezug).
+- **Offen: automatische Turnier-Fortschritts-Logik.** Format lt. User
+  (2026-08-17, weicht von der obigen älteren Notiz "Vorrunde → Halbfinale"
+  ab, noch zu klären welche Fassung aktuell gilt): **zwei** Vorrunden,
+  danach Achtelfinale, Viertelfinale, Halbfinale, Finale - "die Besten"
+  müssen automatisch in die jeweils nächste Runde. `Startplatz.
+  ergebnis_sekunden` ist genau dafür als Grundlage vorgesehen (siehe
+  Modell-Kommentar in `app/models.py`), aber es gibt noch KEINEN Code, der
+  aus den Ergebnissen einer Runde automatisch die Startliste der nächsten
+  Runde (Team-Setzung, Bahn-Zuordnung) erzeugt. Braucht vor Umsetzung noch
+  Klärung: genaue Teilnehmerzahl je Runde, Setzungsschema (z.B. 1 gegen 16
+  oder anders), Umgang mit Gleichstand.
 
 ## Datenschutz/Rechtliches
 

@@ -4,7 +4,8 @@ import pytest
 
 from app import create_app
 from app.models import (db, Team, Mitglied, Benutzer, BenutzerRolle,
-                        NotfallLauf, NotfallBahn)
+                        NotfallLauf, NotfallBahn, Disziplin, Startplatz,
+                        ModeratorStatus)
 
 
 @pytest.fixture
@@ -261,3 +262,83 @@ def test_api_importieren_unbekannte_startnummer_bleibt_ohne_team(client, app):
 def test_api_importieren_ohne_bahnen_abgelehnt(client):
     r = client.post("/notfall/api/importieren", headers={"X-API-Key": API_KEY}, json={})
     assert r.status_code == 400
+
+
+def _moderator_status_setzen(app, disziplin_name="Siloplanen-Race", heat="Vorrunde 1"):
+    with app.app_context():
+        disziplin = Disziplin(name=disziplin_name)
+        db.session.add(disziplin)
+        db.session.flush()
+        t1 = Team.query.filter_by(name="FF Rattenberg").first()
+        t2 = Team.query.filter_by(name="FF Kobenz").first()
+        sp1 = Startplatz(team_id=t1.id, disziplin_id=disziplin.id, startnummer=1, heat=heat)
+        sp2 = Startplatz(team_id=t2.id, disziplin_id=disziplin.id, startnummer=2, heat=heat)
+        db.session.add_all([sp1, sp2])
+        db.session.add(ModeratorStatus(id=1, disziplin_id=disziplin.id, heat=heat))
+        db.session.commit()
+        return sp1.id, sp2.id
+
+
+def test_aus_startliste_freigeben_erfordert_rolle(client, app):
+    _moderator_status_setzen(app)
+    r = client.post("/notfall/aus-startliste-freigeben", follow_redirects=True)
+    assert "anmelden".encode() in r.data.lower() or "rolle".encode() in r.data.lower()
+
+
+def test_aus_startliste_freigeben_ohne_aktuellen_heat(client, app):
+    _login(client, "richter", "pw")
+    r = client.post("/notfall/aus-startliste-freigeben", follow_redirects=True)
+    assert "kein aktueller lauf".encode() in r.data.lower()
+    with app.app_context():
+        assert NotfallLauf.query.count() == 0
+
+
+def test_aus_startliste_freigeben_erzeugt_und_aktiviert_lauf(client, app):
+    sp1_id, sp2_id = _moderator_status_setzen(app)
+    _login(client, "richter", "pw")
+
+    r = client.post("/notfall/aus-startliste-freigeben", follow_redirects=True)
+    assert r.status_code == 200
+    assert "freigegeben".encode() in r.data.lower()
+
+    with app.app_context():
+        lauf = NotfallLauf.query.filter_by(aktiv=True).one()
+        assert "Vorrunde 1" in lauf.bezeichnung
+        bahn1 = next(b for b in lauf.bahnen if b.bahn_nr == 1)
+        assert bahn1.team.name == "FF Rattenberg"
+        assert bahn1.startplatz_id == sp1_id
+        bahn2 = next(b for b in lauf.bahnen if b.bahn_nr == 2)
+        assert bahn2.startplatz_id == sp2_id
+
+
+def test_aus_startliste_freigeben_deaktiviert_vorherigen_lauf(client, app):
+    _moderator_status_setzen(app)
+    _login(client, "richter", "pw")
+    with app.app_context():
+        alter_lauf = NotfallLauf(bezeichnung="Alt", aktiv=True)
+        db.session.add(alter_lauf)
+        db.session.commit()
+        alter_lauf_id = alter_lauf.id
+
+    client.post("/notfall/aus-startliste-freigeben")
+
+    with app.app_context():
+        assert db.session.get(NotfallLauf, alter_lauf_id).aktiv is False
+        assert NotfallLauf.query.filter_by(aktiv=True).count() == 1
+
+
+def test_automatische_zuordnung_schreibt_ergebnis_in_startplatz_zurueck(client, app):
+    sp1_id, _ = _moderator_status_setzen(app)
+    _login(client, "richter", "pw")
+    client.post("/notfall/aus-startliste-freigeben")
+
+    for _ in range(5):
+        r = client.post("/api/zeitmessung/event",
+                        json={"geraet_id": "test", "bahn": 1, "kontakt": "kontakt"},
+                        headers={"X-API-Key": "dev-nur-lokal-zeitmessung"})
+        assert r.status_code == 201
+
+    with app.app_context():
+        sp1 = db.session.get(Startplatz, sp1_id)
+        assert sp1.ergebnis_sekunden is not None
+        assert sp1.ergebnis_sekunden >= 0

@@ -252,6 +252,9 @@ def _schema_migrieren() -> None:
         "dauer_pro_lauf_min": f"{gleitkomma} NOT NULL DEFAULT 7.0",
         "startzeit_erster_lauf": "VARCHAR(20)",
     })
+    _spalten_ergaenzen("notfall_bahn", {
+        "startplatz_id": "INTEGER",
+    })
 
 
 def _standard_admin_anlegen(app: Flask) -> None:

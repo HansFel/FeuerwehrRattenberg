@@ -185,6 +185,12 @@ def _automatische_zuordnung_pruefen(bahn: int) -> None:
     for i in range(4):
         delta = (zeitstempel[i + 1] - zeitstempel[i]).total_seconds()
         setattr(notfall_bahn, f"zeit_laeufer{i + 1}", delta)
+    # Wurde dieser Lauf über "Zeitmessung freigeben" aus der Startliste
+    # erzeugt (siehe notfall.py:aus_startliste_freigeben), Ergebnis
+    # automatisch in den Ursprungs-Startplatz zurückschreiben - Grundlage
+    # für die Rangliste der nächsten Runde (siehe Startplatz.ergebnis_sekunden).
+    if notfall_bahn.startplatz is not None:
+        notfall_bahn.startplatz.ergebnis_sekunden = notfall_bahn.gesamtzeit
     db.session.commit()
 
 

@@ -11,6 +11,7 @@ from flask_login import current_user
 
 from ..models import db, NotfallLauf, NotfallBahn, Team
 from ..auth import rolle_noetig
+from .moderator import _status as _moderator_status, _laufende_teams
 
 bp = Blueprint("notfall", __name__, url_prefix="/notfall")
 
@@ -101,6 +102,44 @@ def loeschen(lauf_id: int):
     db.session.commit()
     flash("Notfall-Lauf gelöscht.", "ok")
     return redirect(url_for("notfall.liste"))
+
+
+@bp.route("/aus-startliste-freigeben", methods=["POST"])
+@rolle_noetig("startrichter", "organisator")
+def aus_startliste_freigeben():
+    """Erzeugt und aktiviert einen NotfallLauf aus dem aktuell im
+    Moderator-Dashboard eingestellten Heat (siehe moderator.py) - vermeidet
+    die doppelte Eingabe der Team-Besetzung, die dort schon aus der
+    Startliste (Startplatz) bekannt ist. Jede erzeugte NotfallBahn wird per
+    startplatz_id mit dem Ursprungs-Startplatz verknüpft, damit das Ergebnis
+    nach Abschluss automatisch dorthin zurückgeschrieben wird (siehe
+    app/blueprints/zeitmessung.py:_automatische_zuordnung_pruefen)."""
+    status = _moderator_status()
+    startplaetze = _laufende_teams(status)
+    if not startplaetze:
+        flash("Kein aktueller Lauf im Moderator-Dashboard eingestellt - dort "
+              "zuerst Disziplin/Heat auswählen.", "error")
+        return redirect(url_for("moderator.dashboard"))
+
+    bezeichnung = f"{status.disziplin.name} – {status.heat or 'ohne Laufbezeichnung'}"
+    lauf = NotfallLauf(bezeichnung=bezeichnung, erstellt_von=current_user.username)
+    for sp in startplaetze:
+        if sp.startnummer is None or not (1 <= sp.startnummer <= ANZAHL_BAHNEN):
+            continue
+        lauf.bahnen.append(NotfallBahn(bahn_nr=sp.startnummer, team_id=sp.team_id,
+                                       startplatz_id=sp.id))
+    if not lauf.bahnen:
+        flash("Keine gültigen Bahn-Nummern (1-4) in der Startliste für diesen "
+              "Lauf gefunden.", "error")
+        return redirect(url_for("moderator.dashboard"))
+
+    NotfallLauf.query.filter(NotfallLauf.aktiv.is_(True)).update({"aktiv": False})
+    lauf.aktiv = True
+    lauf.aktiviert_um = datetime.utcnow()
+    db.session.add(lauf)
+    db.session.commit()
+    flash(f"Zeitmessung für „{bezeichnung}“ freigegeben.", "ok")
+    return redirect(url_for("notfall.lauf", lauf_id=lauf.id))
 
 
 @bp.route("/api/aktiv")
