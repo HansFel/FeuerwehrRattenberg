@@ -9,7 +9,7 @@ Für den aktuellen **Aufgaben-/Wunschzettel der Administratoren** siehe
 stattdessen `ANFORDERUNGEN.md` (wird automatisch aus der App exportiert,
 ändert sich bei jeder Admin-Aktion im Bereich "Anforderungen").
 
-_(Stand 2026-08-15. Bei Widersprüchen zum aktuellen Code gilt der Code -
+_(Stand 2026-08-17. Bei Widersprüchen zum aktuellen Code gilt der Code -
 diese Datei kann veralten.)_
 
 ## Aktuell in Bearbeitung
@@ -66,6 +66,17 @@ Getränkepunkte der gewählten Gruppe zu und kehrt sofort zur leeren
 Ausschankmaske zurück. Die allgemeine Bestellübersicht und Tischsuche gehören
 nicht in dieses Dashboard; die dort eingegebene Pfandrückgabe ist nur ein
 Rechenposten und verändert keine gespeicherten Pfandbestände.
+
+**Ausschank-Dashboard seit Build 26 (2026-08-17) überarbeitet:** Die
+Getränke-Buttons zeigen den Pfand-Anteil separat neben dem Preis an (z.B.
+"Bier 4,00 € + 1,00 € Pfand"). Statt einzelner Pfand-Buttons pro Getränk
+gibt es **einen einzigen generischen "Pfand zurück" Button** mit +/- Zähler,
+der pauschal 1,00 € pro zurückgegebenem Behälter abzieht (Formularfeld
+`pfand_zurueck`, backend in `bestellung.py: ausschank_dashboard()`).
+Die Zusammenfassung listet vier Zeilen: Getränke / Pfand (neu) /
+Pfand zurück / Zu bezahlen. Dateien: `app/templates/ausschank_dashboard.html`,
+`app/blueprints/bestellung.py`, `app/static/css/style.css`,
+`tests/test_bestellung.py`.
 
 ## Produktions-Deployment
 
@@ -135,6 +146,60 @@ auf der EINEN Datei hält die Container der ANDEREN Datei für "verwaist"
 und entfernt sie! `--remove-orphans` deshalb bei diesen beiden Dateien
 NIE verwenden (oder `-p <eigener-projektname>` bzw. `--remove-orphans`
 nur mit vorherigem `docker compose -f <richtige-datei> ps` zur Kontrolle).
+
+**WICHTIG: --env-file bei Test-Instanzen zwingend (seit 2026-08-17
+schmerzhaft gelernt):** Docker Compose lädt standardmäßig nur `.env`
+(Produktions-Env) im aktuellen Verzeichnis, NICHT `.env.test`. Ohne
+`--env-file deployment/.env.test` fehlen DB-Passwörter/Secrets und die
+Test-Container crash-loopen sofort (`fe_sendauth: no password supplied`).
+Korrekte Aufrufe:
+
+```bash
+# Test-Instanzen (immer mit --env-file!):
+docker compose -f deployment/docker-compose.ffrattenberg-test.yml \
+  --env-file deployment/.env.test up -d
+
+# Produktion (.env wird automatisch geladen, --env-file optional aber empfohlen):
+docker compose -f deployment/docker-compose.ffrattenberg.yml \
+  --env-file deployment/.env up -d --build
+```
+
+### Deploy aus DSH (DeepSeek Harness) per SSH auf das ThinkPad (seit 2026-08-17)
+
+SSH vom Entwicklungs-PC (DSH-Sandbox) zum ThinkPad funktioniert mit dem
+dedizierten Schlüssel (siehe Abschnitt "Ersatzserver" unten für Pfad):
+```bash
+ssh -o IdentitiesOnly=yes -o ConnectTimeout=10 \
+  -i C:\Users\<User>\.ssh\id_ed25519_ffrattenberg hans@192.168.1.14 '<cmd>'
+```
+**DSH-Sandbox-Falle:** SSH wird unter `workspace-write` blockiert
+("failed to initialize w32posix wrapper") – braucht
+`sandbox_permissions: "danger-full-access"` im `pwsh`-Tool-Aufruf.
+Auch `git push` (HTTPS nach GitHub) braucht dasselbe, da der
+`git-remote-https`-Helper stdio-Pipes erzeugt, die die Sandbox blockiert
+("cannot create standard input pipe for remote-https: Permission denied").
+Die Approval-Policy muss `ask` oder weaker sein, damit die Eskalation
+funktioniert (bei `never` wird sie automatisch abgelehnt).
+
+**Aktueller Deploy-Stand (2026-08-17):** ThinkPad läuft Build 26
+(`ffrattenberg-app:build15` als Image-Tag) auf ALLEN vier Instanzen
+(Produktion + test1/test2/generalprobe). `BUILD_TAG` in `deployment/.env`
+und `deployment/.env.test` beide auf `build15` – bewusst gleich gehalten,
+da Test-Instanzen dasselbe Image nutzen wie Produktion. Beim nächsten Deploy
+beide hochzählen. Standby-Server ffrattenberg (.238) ist noch auf Build 18
+bzw. build12 – muss separat aktualisiert werden, falls er als Failover
+dienen soll.
+
+**Pfand-Konfiguration auf test1 (2026-08-17 per SQL gesetzt):** Alle
+Getränke (`kategorie='getraenk'`) auf test1 haben `pfand_pro_einheit=1.0`.
+Auf Produktion und den anderen Test-Instanzen ist das noch NICHT gesetzt
+(alle 0.0) – muss dort bei Bedarf nachgeholt werden (entweder über die
+Speisekarte in der App als Organisator, oder per SQL:
+`UPDATE artikel SET pfand_pro_einheit=1.0 WHERE kategorie='getraenk';`
+in der jeweiligen DB). Der generische "Pfand zurück"-Button im
+Ausschank-Dashboard subtrahiert fest 1,00 € pro Stück unabhängig vom
+`pfand_pro_einheit`-Wert der Artikel – er ist immer sichtbar, auch ohne
+konfiguriertes Pfand.
 
 ### ⚠️ 2026-08-16 (Nachmittag): Rollentausch aktiv/Standby
 
@@ -211,13 +276,51 @@ keine alte `hosts`-Zeile die AdGuard-Auflösung überschreibt. Bis DNS auf
 allen benötigten Geräten manuell umgestellt ist, bleibt Port 8000 (siehe
 oben) der Fallback.
 
+**Weiterer Fallback: Zugriff per SSH-Tunnel** - falls weder Domain noch
+direkter LAN-Port 8000 erreichbar sind (z.B. von außerhalb des
+Veranstaltungs-WLANs, oder wenn gerade keine der beiden Lösungen oben
+greift), lässt sich jede Instanz/jeder Pfad über einen SSH-Tunnel zum Server
+erreichen, ohne dass DNS oder Hairpin-NAT überhaupt eine Rolle spielen -
+SSH (Port 22) ist von den bekannten Problemen hier nicht betroffen:
+
+```bash
+ssh -L 8000:localhost:8000 hans@<aktuelle-Server-IP>
+```
+
+Danach im Browser auf dem tunnelnden Rechner z.B.
+`http://localhost:8000/test1/ausschank/` öffnen (Pfad/Instanz beliebig,
+Port muss zur Ziel-Instanz passen: Produktion 8000, test1/test2/generalprobe
+8001-8003, siehe oben). Erfordert einen funktionierenden SSH-Zugriff auf den
+Server (siehe SSH-Alias/Schlüssel im Abschnitt "Ersatzserver" unten) sowie
+dass der tunnelnde Rechner den Server auf Port 22 erreicht - meist eher
+gegeben als HTTP/HTTPS, da Port 22 nicht denselben Hairpin-Einschränkungen
+unterliegt wie 80/443. Tunnel bleibt nur für die Dauer der SSH-Sitzung
+bestehen (Terminal offen lassen).
+
 ### Ersatzserver / Standby während der Veranstaltung
 
-Zweiter Server: **`hans@hans-ThinkPad-E590`**, Linux Mint 22.3, statische
-WLAN-Adresse **`192.168.1.34/24`**, Gateway/DNS `192.168.1.1`, WLAN-MAC
-`20:79:18:b8:de:bd`. SSH vom Entwicklungs-PC erfolgt mit
-`~/.ssh/id_ed25519_ffrattenberg` (Schlüssel ist hinterlegt). Docker läuft;
-Docker Compose wurde benutzerspezifisch unter
+Zweiter Server: **`hans@hans-ThinkPad-E590`**, Linux Mint 22.3, WLAN-MAC
+`20:79:18:b8:de:bd`. **Ist seit dem Rollentausch (siehe oben) inzwischen der
+AKTIVE Produktionsserver**, nicht mehr nur Standby - die IP-Angabe unten
+kann daher veraltet sein, vor jeder Aktion per SSH `hostname -I` prüfen
+(keine DHCP-Reservierung, hat sich schon einmal geändert: `192.168.1.34` →
+`192.168.1.14`, Stand 2026-08-17).
+
+**SSH-Zugriff (getestet, funktioniert ohne Passphrase-Abfrage):**
+```bash
+ssh -i ~/.ssh/id_ed25519_ffrattenberg -o IdentitiesOnly=yes hans@192.168.1.14
+```
+Auf Windows-Entwicklungsrechnern denselben Pfad unter
+`C:\Users\<User>\.ssh\id_ed25519_ffrattenberg` verwenden. **Nicht** den
+Standard-Schlüssel `~/.ssh/id_ed25519` (ohne `-ffrattenberg`-Suffix)
+benutzen - der ist passphrasegeschützt und die Passphrase ist nicht
+bekannt/hinterlegt; der dedizierte `..._ffrattenberg`-Schlüssel funktioniert
+dagegen ohne Passphrase-Abfrage. Falls IP oder Hostname nicht auflösen: erst
+`ping 192.168.1.14` bzw. aktuelle IP anderweitig ermitteln, bevor man von
+"Server ist offline" ausgeht - der Rechner kann auch nur gerade
+ausgeschaltet/getrennt sein.
+
+Docker läuft; Docker Compose wurde benutzerspezifisch unter
 `~/.docker/cli-plugins/docker-compose` installiert.
 
 Der Standby ist als eigenständiger Docker-Host vorbereitet. Unter
