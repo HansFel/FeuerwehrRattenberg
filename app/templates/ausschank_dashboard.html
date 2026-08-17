@@ -21,10 +21,12 @@
         {% for artikel in getraenke %}
         <div class="kasse-kachel kasse-getraenk">
           <button type="button" class="kasse-tipp"
-                  data-preis="{{ artikel.preis + (artikel.pfand_pro_einheit or 0) }}"
+                  data-preis="{{ artikel.preis }}"
+                  data-pfand="{{ artikel.pfand_pro_einheit or 0 }}"
                   onclick="ausschankMenge('menge_{{ artikel.id }}', 1)">
             <strong>{{ artikel.name }}</strong>
             <span>{{ "%.2f"|format(artikel.preis) }} €
+              {% if artikel.pfand_pro_einheit %} + {{ "%.2f"|format(artikel.pfand_pro_einheit) }} € Pfand{% endif %}
               {% if artikel.punkte_pro_einheit %} · {{ artikel.punkte_pro_einheit }} Punkte{% endif %}
             </span>
           </button>
@@ -44,8 +46,8 @@
 
       {% set pfand_artikel = getraenke | selectattr('pfand_pro_einheit') | list %}
       {% if pfand_artikel %}
-      <h2>3. Pfandrückgabe berechnen</h2>
-      <p class="leer">Nur für die Abrechnung – ohne Tisch- oder Gruppenzuordnung.</p>
+      <h2>3. Pfandrückgabe</h2>
+      <p class="leer">Zurückgegebene Pfandbehälter abziehen – nur für die Abrechnung, ohne Tisch- oder Gruppenzuordnung.</p>
       <div class="kasse-grid">
         {% for artikel in pfand_artikel %}
         <div class="kasse-kachel kasse-pfand">
@@ -69,7 +71,10 @@
 
       <section class="ausschank-rueckgeld">
         <h2>4. Rückgeld berechnen</h2>
-        <div><span>Zu bezahlen</span><strong id="ausschank-summe">0,00 €</strong></div>
+        <div><span>Getränke</span><strong id="ausschank-getraenke-summe">0,00 €</strong></div>
+        <div><span>Pfand (neu)</span><strong id="ausschank-pfand-neu">0,00 €</strong></div>
+        <div><span>Pfand zurück</span><strong id="ausschank-pfand-zurueck">− 0,00 €</strong></div>
+        <div class="ausschank-gesamt"><span>Zu bezahlen</span><strong id="ausschank-summe">0,00 €</strong></div>
         <label for="gegeben">Gegeben (€)</label>
         <input id="gegeben" type="number" min="0" step="0.01" inputmode="decimal"
                placeholder="0,00" oninput="ausschankAktualisieren()">
@@ -99,19 +104,28 @@
     function ausschankAktualisieren() {
       var getraenke = 0;
       var rueckgaben = 0;
-      var summe = 0;
+      var getraenkeSumme = 0;
+      var pfandNeu = 0;
+      var pfandZurueck = 0;
       document.querySelectorAll('.kasse-getraenk').forEach(function (kachel) {
         var menge = parseInt(kachel.querySelector('input').value || '0', 10);
+        var tipp = kachel.querySelector('.kasse-tipp');
         getraenke += menge;
-        summe += menge * parseFloat(kachel.querySelector('.kasse-tipp').dataset.preis || '0');
+        getraenkeSumme += menge * parseFloat(tipp.dataset.preis || '0');
+        pfandNeu += menge * parseFloat(tipp.dataset.pfand || '0');
       });
       document.querySelectorAll('.kasse-pfand').forEach(function (kachel) {
         var menge = parseInt(kachel.querySelector('input').value || '0', 10);
         rueckgaben += menge;
-        summe -= menge * parseFloat(kachel.querySelector('.kasse-tipp').dataset.rueckgabepreis || '0');
+        pfandZurueck += menge * parseFloat(kachel.querySelector('.kasse-tipp').dataset.rueckgabepreis || '0');
       });
+      var summe = getraenkeSumme + pfandNeu - pfandZurueck;
+
       document.getElementById('ausschank-auswahl').textContent =
         getraenke + ' Getränke · ' + rueckgaben + ' Pfand zurück';
+      document.getElementById('ausschank-getraenke-summe').textContent = euro(getraenkeSumme);
+      document.getElementById('ausschank-pfand-neu').textContent = euro(pfandNeu);
+      document.getElementById('ausschank-pfand-zurueck').textContent = '− ' + euro(pfandZurueck);
       document.getElementById('ausschank-summe').textContent = euro(summe);
       var gegebenFeld = document.getElementById('gegeben');
       document.getElementById('ausschank-rueckgeld').textContent = gegebenFeld.value
