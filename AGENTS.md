@@ -435,6 +435,16 @@ danach `/mnt/usb-backups/ffrattenberg-backups`.
   Zeilenprotokoll `READY`/`HEARTBEAT`/`EVENT`). Der bisherige ESP32-Weg
   (`firmware/zeitmessung/`) bleibt als Code erhalten, wird aber nicht mehr
   eingesetzt. Zeitnehmungs-PC beim Event: `hans@felferlinuxlab` (Linux).
+- **Manueller Offline-Modus der Desktop-App (seit 2026-08-17):** Falls die
+  LAN-Verbindung zur Webapp während des Wettkampfs ausfällt, tippt der
+  Organisator die Team-**Startnummer** je Bahn direkt in der Desktop-App ein
+  ("Lokalen Lauf starten") - die App bildet die serverseitige
+  5-Auslösungen-Logik lokal nach (`desktop-app/zeitmessung_desktop/
+  lokale_zuordnung.py`) und meldet das Ergebnis automatisch nach, sobald die
+  Webapp wieder erreichbar ist (`lauf_import_worker.py` →
+  `POST /notfall/api/importieren`, `app/blueprints/notfall.py:
+  api_importieren()`, matcht per `Team.startnummer`, idempotent per
+  `server_lauf_id`). Details: `desktop-app/README.md`.
 - Zeitmessung-Weiterleitung an mehrere Instanzen (seit Build 20): Der ESP32
   kennt weiterhin nur EIN Ziel (keine Firmware-Änderung). Stattdessen
   melden sich test1/test2/generalprobe beim Start selbst bei der

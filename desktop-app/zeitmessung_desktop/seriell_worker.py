@@ -13,9 +13,17 @@ from typing import Callable
 import serial
 
 from . import datenbank
+from .lokale_zuordnung import zuordnung_pruefen
 from .seriell_protokoll import zeile_parsen
 
 WIEDERVERBINDEN_PAUSE_S = 3
+# Deutlich über HEARTBEAT_INTERVALL_MS (2s) der Firmware: bleibt diese Zeit
+# lang komplett ohne Daten (auch kein HEARTBEAT), gilt die Verbindung als tot
+# - Windows meldet ein physisch entferntes USB-Gerät nicht immer als Fehler,
+# readline() liefert dann einfach dauerhaft leere Timeouts statt einer
+# Exception ("Zombie-Verbindung": App zeigt weiter "verbunden", obwohl das
+# Gerät längst weg ist).
+VERBINDUNG_TIMEOUT_S = 8
 
 
 class SeriellWorker(threading.Thread):
@@ -48,10 +56,17 @@ class SeriellWorker(threading.Thread):
         with serial.Serial(self._com_port, self._baudrate, timeout=1) as port:
             self.verbunden = True
             self._auf_status_geaendert({"verbunden": True})
+            letzter_datenempfang = time.monotonic()
             while not self._stop_angefordert.is_set():
                 zeile_roh = port.readline()
                 if not zeile_roh:
-                    continue   # Timeout ohne Daten - normal, einfach weiter warten
+                    if time.monotonic() - letzter_datenempfang > VERBINDUNG_TIMEOUT_S:
+                        self.verbunden = False
+                        self._auf_status_geaendert(
+                            {"verbunden": False, "fehler": "Timeout - keine Daten mehr empfangen"})
+                        return   # schließt den Port (with-Block) und löst einen Reconnect aus
+                    continue   # normaler Timeout, einfach weiter warten
+                letzter_datenempfang = time.monotonic()
                 self._zeile_verarbeiten(zeile_roh.decode("ascii", errors="ignore"))
 
     def _zeile_verarbeiten(self, zeile: str) -> None:
@@ -67,6 +82,7 @@ class SeriellWorker(threading.Thread):
                 self._db, bahn=geparst["bahn"], geraet_millis=geparst["geraet_millis"],
                 empfangen_um=empfangen_um, client_event_id=client_event_id,
             )
+            zuordnung_pruefen(self._db, geparst["bahn"])
             self._auf_status_geaendert({"neues_ereignis": geparst})
 
         elif geparst["typ"] == "state":

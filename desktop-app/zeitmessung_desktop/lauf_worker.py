@@ -10,18 +10,9 @@ from typing import Callable
 
 import requests
 
+from .webapp_urls import aktiver_lauf_url
+
 HTTP_TIMEOUT_S = 5
-
-_EVENT_PFAD = "/api/zeitmessung/event"
-
-
-def aktiver_lauf_url(webapp_url: str) -> str:
-    """Leitet die Notfall-API-URL aus der bekannten Zeitmessung-Event-URL ab
-    (keine zusätzliche Einstellung nötig). Ersetzt bewusst nur den bekannten
-    Endpunkt-Suffix statt den ganzen Pfad (z.B. via urljoin) zu ersetzen -
-    sonst würde ein Instanz-Pfadpräfix wie '/test1' verloren gehen."""
-    basis = webapp_url[:-len(_EVENT_PFAD)] if webapp_url.endswith(_EVENT_PFAD) else webapp_url
-    return basis + "/notfall/api/aktiv"
 
 
 class LaufWorker(threading.Thread):

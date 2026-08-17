@@ -48,47 +48,71 @@ Einstellungen (COM-Port, Webapp-URL, API-Key, Instanzname, Sync-/
 Backup-Intervall) über den Knopf "Einstellungen…" im Hauptfenster - werden
 unter `~/.zeitmessung_desktop/einstellungen.json` gespeichert.
 
+## Manueller Modus (offline, ohne Webapp-Verbindung)
+
+Falls die LAN-Verbindung zur Webapp während des Wettkampfs ausfällt, lässt
+sich ein Lauf trotzdem messen: im Bereich "Manueller Modus" die
+**Team-Startnummer** je Bahn eintippen (kein Team-Lookup nötig, funktioniert
+komplett offline) und "Lokalen Lauf starten" klicken. Die App ordnet die
+eingehenden Mega-Kontaktereignisse ab diesem Zeitpunkt lokal derselben
+5-Auslösungen-Logik zu wie der Server (siehe `lokale_zuordnung.py`) - die
+Zeitmessung selbst bleibt also gleich genau, nur die Team-Zuordnung passiert
+lokal statt über die Webapp.
+
+Sobald die Webapp wieder erreichbar ist, meldet `LaufImportWorker`
+automatisch im Hintergrund alle noch offenen lokalen Läufe nach
+(`/notfall/api/importieren` auf dem Server, matcht die Startnummer gegen
+`Team.startnummer`) - kein manuelles Nachtragen nötig.
+
 ## Tests
 
 ```bash
 .venv/Scripts/python -m pytest
 ```
 
-19 Tests für Protokoll-Parsing, lokale Datenbank, Sicherung und
-Sync-Payload-Aufbau (GUI selbst nicht mit pytest getestet, siehe
+38 Tests für Protokoll-Parsing, lokale Datenbank, lokale Zuordnung, Sicherung,
+Sync- und Import-Payload-Aufbau (GUI selbst nicht mit pytest getestet, siehe
 "Getestet" unten für den manuellen End-to-End-Nachweis).
 
 ## Architektur
 
 | Modul | Zweck |
 |---|---|
-| `seriell_protokoll.py` | Reine Parser-Funktion für das Mega-Zeilenprotokoll (`READY`/`HEARTBEAT`/`EVENT`) |
-| `seriell_worker.py` | Hintergrund-Thread: liest COM-Port, schreibt Ereignisse sofort in SQLite, Auto-Reconnect |
-| `datenbank.py` | Lokaler SQLite-Puffer (WAL-Modus) |
+| `seriell_protokoll.py` | Reine Parser-Funktion für das Mega-Zeilenprotokoll (`READY`/`HEARTBEAT`/`STATE`/`EVENT`) |
+| `seriell_worker.py` | Hintergrund-Thread: liest COM-Port, schreibt Ereignisse sofort in SQLite, Auto-Reconnect (inkl. Zombie-Verbindungs-Timeout), löst lokale Zuordnung aus |
+| `lokale_zuordnung.py` | Lokale Nachbildung der Server-5-Auslösungen-Logik für den manuellen Offline-Modus |
+| `datenbank.py` | Lokaler SQLite-Puffer (WAL-Modus) - Ereignisse + lokale Läufe/Bahnen |
 | `sync_worker.py` | Hintergrund-Thread: sendet ausstehende Ereignisse an die Webapp, idempotent per `client_event_id` |
+| `lauf_worker.py` | Hintergrund-Thread: pollt `/notfall/api/aktiv`, Live-Anzeige des von der Webapp verwalteten Laufs |
+| `lauf_import_worker.py` | Hintergrund-Thread: meldet lokal (offline) gemessene Läufe nach, sobald die Webapp erreichbar ist |
+| `webapp_urls.py` | Leitet weitere Endpunkt-URLs aus der bekannten Event-URL ab (Instanz-Pfadpräfix-sicher) |
 | `sicherung.py` | Zyklische Sicherung nach der projektweiten Namenskonvention `<instanz>_sicherung_<zeitstempel>.sqlite` |
 | `einstellungen.py` | Konfiguration (JSON) |
-| `hauptfenster.py` | PySide6-GUI: Verbindungsstatus, Einstellungsdialog, Live-Ereignisliste |
+| `hauptfenster.py` | PySide6-GUI: Verbindungsstatus, Einstellungsdialog, Live-Zustand, Ereignisliste, aktiver/lokaler Lauf, manueller Modus |
 
-## Getestet (2026-08-16)
+## Getestet
 
-End-to-End auf echter Hardware durchgespielt:
-- Arduino Mega (COM3) → `SeriellWorker` → lokale SQLite: 4 Ereignisse
-  korrekt erkannt und gepuffert (Kontakte waren zu diesem Zeitpunkt noch
-  nicht verkabelt - jeder Pin löst beim ersten Verbinden einmalig aus, siehe
-  `firmware/zeitmessung-mega/README.md`, identisches Verhalten wie beim
-  ESP32 bei unverkabelten Pins, kein Bug).
-- `SyncWorker` → lokal laufende Webapp (`python run.py`) → echte
-  `zeitereignis`-Tabelle: alle 4 gepufferten Ereignisse erfolgreich
-  gesendet, als `gesendet` markiert, Wiederholung des Sync-Zyklus erzeugte
-  korrekt KEINEN erneuten Sendeversuch (bereits synced).
+**2026-08-16/17, End-to-End auf echter Hardware:**
+- Arduino Mega → `SeriellWorker` → lokale SQLite → `SyncWorker` → echte
+  Webapp-Datenbank, komplett durchgespielt (inkl. Pin-Wechsel wegen
+  Board-Eigenheit, siehe `firmware/zeitmessung-mega/README.md`).
+- Deployment auf `felferlinuxlab` (Linux Mint, echter Zeitnehmungs-PC)
+  verifiziert: X11-Fernstart per SSH (`DISPLAY=:0`), `dialout`-Gruppe für
+  `/dev/ttyUSB0`, `libxcb-cursor0` als zusätzliche Abhängigkeit.
+
+**2026-08-17, manueller Offline-Modus (End-to-End gegen echte Webapp-DB):**
+Lokale Zuordnung (5 simulierte Ereignisse, korrekte Delta-Berechnung
+2.0/3.0/4.0/5.0s) → `LaufImportWorker` → echte `notfall_lauf`/`notfall_bahn`-
+Tabellen: Team korrekt über `team_nummer`↔`Team.startnummer` verknüpft,
+Zeiten korrekt übernommen, lokaler Lauf danach korrekt als `gesendet`
+markiert.
 
 ## Offene Punkte
 
-- Echte Kontakte am Mega anschließen und ein vollständiges 5-Auslösungen-
-  Bahn-Ereignis (inkl. automatischer Zuordnung in `NotfallLauf`) end-to-end
-  testen.
-- GUI selbst nur per Headless-Smoketest (offscreen-Plattform) geprüft, noch
-  nicht mit echtem Display/Maus vor Ort getestet.
-- PyInstaller/Auto-Start-Einrichtung auf `felferlinuxlab` (Linux) noch
-  offen - aktuell nur `python -m zeitmessung_desktop` manuell.
+- Manueller Offline-Modus noch nicht mit echten Mega-Kontaktauslösungen vor
+  Ort getestet (nur simulierte Ereignisse, siehe oben).
+- Autostart-Einrichtung auf `felferlinuxlab` (Linux) noch offen - aktuell
+  manueller Start per SSH/`DISPLAY=:0`.
+- Mega-USB-Erkennung auf dem Windows-Entwicklungsrechner zeitweise
+  ausgefallen (kein COM-Port, kein "Unbekanntes Gerät" trotz Kabel/LED) -
+  Ursache noch nicht abschließend geklärt.

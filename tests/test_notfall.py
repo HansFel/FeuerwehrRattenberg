@@ -200,3 +200,64 @@ def test_api_aktiv_liefert_bahnen_und_laeuferzeiten(client, app):
     bahn2 = next(b for b in daten["bahnen"] if b["bahn_nr"] == 2)
     assert bahn2["team_name"] is None
     assert bahn2["laeufer"] == []
+
+
+def test_api_importieren_ohne_api_key_abgelehnt(client):
+    r = client.post("/notfall/api/importieren", json={"bahnen": [{"bahn_nr": 1}]})
+    assert r.status_code == 401
+
+
+def test_api_importieren_legt_neuen_lauf_an(client, app):
+    r = client.post("/notfall/api/importieren", headers={"X-API-Key": API_KEY}, json={
+        "bezeichnung": "Offline-Test",
+        "bahnen": [
+            {"bahn_nr": 1, "team_nummer": 1,
+             "zeit_laeufer1": 10.123, "zeit_laeufer2": 11.5,
+             "zeit_laeufer3": 9.75, "zeit_laeufer4": 12.0},
+        ],
+    })
+    assert r.status_code == 200
+    server_lauf_id = r.get_json()["server_lauf_id"]
+
+    with app.app_context():
+        lauf = db.session.get(NotfallLauf, server_lauf_id)
+        assert lauf.bezeichnung == "Offline-Test"
+        bahn = next(b for b in lauf.bahnen if b.bahn_nr == 1)
+        assert bahn.team.name == "FF Rattenberg"
+        assert bahn.zeit_laeufer1 == pytest.approx(10.123)
+        assert bahn.gesamtzeit == pytest.approx(10.123 + 11.5 + 9.75 + 12.0)
+
+
+def test_api_importieren_ist_idempotent_per_server_lauf_id(client, app):
+    r1 = client.post("/notfall/api/importieren", headers={"X-API-Key": API_KEY}, json={
+        "bezeichnung": "Wiederholt",
+        "bahnen": [{"bahn_nr": 1, "team_nummer": 1, "zeit_laeufer1": 5.0}],
+    })
+    lauf_id = r1.get_json()["server_lauf_id"]
+
+    r2 = client.post("/notfall/api/importieren", headers={"X-API-Key": API_KEY}, json={
+        "server_lauf_id": lauf_id,
+        "bahnen": [{"bahn_nr": 1, "team_nummer": 1, "zeit_laeufer2": 6.0}],
+    })
+    assert r2.get_json()["server_lauf_id"] == lauf_id
+
+    with app.app_context():
+        assert NotfallLauf.query.count() == 1
+        bahn = NotfallBahn.query.filter_by(lauf_id=lauf_id, bahn_nr=1).one()
+        assert bahn.zeit_laeufer1 == pytest.approx(5.0)
+        assert bahn.zeit_laeufer2 == pytest.approx(6.0)
+
+
+def test_api_importieren_unbekannte_startnummer_bleibt_ohne_team(client, app):
+    r = client.post("/notfall/api/importieren", headers={"X-API-Key": API_KEY}, json={
+        "bahnen": [{"bahn_nr": 1, "team_nummer": 999, "zeit_laeufer1": 1.0}],
+    })
+    lauf_id = r.get_json()["server_lauf_id"]
+    with app.app_context():
+        bahn = NotfallBahn.query.filter_by(lauf_id=lauf_id, bahn_nr=1).one()
+        assert bahn.team_id is None
+
+
+def test_api_importieren_ohne_bahnen_abgelehnt(client):
+    r = client.post("/notfall/api/importieren", headers={"X-API-Key": API_KEY}, json={})
+    assert r.status_code == 400

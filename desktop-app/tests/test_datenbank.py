@@ -52,6 +52,54 @@ def test_alle_loeschen(db):
     assert datenbank.anzahl_ausstehend(db) == 0
 
 
+def test_lokalen_lauf_starten_und_lesen(db):
+    lauf_id = datenbank.lokalen_lauf_starten(
+        db, bezeichnung="Test", team_nummern={1: "12", 2: "7"},
+        aktiviert_um="2026-08-17T10:00:00+00:00")
+    lauf = datenbank.aktiver_lokaler_lauf(db)
+    assert lauf["id"] == lauf_id
+    assert lauf["bezeichnung"] == "Test"
+    assert lauf["aktiv"] == 1
+
+    bahnen = datenbank.lokale_bahnen(db, lauf_id)
+    assert len(bahnen) == 2
+    assert {b["bahn_nr"] for b in bahnen} == {1, 2}
+    assert next(b for b in bahnen if b["bahn_nr"] == 1)["team_nummer"] == "12"
+
+
+def test_neuer_lokaler_lauf_deaktiviert_alten(db):
+    erster_id = datenbank.lokalen_lauf_starten(
+        db, bezeichnung="Erster", team_nummern={1: "1"}, aktiviert_um="2026-08-17T10:00:00+00:00")
+    zweiter_id = datenbank.lokalen_lauf_starten(
+        db, bezeichnung="Zweiter", team_nummern={1: "2"}, aktiviert_um="2026-08-17T10:05:00+00:00")
+
+    aktiv = datenbank.aktiver_lokaler_lauf(db)
+    assert aktiv["id"] == zweiter_id
+    assert aktiv["id"] != erster_id
+
+
+def test_lokale_bahn_zeiten_setzen(db):
+    lauf_id = datenbank.lokalen_lauf_starten(
+        db, bezeichnung="Test", team_nummern={1: "1"}, aktiviert_um="2026-08-17T10:00:00+00:00")
+    bahn = datenbank.lokale_bahnen(db, lauf_id)[0]
+
+    datenbank.lokale_bahn_zeiten_setzen(db, bahn["id"], [10.1, 11.2, 9.9, 12.0])
+
+    aktualisiert = datenbank.lokale_bahnen(db, lauf_id)[0]
+    assert aktualisiert["zeit_laeufer1"] == pytest.approx(10.1)
+    assert aktualisiert["zeit_laeufer4"] == pytest.approx(12.0)
+
+
+def test_offene_lokale_laeufe_und_als_gesendet_markieren(db):
+    lauf_id = datenbank.lokalen_lauf_starten(
+        db, bezeichnung="Test", team_nummern={1: "1"}, aktiviert_um="2026-08-17T10:00:00+00:00")
+    assert len(datenbank.offene_lokale_laeufe(db)) == 1
+
+    datenbank.lokalen_lauf_als_gesendet_markieren(db, lauf_id, server_lauf_id=42,
+                                                  versucht_um="2026-08-17T10:10:00+00:00")
+    assert datenbank.offene_lokale_laeufe(db) == []
+
+
 def test_client_event_id_muss_eindeutig_sein(db):
     datenbank.ereignis_hinzufuegen(db, bahn=1, geraet_millis=1, empfangen_um="t1",
                                    client_event_id="doppelt")

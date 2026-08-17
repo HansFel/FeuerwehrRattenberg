@@ -4,14 +4,17 @@ ohne Netzverbindung nutzbar, damit vor Ort sichtbar bleibt, dass die
 Zeitmessung läuft, selbst wenn der Sync gerade nicht durchkommt."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import (
-    QDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow,
-    QMessageBox, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem,
-    QVBoxLayout, QWidget,
+    QDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+    QMainWindow, QMessageBox, QPushButton, QSpinBox, QTableWidget,
+    QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
 from . import datenbank, einstellungen as einstellungen_modul
+from .lauf_import_worker import LaufImportWorker
 from .lauf_worker import LaufWorker
 from .seriell_worker import SeriellWorker
 from .sicherung import SicherungWorker
@@ -71,7 +74,7 @@ class Hauptfenster(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Zeitmessung Siloplanen-Race – Desktop")
-        self.resize(720, 640)
+        self.resize(760, 820)
 
         self.einstellungen = einstellungen_modul.laden()
         self.db = datenbank.verbinden(self.einstellungen.db_pfad)
@@ -80,6 +83,7 @@ class Hauptfenster(QMainWindow):
         self._sync_worker: SyncWorker | None = None
         self._sicherung_worker: SicherungWorker | None = None
         self._lauf_worker: LaufWorker | None = None
+        self._lauf_import_worker: LaufImportWorker | None = None
 
         self._aufbauen()
         self.ereignis_empfangen.connect(self._auf_ereignis)
@@ -131,6 +135,34 @@ class Hauptfenster(QMainWindow):
         self.lauf_tabelle.setMaximumHeight(160)
         layout.addWidget(self.lauf_tabelle)
 
+        manuell_box = QGroupBox("Manueller Modus (offline, ohne Webapp-Verbindung)")
+        manuell_layout = QVBoxLayout(manuell_box)
+        eingabe_zeile = QHBoxLayout()
+        self.team_nummer_felder: list[QLineEdit] = []
+        for bahn in range(1, 5):
+            eingabe_zeile.addWidget(QLabel(f"Bahn {bahn} Team-Nr.:"))
+            feld = QLineEdit()
+            feld.setMaximumWidth(60)
+            feld.setPlaceholderText("–")
+            self.team_nummer_felder.append(feld)
+            eingabe_zeile.addWidget(feld)
+        start_knopf = QPushButton("Lokalen Lauf starten")
+        start_knopf.clicked.connect(self._lokalen_lauf_starten)
+        eingabe_zeile.addWidget(start_knopf)
+        eingabe_zeile.addStretch()
+        manuell_layout.addLayout(eingabe_zeile)
+
+        self.lokaler_lauf_label = QLabel("Kein lokaler Lauf aktiv.")
+        manuell_layout.addWidget(self.lokaler_lauf_label)
+
+        self.lokale_lauf_tabelle = QTableWidget(0, 4)
+        self.lokale_lauf_tabelle.setHorizontalHeaderLabels(
+            ["Bahn", "Team-Nr.", "Läuferzeiten (s, ms)", "Sync"])
+        self.lokale_lauf_tabelle.horizontalHeader().setStretchLastSection(True)
+        self.lokale_lauf_tabelle.setMaximumHeight(120)
+        manuell_layout.addWidget(self.lokale_lauf_tabelle)
+        layout.addWidget(manuell_box)
+
         self.ereignis_tabelle = QTableWidget(0, 3)
         self.ereignis_tabelle.setHorizontalHeaderLabels(["Bahn", "Empfangen", "Sync-Status"])
         self.ereignis_tabelle.horizontalHeader().setStretchLastSection(True)
@@ -140,7 +172,7 @@ class Hauptfenster(QMainWindow):
 
     def _worker_starten(self) -> None:
         for worker in (self._seriell_worker, self._sync_worker, self._sicherung_worker,
-                      self._lauf_worker):
+                      self._lauf_worker, self._lauf_import_worker):
             if worker is not None:
                 worker.stoppen()
 
@@ -168,6 +200,12 @@ class Hauptfenster(QMainWindow):
             auf_lauf_aktualisiert=lambda daten: self.lauf_aktualisiert.emit(daten),
         )
         self._lauf_worker.start()
+
+        self._lauf_import_worker = LaufImportWorker(
+            self.db, self.einstellungen.webapp_url, self.einstellungen.api_key,
+            self.einstellungen.sync_intervall_s,
+        )
+        self._lauf_import_worker.start()
 
     def _einstellungen_oeffnen(self) -> None:
         dialog = EinstellungenDialog(self.einstellungen, self)
@@ -237,9 +275,57 @@ class Hauptfenster(QMainWindow):
         self._tabelle_neu_laden()
         QMessageBox.information(self, "Alle löschen", f"{anzahl} Ereignis(se) gelöscht.")
 
+    def _lokalen_lauf_starten(self) -> None:
+        """Startet einen Lauf OHNE Webapp-Verbindung: Team-Nummern werden
+        eingetippt statt aus der Webapp geladen, die Zuordnung passiert
+        lokal (siehe lokale_zuordnung.py). Wird automatisch in die Webapp
+        nachgereicht, sobald sie wieder erreichbar ist (siehe
+        lauf_import_worker.py)."""
+        team_nummern = {
+            bahn: feld.text().strip()
+            for bahn, feld in enumerate(self.team_nummer_felder, start=1)
+            if feld.text().strip()
+        }
+        if not team_nummern:
+            QMessageBox.warning(self, "Lokalen Lauf starten",
+                                "Bitte mindestens eine Team-Nummer eintragen.")
+            return
+        aktiviert_um = datetime.now(timezone.utc).isoformat()
+        datenbank.lokalen_lauf_starten(
+            self.db, bezeichnung=f"Offline {aktiviert_um}",
+            team_nummern=team_nummern, aktiviert_um=aktiviert_um,
+        )
+        for feld in self.team_nummer_felder:
+            feld.clear()
+        self._lokalen_lauf_anzeigen()
+
+    def _lokalen_lauf_anzeigen(self) -> None:
+        lauf = datenbank.aktiver_lokaler_lauf(self.db)
+        if lauf is None:
+            self.lokaler_lauf_label.setText("Kein lokaler Lauf aktiv.")
+            self.lokale_lauf_tabelle.setRowCount(0)
+            return
+        self.lokaler_lauf_label.setText(
+            f"Lokaler Lauf seit {lauf['aktiviert_um']} "
+            f"({'noch nicht' if lauf['sync_status'] == 'ausstehend' else 'bereits'} "
+            f"an Webapp gemeldet)")
+        bahnen = datenbank.lokale_bahnen(self.db, lauf["id"])
+        self.lokale_lauf_tabelle.setRowCount(len(bahnen))
+        for row, bahn in enumerate(bahnen):
+            zeiten_text = "  ".join(
+                f"L{i}: {bahn[f'zeit_laeufer{i}']:.3f}" if bahn[f"zeit_laeufer{i}"] is not None
+                else f"L{i}: –"
+                for i in range(1, 5)
+            )
+            self.lokale_lauf_tabelle.setItem(row, 0, QTableWidgetItem(str(bahn["bahn_nr"])))
+            self.lokale_lauf_tabelle.setItem(row, 1, QTableWidgetItem(bahn["team_nummer"]))
+            self.lokale_lauf_tabelle.setItem(row, 2, QTableWidgetItem(zeiten_text))
+            self.lokale_lauf_tabelle.setItem(row, 3, QTableWidgetItem(lauf["sync_status"]))
+
     def _status_aktualisieren(self) -> None:
         ausstehend = datenbank.anzahl_ausstehend(self.db)
         self.sync_status_label.setText(f"Webapp: {ausstehend} ausstehend")
+        self._lokalen_lauf_anzeigen()
 
     def _tabelle_neu_laden(self) -> None:
         zeilen = datenbank.letzte_ereignisse(self.db, limit=50)
@@ -251,7 +337,7 @@ class Hauptfenster(QMainWindow):
 
     def closeEvent(self, event) -> None:
         for worker in (self._seriell_worker, self._sync_worker, self._sicherung_worker,
-                      self._lauf_worker):
+                      self._lauf_worker, self._lauf_import_worker):
             if worker is not None:
                 worker.stoppen()
         super().closeEvent(event)

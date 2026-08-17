@@ -138,6 +138,62 @@ def api_aktiver_lauf():
     return jsonify(aktiv=True, lauf_id=lauf.id, bezeichnung=lauf.bezeichnung, bahnen=bahnen)
 
 
+@bp.route("/api/importieren", methods=["POST"])
+def api_importieren():
+    """Nimmt einen OFFLINE (ohne Netzverbindung zur Webapp) gemessenen Lauf
+    von der Desktop-App entgegen - für den Fall, dass die LAN-Verbindung
+    während des Wettkampfs ausfällt: die Desktop-App ordnet Teams dann lokal
+    per eingetippter Startnummer den Bahnen zu und berechnet die Läuferzeiten
+    selbst (identische 5-Auslösungen-Logik wie serverseitig), synct das
+    Ergebnis aber erst nach, sobald die Webapp wieder erreichbar ist.
+
+    Idempotent per 'server_lauf_id' (aus einer früheren Antwort dieses
+    Endpunkts) - wiederholtes Senden (z.B. weil weitere Bahnen inzwischen
+    fertig sind) aktualisiert denselben NotfallLauf statt einen neuen
+    anzulegen. Authentifizierung wie bei den anderen Zeitmessung-Endpunkten
+    über 'X-API-Key' (kein Benutzerlogin, die Desktop-App hat keinen)."""
+    erwarteter_key = current_app.config["ZEITMESSUNG_API_KEY"]
+    if request.headers.get("X-API-Key") != erwarteter_key:
+        return jsonify(fehler="Ungültiger oder fehlender API-Key."), 401
+
+    daten = request.get_json(silent=True) or {}
+    server_lauf_id = _int_or_none(daten.get("server_lauf_id"))
+    bezeichnung = str(daten.get("bezeichnung", "")).strip()[:120]
+    bahnen_daten = daten.get("bahnen")
+    if not isinstance(bahnen_daten, list) or not bahnen_daten:
+        return jsonify(fehler="bahnen fehlt oder ist leer."), 400
+
+    lauf = db.session.get(NotfallLauf, server_lauf_id) if server_lauf_id else None
+    if lauf is None:
+        lauf = NotfallLauf(bezeichnung=bezeichnung or "Offline-Import",
+                           erstellt_von="desktop-app-import")
+        db.session.add(lauf)
+        db.session.flush()   # vergibt lauf.id für die Antwort/künftige Updates
+
+    for eintrag in bahnen_daten:
+        bahn_nr = _int_or_none(eintrag.get("bahn_nr"))
+        if bahn_nr is None or not (1 <= bahn_nr <= ANZAHL_BAHNEN):
+            continue
+        bahn = next((b for b in lauf.bahnen if b.bahn_nr == bahn_nr), None)
+        if bahn is None:
+            bahn = NotfallBahn(bahn_nr=bahn_nr)
+            lauf.bahnen.append(bahn)
+
+        team_nummer = _int_or_none(eintrag.get("team_nummer"))
+        if team_nummer is not None:
+            team = Team.query.filter_by(startnummer=team_nummer).first()
+            if team:
+                bahn.team_id = team.id
+
+        for i in range(1, 5):
+            wert = eintrag.get(f"zeit_laeufer{i}")
+            if wert is not None:
+                setattr(bahn, f"zeit_laeufer{i}", float(wert))
+
+    db.session.commit()
+    return jsonify(server_lauf_id=lauf.id), 200
+
+
 def _int_or_none(wert):
     try:
         return int(wert) if wert else None

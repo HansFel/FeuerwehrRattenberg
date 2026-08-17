@@ -21,6 +21,31 @@ CREATE TABLE IF NOT EXISTS ereignis (
     server_id INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_ereignis_sync_status ON ereignis (sync_status);
+
+-- Lokale Team-Bahn-Zuordnung + automatische Zuordnung, falls die Webapp
+-- beim Start des Laufs nicht erreichbar ist (siehe lauf_import_worker.py).
+-- Team wird nur per eingetippter Startnummer referenziert (kein Team-Lookup
+-- offline möglich) - der Abgleich mit dem echten Team passiert erst beim
+-- Import in der Webapp (app/blueprints/notfall.py:api_importieren).
+CREATE TABLE IF NOT EXISTS lokaler_lauf (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bezeichnung TEXT NOT NULL DEFAULT '',
+    aktiv INTEGER NOT NULL DEFAULT 1,
+    aktiviert_um TEXT NOT NULL,
+    sync_status TEXT NOT NULL DEFAULT 'ausstehend',
+    server_lauf_id INTEGER,
+    sync_versucht_um TEXT
+);
+CREATE TABLE IF NOT EXISTS lokale_bahn (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lauf_id INTEGER NOT NULL REFERENCES lokaler_lauf(id),
+    bahn_nr INTEGER NOT NULL,
+    team_nummer TEXT NOT NULL,
+    zeit_laeufer1 REAL,
+    zeit_laeufer2 REAL,
+    zeit_laeufer3 REAL,
+    zeit_laeufer4 REAL
+);
 """
 
 
@@ -93,3 +118,79 @@ def alle_loeschen(verbindung: sqlite3.Connection) -> int:
     cursor = verbindung.execute("DELETE FROM ereignis")
     verbindung.commit()
     return cursor.rowcount
+
+
+# ── Lokale Team-Bahn-Zuordnung (Offline-Fallback ohne Webapp-Verbindung) ──
+
+def lokalen_lauf_starten(verbindung: sqlite3.Connection, *, bezeichnung: str,
+                         team_nummern: dict[int, str], aktiviert_um: str) -> int:
+    """Startet einen neuen lokalen Lauf und deaktiviert einen vorher aktiven
+    (analog zu notfall.aktivieren() auf dem Server - immer nur einer
+    gleichzeitig aktiv). team_nummern: {bahn_nr: team_nummer}, nur belegte
+    Bahnen übergeben."""
+    verbindung.execute("UPDATE lokaler_lauf SET aktiv = 0 WHERE aktiv = 1")
+    cursor = verbindung.execute(
+        "INSERT INTO lokaler_lauf (bezeichnung, aktiv, aktiviert_um) VALUES (?, 1, ?)",
+        (bezeichnung, aktiviert_um),
+    )
+    lauf_id = cursor.lastrowid
+    for bahn_nr, team_nummer in team_nummern.items():
+        verbindung.execute(
+            "INSERT INTO lokale_bahn (lauf_id, bahn_nr, team_nummer) VALUES (?, ?, ?)",
+            (lauf_id, bahn_nr, team_nummer),
+        )
+    verbindung.commit()
+    return lauf_id
+
+
+def aktiver_lokaler_lauf(verbindung: sqlite3.Connection) -> sqlite3.Row | None:
+    return verbindung.execute(
+        "SELECT * FROM lokaler_lauf WHERE aktiv = 1 LIMIT 1"
+    ).fetchone()
+
+
+def lokale_bahnen(verbindung: sqlite3.Connection, lauf_id: int) -> list[sqlite3.Row]:
+    return verbindung.execute(
+        "SELECT * FROM lokale_bahn WHERE lauf_id = ? ORDER BY bahn_nr", (lauf_id,)
+    ).fetchall()
+
+
+def lokale_bahn_zeiten_setzen(verbindung: sqlite3.Connection, bahn_id: int,
+                              zeiten: list[float]) -> None:
+    verbindung.execute(
+        "UPDATE lokale_bahn SET zeit_laeufer1 = ?, zeit_laeufer2 = ?, "
+        "zeit_laeufer3 = ?, zeit_laeufer4 = ? WHERE id = ?",
+        (*zeiten, bahn_id),
+    )
+    verbindung.commit()
+
+
+def offene_lokale_laeufe(verbindung: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Lokale Läufe, die noch nicht (vollständig) an die Webapp gemeldet
+    wurden - der Import-Worker versucht es bei jedem Zyklus erneut."""
+    return verbindung.execute(
+        "SELECT * FROM lokaler_lauf WHERE sync_status = 'ausstehend' ORDER BY id"
+    ).fetchall()
+
+
+def lokalen_lauf_als_gesendet_markieren(verbindung: sqlite3.Connection, lauf_id: int,
+                                        server_lauf_id: int, versucht_um: str) -> None:
+    verbindung.execute(
+        "UPDATE lokaler_lauf SET sync_status = 'gesendet', server_lauf_id = ?, "
+        "sync_versucht_um = ? WHERE id = ?",
+        (server_lauf_id, versucht_um, lauf_id),
+    )
+    verbindung.commit()
+
+
+def lokalen_lauf_versuch_vermerken(verbindung: sqlite3.Connection, lauf_id: int,
+                                   server_lauf_id: int | None, versucht_um: str) -> None:
+    """Vermerkt einen Sync-Versuch, ohne den Lauf schon als vollständig
+    gesendet zu markieren - z.B. wenn erst manche Bahnen fertig zugeordnet
+    sind. server_lauf_id wird trotzdem gespeichert (idempotente Updates bei
+    künftigen Versuchen), Status bleibt 'ausstehend'."""
+    verbindung.execute(
+        "UPDATE lokaler_lauf SET server_lauf_id = ?, sync_versucht_um = ? WHERE id = ?",
+        (server_lauf_id, versucht_um, lauf_id),
+    )
+    verbindung.commit()

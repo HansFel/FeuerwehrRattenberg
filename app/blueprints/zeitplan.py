@@ -281,16 +281,23 @@ def _format_uhrzeit(dt: datetime) -> str:
 
 
 def _heats_in_reihenfolge(disziplin: Disziplin) -> list[str]:
-    """Einzigartige Heat-Namen in der Reihenfolge ihres ersten Auftretens."""
-    seen: set[str] = set()
-    heats: list[str] = []
+    """Einzigartige Heat-Namen in numerischer Reihenfolge (Vorrunde 1, 2, ...
+    10, 11, ... – nicht alphabetisch)."""
+    seen: dict[str, None] = {}
     for sp in (Startplatz.query
                .filter_by(disziplin_id=disziplin.id)
                .order_by(Startplatz.heat, Startplatz.startnummer).all()):
         key = sp.heat or ""
         if key not in seen:
-            seen.add(key)
-            heats.append(key)
+            seen[key] = None
+    heats = list(seen.keys())
+
+    def _sort_key(name: str):
+        import re
+        zahlen = re.findall(r"\d+", name)
+        return tuple(int(z) for z in zahlen) if zahlen else (0,)
+
+    heats.sort(key=_sort_key)
     return heats
 
 
