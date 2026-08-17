@@ -114,6 +114,7 @@ def disziplin(disziplin_id: int):
     startplaetze = (Startplatz.query
                     .filter_by(disziplin_id=disziplin.id)
                     .order_by(Startplatz.heat, Startplatz.startnummer).all())
+    startplaetze = _startplaetze_numerisch_sortieren(startplaetze)
     teams = Team.query.order_by(Team.startnummer, Team.name).all()
     return render_template("zeitplan/disziplin.html", disziplin=disziplin,
                            startplaetze=startplaetze, teams=teams)
@@ -299,6 +300,18 @@ def _heats_in_reihenfolge(disziplin: Disziplin) -> list[str]:
 
     heats.sort(key=_sort_key)
     return heats
+
+
+def _startplaetze_numerisch_sortieren(startplaetze: list[Startplatz]) -> list[Startplatz]:
+    """Sortiert Startplaetze nach Heat-Nummer (numerisch, nicht alphabetisch)
+    und innerhalb eines Heats nach Bahn/Startnummer."""
+    import re
+
+    def heat_nr(sp):
+        zahlen = re.findall(r"\d+", sp.heat or "")
+        return tuple(int(z) for z in zahlen) if zahlen else (0,)
+
+    return sorted(startplaetze, key=lambda sp: (heat_nr(sp), sp.startnummer or 0))
 
 
 def _startzeiten_automatisch_berechnen(disziplin: Disziplin) -> None:
