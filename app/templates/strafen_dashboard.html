@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block titel %}Strafenkatalog{% endblock %}
+{% block inhalt %}
+  <div class="strafen-dashboard">
+    <h1>📋 Strafenkatalog</h1>
+
+    <form method="post" action="{{ url_for("strafen.vergeben") }}" class="strafen-form">
+      <label class="ausschank-gruppe" for="team_id">
+        <strong>Team auswählen</strong>
+        <select id="team_id" name="team_id" required onchange="strafenRegelAktualisieren()">
+          <option value="">– Team wählen –</option>
+          {% for team in teams %}
+            <option value="{{ team.id }}">
+              {{ team.startnummer if team.startnummer else "" }} {{ team.name }}
+              {% if summen.get(team.id, 0) > 0 %}({{ summen[team.id]|round(0) }} s){% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <h2>Regel aus dem Strafenkatalog</h2>
+      <div class="kasse-grid">
+        {% for eintrag in katalog %}
+        <div class="kasse-kachel kasse-getraenk strafen-regel"
+             data-nr="{{ eintrag.nr }}"
+             data-variabel="{{ "true" if "sekunden_pro_einheit" in eintrag else "false" }}">
+          <button type="button" class="kasse-tipp"
+                  onclick="strafenRegelWaehlen('{{ eintrag.nr }}')">
+            <strong>Regel {{ eintrag.nr }}</strong>
+            <span>{{ eintrag.regel }}
+              {% if "sekunden_pro_einheit" in eintrag %}
+                · {{ eintrag.sekunden_pro_einheit }} s/{{ eintrag.einheit }}
+              {% else %}
+                · +{{ eintrag.sekunden }} s
+              {% endif %}
+            </span>
+          </button>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div id="strafen-menge-feld" class="strafen-menge" style="display:none;">
+        <label for="menge"><strong>Menge (<span id="strafen-einheit">Gramm</span>)</strong></label>
+        <input id="menge" name="menge" type="number" min="1" step="1"
+               inputmode="decimal" placeholder="0"
+               oninput="strafenVorschau()">
+      </div>
+
+      <input type="hidden" id="regel_nr" name="regel_nr" value="">
+      <label for="notiz" class="strafen-notiz">
+        <strong>Notiz (optional)</strong>
+        <input id="notiz" name="notiz" type="text" maxlength="200" placeholder="z.B. Bahn 2">
+      </label>
+
+      <div class="strafen-vorschau">
+        <strong id="strafen-vorschau-text">Bitte Team und Regel wählen</strong>
+      </div>
+
+      <button class="knopf gross" type="submit" id="strafen-absenden" disabled>
+        Strafe vergeben
+      </button>
+    </form>
+
+    <h2>Vergebene Strafen</h2>
+    {% if strafen %}
+    <table class="strafen-tabelle">
+      <thead><tr><th>Zeit</th><th>Team</th><th>Regel</th><th>Strafe</th><th>Notiz</th><th>Von</th><th></th></tr></thead>
+      <tbody>
+        {% for s in strafen %}
+        <tr>
+          <td>{{ s.erstellt.strftime("%H:%M") }}</td>
+          <td>{{ teams_nach_id[s.team_id].name if s.team_id in teams_nach_id else "?" }}</td>
+          <td>{{ s.regel_nr }} – {{ s.regel_text }}</td>
+          <td class="strafe-sekunden">+{{ s.sekunden|round(0) }} s</td>
+          <td>{{ s.notiz or "" }}</td>
+          <td>{{ s.erfasst_von }}</td>
+          <td>
+            <form method="post" action="{{ url_for("strafen.loeschen", strafe_id=s.id) }}"
+                  style="display:inline">
+              <button class="knopf klein rot" type="submit"
+                      onclick="return confirm('Strafe wirklich löschen?')">Löschen</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p class="leer">Noch keine Strafen vergeben.</p>
+    {% endif %}
+  </div>
+
+  <script>
+    var KATALOG = {
+      {% for eintrag in katalog %}
+      "{{ eintrag.nr }}": {
+        "regel": "{{ eintrag.regel }}",
+        "variabel": {{ "true" if "sekunden_pro_einheit" in eintrag else "false" }},
+        "sekunden": {{ eintrag.get("sekunden", 0) }},
+        "sekunden_pro_einheit": {{ eintrag.get("sekunden_pro_einheit", 0) }},
+        "einheit": "{{ eintrag.get("einheit", "") }}"
+      }{{ "," if not loop.last }}
+      {% endfor %}
+    };
+
+    function strafenRegelWaehlen(nr) {
+      document.getElementById("regel_nr").value = nr;
+      document.querySelectorAll(".strafen-regel").forEach(function(el) {
+        el.style.outline = el.dataset.nr === nr ? "3px solid #f9a825" : "none";
+      });
+      strafenRegelAktualisieren();
+    }
+
+    function strafenRegelAktualisieren() {
+      var nr = document.getElementById("regel_nr").value;
+      var teamFeld = document.getElementById("team_id");
+      var eintrag = KATALOG[nr];
+      var mengenFeld = document.getElementById("strafen-menge-feld");
+      if (eintrag && eintrag.variabel) {
+        mengenFeld.style.display = "";
+        document.getElementById("strafen-einheit").textContent = eintrag.einheit;
+      } else {
+        mengenFeld.style.display = "none";
+      }
+      strafenVorschau();
+    }
+
+    function strafenVorschau() {
+      var nr = document.getElementById("regel_nr").value;
+      var teamFeld = document.getElementById("team_id");
+      var eintrag = KATALOG[nr];
+      var absenden = document.getElementById("strafen-absenden");
+      var vorschau = document.getElementById("strafen-vorschau-text");
+      if (!teamFeld.value || !nr) {
+        absenden.disabled = true;
+        vorschau.textContent = "Bitte Team und Regel wählen";
+        return;
+      }
+      if (eintrag.variabel) {
+        var menge = parseFloat(document.getElementById("menge").value || 0);
+        if (!menge || menge <= 0) {
+          absenden.disabled = true;
+          vorschau.textContent = "Bitte Menge eingeben";
+          return;
+        }
+        var sekunden = menge * eintrag.sekunden_pro_einheit;
+        vorschau.textContent = "+" + Math.round(sekunden) + " s (" + eintrag.regel + ", " + menge + " " + eintrag.einheit + ")";
+      } else {
+        var sekunden = eintrag.sekunden;
+        vorschau.textContent = "+" + sekunden + " s (" + eintrag.regel + ")";
+      }
+      absenden.disabled = false;
+    }
+  </script>
+{% endblock %}

@@ -573,3 +573,54 @@ class BestellPosition(db.Model):
     @property
     def pfand_offen_betrag(self) -> float:
         return self.pfand_offen_anzahl * self.pfand_pro_einheit
+
+# ── Strafenkatalog Siloplanenrace ────────────────────────────────────────────
+# Fest definierter Katalog fuer die Startrichter - nicht in der DB editierbar,
+# nur die vergebenen Strafen werden gespeichert. Jede Regel hat entweder eine
+# feste Sekundenzahl ('sekunden') oder einen variablen Betrag
+# ('sekunden_pro_einheit' mit 'einheit'-Bezeichnung, z.B. Gramm).
+
+STRAFKATALOG = [
+    {"nr": "1",   "regel": "Getränk wird weggeschüttet",                    "sekunden": 60},
+    {"nr": "2.1", "regel": "Getränk rinnt am Mund vorbei – Small",          "sekunden": 5},
+    {"nr": "2.2", "regel": "Getränk rinnt am Mund vorbei – Medium",         "sekunden": 10},
+    {"nr": "2.3", "regel": "Getränk rinnt am Mund vorbei – Large",          "sekunden": 20},
+    {"nr": "2.4", "regel": "Getränk rinnt am Mund vorbei – XL",             "sekunden": 30},
+    {"nr": "3.1", "regel": "Nicht vollständig ausgetrunken – pro 1 Gramm",
+     "sekunden_pro_einheit": 1, "einheit": "Gramm"},
+    {"nr": "3.2", "regel": "Nicht vollständig ausgetrunken – pro 2 Gramm",
+     "sekunden_pro_einheit": 2, "einheit": "Gramm"},
+    {"nr": "4",   "regel": "Frühstart",                                      "sekunden": 5},
+    {"nr": "5",   "regel": "Laufen auf der Bahn",                            "sekunden": 10},
+    {"nr": "6",   "regel": "Behinderung des Gegners",                        "sekunden": 5},
+    {"nr": "7",   "regel": "Kotzen der Laufenden",                           "sekunden": 10},
+    {"nr": "7.1", "regel": "Kotzen ins Wasserbecken",                        "sekunden": 999},
+    {"nr": "8",   "regel": "Austausch von Teammitgliedern (nur mit Absprache)",
+     "sekunden": 0},
+]
+
+STRAFKATALOG_NACH_NR = {e["nr"]: e for e in STRAFKATALOG}
+
+
+class Strafe(db.Model):
+    """Eine vom Startrichter vergebene Strafe aus dem Strafenkatalog.
+
+    Wird einem Team zugewiesen; die Sekunden fliessen in die Gesamt-Strafzeit
+    des Teams ein. Der Katalog selbst ist fest im Code (STRAFKATALOG), hier
+    wird nur die vergaberelevante Snapshot-Info gespeichert.
+    """
+    __tablename__ = "strafe"
+
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("team.id"), nullable=False)
+    regel_nr = db.Column(db.String(10), nullable=False)
+    regel_text = db.Column(db.String(200), default="")
+    sekunden = db.Column(db.Float, nullable=False, default=0.0)
+    notiz = db.Column(db.String(200), default="")
+    erfasst_von = db.Column(db.String(80), default="")
+    erstellt = db.Column(db.DateTime, default=_jetzt)
+
+    team = db.relationship("Team")
+
+    def __repr__(self):
+        return f"<Strafe Team {self.team_id} {self.regel_nr} {self.sekunden}s>"

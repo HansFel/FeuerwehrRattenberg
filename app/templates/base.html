@@ -35,6 +35,7 @@
       {% if dashboard_zeigt('organisator', 'startrichter') %}
         <a href="{{ url_for('zeitmessung.liste') }}">Zeitmessung</a>
         <a href="{{ url_for('notfall.liste') }}">🆘 Notfall</a>
+        <a href="{{ url_for('strafen.dashboard') }}">📋 Strafen</a>
       {% endif %}
       {% if dashboard_zeigt('moderator', 'organisator') %}
         <a href="{{ url_for('moderator.dashboard') }}">🎙️ Moderation</a>
