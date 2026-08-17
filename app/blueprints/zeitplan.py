@@ -1,5 +1,6 @@
 """Startlisten / Zeitplan je Disziplin."""
 import random
+from datetime import datetime, timedelta
 
 from flask import (Blueprint, flash, redirect, render_template, request,
                    url_for)
@@ -97,6 +98,17 @@ def disziplin(disziplin_id: int):
         elif aktion == "speichern":
             _startzeiten_speichern(disziplin)
             flash("Startliste gespeichert.", "ok")
+        elif aktion == "einstellungen":
+            dauer = _float_or_none(request.form.get("dauer_pro_lauf_min"))
+            disziplin.dauer_pro_lauf_min = dauer if dauer and dauer > 0 else 7.0
+            disziplin.startzeit_erster_lauf = request.form.get(
+                "startzeit_erster_lauf", "").strip()
+            db.session.commit()
+            flash("Zeitplan-Einstellungen gespeichert.", "ok")
+        elif aktion == "startzeiten_auto":
+            _startzeiten_automatisch_berechnen(disziplin)
+        elif aktion == "startzeiten_anpassen":
+            _startzeiten_anpassen(disziplin)
         return redirect(url_for("zeitplan.disziplin", disziplin_id=disziplin.id))
 
     startplaetze = (Startplatz.query
@@ -249,3 +261,88 @@ def _rangliste_berechnen(disziplin: Disziplin, praefix: str) -> list[dict]:
         e["rang"] = None
 
     return vollstaendig + unvollstaendig
+
+# ── Automatische Startzeit-Berechnung ─────────────────────────────────────────
+
+
+def _parse_uhrzeit(text: str) -> datetime | None:
+    """Parst 'HH:MM' -> datetime (heute + Uhrzeit). None bei Fehler."""
+    text = (text or "").strip()
+    for fmt in ("%H:%M", "%H:%M:%S"):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            pass
+    return None
+
+
+def _format_uhrzeit(dt: datetime) -> str:
+    return dt.strftime("%H:%M")
+
+
+def _heats_in_reihenfolge(disziplin: Disziplin) -> list[str]:
+    """Einzigartige Heat-Namen in der Reihenfolge ihres ersten Auftretens."""
+    seen: set[str] = set()
+    heats: list[str] = []
+    for sp in (Startplatz.query
+               .filter_by(disziplin_id=disziplin.id)
+               .order_by(Startplatz.heat, Startplatz.startnummer).all()):
+        key = sp.heat or ""
+        if key not in seen:
+            seen.add(key)
+            heats.append(key)
+    return heats
+
+
+def _startzeiten_automatisch_berechnen(disziplin: Disziplin) -> None:
+    """Berechnet Startzeiten fuer alle Heats dieser Disziplin anhand der
+    Einstellungen dauer_pro_lauf_min und startzeit_erster_lauf."""
+    start = _parse_uhrzeit(disziplin.startzeit_erster_lauf or "")
+    if start is None:
+        flash("Bitte zuerst eine Startzeit fuer den ersten Lauf eintragen "
+              "(z.B. 10:00).", "error")
+        return
+    dauer = timedelta(minutes=float(disziplin.dauer_pro_lauf_min or 7.0))
+    heats = _heats_in_reihenfolge(disziplin)
+    if not heats:
+        flash("Keine Laeufe vorhanden – zuerst Startliste erstellen.", "error")
+        return
+    for i, heat in enumerate(heats):
+        zeit = _format_uhrzeit(start + i * dauer)
+        for sp in Startplatz.query.filter_by(disziplin_id=disziplin.id,
+                                              heat=heat).all():
+            sp.startzeit = zeit
+    db.session.commit()
+    flash(f"Startzeiten automatisch berechnet: {len(heats)} Laeufe, "
+          f"Start {heats[0]} um {_format_uhrzeit(start)}, "
+          f"jeweils {disziplin.dauer_pro_lauf_min:.0f} Min Abstand.", "ok")
+
+
+def _startzeiten_anpassen(disziplin: Disziplin) -> None:
+    """Passt die Startzeiten ab einem bestimmten Lauf an. Der User gibt an:
+    - ab_welchem_heat: Name des Laufs, ab dem angepasst wird
+    - neue_startzeit: tatsaechliche/geplante Startzeit dieses Laufs
+    Alle folgenden Laeufe bekommen neue_startzeit + n*dauer als Startzeit."""
+    ab_heat = request.form.get("ab_welchem_heat", "").strip()
+    neue_zeit = request.form.get("neue_startzeit", "").strip()
+    start = _parse_uhrzeit(neue_zeit)
+    if start is None:
+        flash("Bitte eine gueltige neue Startzeit angeben (z.B. 11:15).",
+              "error")
+        return
+    heats = _heats_in_reihenfolge(disziplin)
+    if ab_heat not in heats:
+        flash(f"Lauf '{ab_heat}' nicht gefunden. Verfuegbare Laeufe: "
+              f"{', '.join(heats[:5])}", "error")
+        return
+    dauer = timedelta(minutes=float(disziplin.dauer_pro_lauf_min or 7.0))
+    idx = heats.index(ab_heat)
+    for i, heat in enumerate(heats[idx:], start=0):
+        zeit = _format_uhrzeit(start + i * dauer)
+        for sp in Startplatz.query.filter_by(disziplin_id=disziplin.id,
+                                              heat=heat).all():
+            sp.startzeit = zeit
+    db.session.commit()
+    angepasst = len(heats) - idx
+    flash(f"Startzeiten angepasst: {angepasst} Lauf/Laeufe ab '{ab_heat}' "
+          f"ab {_format_uhrzeit(start)} neu berechnet.", "ok")

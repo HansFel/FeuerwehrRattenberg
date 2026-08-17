@@ -248,6 +248,10 @@ def _schema_migrieren() -> None:
     _spalten_ergaenzen("zeitereignis", {
         "client_event_id": "VARCHAR(64)",
     })
+    _spalten_ergaenzen("disziplin", {
+        "dauer_pro_lauf_min": f"{gleitkomma} NOT NULL DEFAULT 7.0",
+        "startzeit_erster_lauf": "VARCHAR(20)",
+    })
 
 
 def _standard_admin_anlegen(app: Flask) -> None:

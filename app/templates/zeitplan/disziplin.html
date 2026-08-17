@@ -27,6 +27,55 @@
   </div>
 
   {% if darf_bearbeiten %}
+  <details class="zeitplan-einstellungen" style="margin-top:1rem; border:2px solid var(--rand); border-radius:10px; padding:1rem;">
+    <summary style="cursor:pointer; font-weight:700;">🕐 Zeitplan automatisch berechnen</summary>
+    <form method="post" style="margin-top:1rem;">
+      <input type="hidden" name="aktion" value="einstellungen">
+      <div class="werkzeugleiste">
+        <label>Dauer pro Lauf (Min. inkl. Puffer):
+          <input type="number" name="dauer_pro_lauf_min" value="{{ disziplin.dauer_pro_lauf_min if disziplin.dauer_pro_lauf_min else 7 }}" step="0.5" min="1" style="width:6rem">
+        </label>
+        <label>Startzeit 1. Lauf:
+          <input type="text" name="startzeit_erster_lauf" value="{{ disziplin.startzeit_erster_lauf or '' }}" placeholder="z.B. 10:00" style="width:8rem">
+        </label>
+        <button class="knopf grau" type="submit">Einstellungen speichern</button>
+      </div>
+    </form>
+    {% if startplaetze %}
+    <form method="post" style="margin-top:0.8rem;">
+      <input type="hidden" name="aktion" value="startzeiten_auto">
+      <button class="knopf" type="submit"
+              onclick="return confirm('Startzeiten automatisch berechnen? Vorhandene Startzeiten werden ueberschrieben.')">
+        ⏱️ Startzeiten automatisch berechnen
+      </button>
+    </form>
+    <form method="post" style="margin-top:0.8rem;">
+      <input type="hidden" name="aktion" value="startzeiten_anpassen">
+      <div class="werkzeugleiste">
+        <label>Ab Lauf:
+          <select name="ab_welchem_heat" required>
+            <option value="">– Lauf wählen –</option>
+            {% set ns_h = namespace(seen=[]) %}
+            {% for sp in startplaetze %}
+              {% if sp.heat and sp.heat not in ns_h.seen %}
+                {% set ns_h.seen = ns_h.seen + [sp.heat] %}
+                <option value="{{ sp.heat }}">{{ sp.heat }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </label>
+        <label>Neue Startzeit:
+          <input type="text" name="neue_startzeit" placeholder="z.B. 11:15" style="width:8rem" required>
+        </label>
+        <button class="knopf" type="submit">Ab hier Startzeiten anpassen</button>
+      </div>
+      <p class="leer" style="margin-top:0.3rem">Passt die Startzeiten dieses und aller folgenden Laeufe an – z.B. bei Verzoegerungen. Bereits gelaufene Laeufe bleiben unberuehrt.</p>
+    </form>
+    {% endif %}
+  </details>
+  {% endif %}
+
+  {% if darf_bearbeiten %}
   <form class="formular" method="post" style="max-width:100%; margin-top:1rem;">
     <input type="hidden" name="aktion" value="hinzufuegen">
     <div class="werkzeugleiste">

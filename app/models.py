@@ -256,6 +256,9 @@ class Disziplin(db.Model):
     # Sekunden pro Fehlerpunkt (nur bei Zeit-Wertung relevant)
     strafsekunden_pro_fehler = db.Column(db.Float, default=0.0)
     reihenfolge = db.Column(db.Integer, default=0)         # Sortierung im Ablauf
+    # Fuer automatische Startzeit-Berechnung (Zeitplan):
+    dauer_pro_lauf_min = db.Column(db.Float, default=7.0)  # inkl. Puffer
+    startzeit_erster_lauf = db.Column(db.String(20), default="")
 
     ergebnisse = db.relationship("Ergebnis", back_populates="disziplin",
                                  cascade="all, delete-orphan")
