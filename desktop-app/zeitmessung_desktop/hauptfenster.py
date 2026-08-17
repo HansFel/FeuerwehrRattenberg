@@ -26,14 +26,15 @@ class EinstellungenDialog(QDialog):
 
         layout = QFormLayout(self)
         self._feld_hinzufuegen(layout, "com_port", "COM-Port", aktuelle.com_port)
-        self._feld_hinzufuegen(layout, "baudrate", "Baudrate", aktuelle.baudrate)
+        self._feld_hinzufuegen(layout, "baudrate", "Baudrate", aktuelle.baudrate,
+                               bereich=(1200, 2_000_000))
         self._feld_hinzufuegen(layout, "webapp_url", "Webapp-URL", aktuelle.webapp_url)
         self._feld_hinzufuegen(layout, "api_key", "API-Key", aktuelle.api_key)
         self._feld_hinzufuegen(layout, "instance_name", "Instanzname", aktuelle.instance_name)
         self._feld_hinzufuegen(layout, "sync_intervall_s", "Sync-Intervall (s)",
-                               aktuelle.sync_intervall_s)
+                               aktuelle.sync_intervall_s, bereich=(1, 86400))
         self._feld_hinzufuegen(layout, "backup_intervall_min", "Backup-Intervall (Min)",
-                               aktuelle.backup_intervall_min)
+                               aktuelle.backup_intervall_min, bereich=(1, 86400))
         self._feld_hinzufuegen(layout, "backup_ordner", "Backup-Ordner", aktuelle.backup_ordner)
 
         knopfzeile = QHBoxLayout()
@@ -45,10 +46,11 @@ class EinstellungenDialog(QDialog):
         knopfzeile.addWidget(abbrechen_knopf)
         layout.addRow(knopfzeile)
 
-    def _feld_hinzufuegen(self, layout: QFormLayout, name: str, beschriftung: str, wert) -> None:
+    def _feld_hinzufuegen(self, layout: QFormLayout, name: str, beschriftung: str, wert,
+                          bereich: tuple[int, int] = (1, 86400)) -> None:
         if isinstance(wert, int):
             feld = QSpinBox()
-            feld.setRange(1, 86400)
+            feld.setRange(*bereich)
             feld.setValue(wert)
         else:
             feld = QLineEdit(str(wert))
