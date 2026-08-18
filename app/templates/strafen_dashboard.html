@@ -4,9 +4,14 @@
   <div class="strafen-dashboard">
     <h1>📋 Strafenkatalog</h1>
 
+    {% if not teams %}
+      <p class="leer">Kein aktueller Lauf im Moderator-Dashboard eingestellt –
+        Strafen können nur an Teams des dort gewählten Laufs (Disziplin +
+        Heat) vergeben werden. Bitte dort zuerst Disziplin/Heat wählen.</p>
+    {% endif %}
     <form method="post" action="{{ url_for("strafen.vergeben") }}" class="strafen-form">
       <label class="ausschank-gruppe" for="team_id">
-        <strong>Team auswählen</strong>
+        <strong>Team auswählen (nur Teams des aktuellen Laufs)</strong>
         <select id="team_id" name="team_id" required onchange="strafenRegelAktualisieren()">
           <option value="">– Team wählen –</option>
           {% for team in teams %}
