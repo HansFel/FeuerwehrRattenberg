@@ -2,7 +2,7 @@
 import pytest
 
 from app import create_app
-from app.models import db, Team, Disziplin, Startplatz
+from app.models import db, Team, Disziplin, Startplatz, Strafe
 
 
 @pytest.fixture
@@ -45,6 +45,28 @@ def test_besucheransicht_zeigt_gesamtwertung_und_zeitplan(client, app):
     assert "Sichtbares Team" in text
     assert "Vorrunde 1" in text
     assert "10:00" in text
+
+
+def test_besucheransicht_zeigt_rennzeit_strafen_und_gesamtzeit(client, app):
+    with app.app_context():
+        d = Disziplin(name="Siloplanen-Race")
+        team = Team(name="Strafteam")
+        db.session.add_all([d, team])
+        db.session.commit()
+        db.session.add(Startplatz(team_id=team.id, disziplin_id=d.id,
+                                  startnummer=1, heat="Vorrunde 1",
+                                  ergebnis_sekunden=40.0))
+        db.session.add(Strafe(team_id=team.id, regel_nr="4",
+                              regel_text="Frühstart", sekunden=5.0))
+        db.session.commit()
+
+    r = client.get("/besucher/")
+    text = r.data.decode("utf-8")
+    assert "Rennzeit" in text
+    assert "Strafsekunden" in text
+    # Rennzeit 40s, Strafe 5s -> Gesamtzeit 45s = "45,00 s"
+    assert "40,00 s" in text
+    assert "45,00 s" in text
 
 
 def test_besucheransicht_ohne_daten_zeigt_leer_meldung(client):
