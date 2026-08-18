@@ -118,7 +118,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     from .blueprints import (teams, disziplinen, wertung, zeitplan, start,
                              auth, export, pdf, benutzer, sicherung,
                              anforderungen, nachrichten, speisekarte, bestellung,
-                             zeitmessung, notfall, moderator, strafen)
+                             zeitmessung, notfall, moderator, strafen, besucher)
 
     from flask_login import current_user as _current_user
 
@@ -147,6 +147,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(notfall.bp)
     app.register_blueprint(moderator.bp)
     app.register_blueprint(strafen.bp)
+    app.register_blueprint(besucher.bp)
 
     with app.app_context():
         db.create_all()
