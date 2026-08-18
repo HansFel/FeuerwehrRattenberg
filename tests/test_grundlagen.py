@@ -208,3 +208,35 @@ def test_wertungsuebersicht_zeigt_gemessene_zeit_und_gesamtzeit(client, app):
     # Team A: 55s gemessen + 5s Strafe = 60s = "1:00,00"
     assert "55,00 s".encode() in r.data
     assert "1:00,00".encode() in r.data
+
+
+def test_gesamtwertung_gereiht_nach_gesamtzeit(app):
+    """Rang in der Gesamtwertung muss nach Gesamtzeit (gemessene Zeit +
+    Strafsekunden) gehen, nicht nach Rangpunkten - niedrigste Zeit zuerst,
+    Teams ohne gemessene Zeit ans Ende."""
+    with app.app_context():
+        d = Disziplin(name="Siloplanen-Race")
+        team_a = Team(name="Team A")   # 55s + 5s Strafe = 60s
+        team_b = Team(name="Team B")   # 40s, keine Strafe -> schnellstes Team
+        team_c = Team(name="Team C")   # noch keine gemessene Zeit
+        db.session.add_all([d, team_a, team_b, team_c])
+        db.session.commit()
+
+        db.session.add_all([
+            Startplatz(team_id=team_a.id, disziplin_id=d.id, startnummer=1,
+                      heat="Vorrunde 1", ergebnis_sekunden=55.0),
+            Startplatz(team_id=team_b.id, disziplin_id=d.id, startnummer=2,
+                      heat="Vorrunde 1", ergebnis_sekunden=40.0),
+        ])
+        db.session.add(Strafe(team_id=team_a.id, regel_nr="4",
+                              regel_text="Frühstart", sekunden=5.0))
+        db.session.commit()
+
+    client = app.test_client()
+    r = client.get("/wertung/")
+    text = r.data.decode("utf-8")
+    # Team B (40s) muss vor Team A (60s) erscheinen, beide vor Team C (ohne Zeit)
+    pos_b = text.index("Team B")
+    pos_a = text.index("Team A")
+    pos_c = text.index("Team C")
+    assert pos_b < pos_a < pos_c

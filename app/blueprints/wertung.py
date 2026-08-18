@@ -48,6 +48,14 @@ def uebersicht():
         else:
             zeile["gesamtzeit"] = zeile["gemessene_zeit"] + zeile["strafsekunden"]
 
+    # Reihung der Gesamtwertung: niedrigste Gesamtzeit (gemessene Zeit +
+    # Strafsekunden) zuerst - nicht mehr die Rangpunkte aus "punkte" (die
+    # bleiben als eigene Spalte informativ erhalten). Teams ohne gemessene
+    # Zeit (noch nicht gelaufen) stehen ans Ende, behalten aber einen Rang.
+    tabelle.sort(key=lambda z: (z["gesamtzeit"] is None, z["gesamtzeit"]))
+    for i, zeile in enumerate(tabelle, start=1):
+        zeile["rang"] = i
+
     return render_template("wertung/uebersicht.html",
                            disziplinen=disziplinen, tabelle=tabelle)
 
