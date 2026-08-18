@@ -180,14 +180,26 @@ Auch `git push` (HTTPS nach GitHub) braucht dasselbe, da der
 Die Approval-Policy muss `ask` oder weaker sein, damit die Eskalation
 funktioniert (bei `never` wird sie automatisch abgelehnt).
 
-**Aktueller Deploy-Stand (2026-08-17):** ThinkPad läuft Build 26
-(`ffrattenberg-app:build15` als Image-Tag) auf ALLEN vier Instanzen
+**Aktueller Deploy-Stand (2026-08-18):** ThinkPad läuft Build 35
+(`ffrattenberg-app:build24` als Image-Tag) auf ALLEN vier Instanzen
 (Produktion + test1/test2/generalprobe). `BUILD_TAG` in `deployment/.env`
-und `deployment/.env.test` beide auf `build15` – bewusst gleich gehalten,
+und `deployment/.env.test` beide auf `build24` – bewusst gleich gehalten,
 da Test-Instanzen dasselbe Image nutzen wie Produktion. Beim nächsten Deploy
 beide hochzählen. Standby-Server ffrattenberg (.238) ist noch auf Build 18
 bzw. build12 – muss separat aktualisiert werden, falls er als Failover
 dienen soll.
+
+**Wichtige Falle (2026-08-18 erlebt):** `docker-compose.ffrattenberg-test.yml`
+hat für die App-Services (`app-test1`/`app-test2`/`app-generalprobe`) **KEINEN
+eigenen `build:`-Abschnitt**, nur `image: ffrattenberg-app:${BUILD_TAG}` –
+`docker compose ... --build` baut dort also NICHTS, sondern nutzt einfach
+ein evtl. schon vorhandenes, altes Image mit diesem Tag (falls der Tag
+zufällig mit einem früheren Deploy übereinstimmt, startet Test lautlos mit
+altem Code, ohne Fehlermeldung). **`.env` (Produktion, hat den echten
+`build:`-Schritt) und `.env.test` MÜSSEN nach jedem Deploy auf denselben
+`BUILD_TAG` gesetzt werden**, nicht unabhängig hochgezählt – sonst bekommt
+Test nie den gerade gebauten Code. Nach dem Deploy immer per
+`curl .../test1/... | grep Build` verifizieren, nicht nur auf der Produktion.
 
 **Pfand-Konfiguration auf test1 (2026-08-17 per SQL gesetzt):** Alle
 Getränke (`kategorie='getraenk'`) auf test1 haben `pfand_pro_einheit=1.0`.
