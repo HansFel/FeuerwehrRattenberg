@@ -86,7 +86,7 @@ def test_strafe_fest_vergeben(client, app):
         "regel_nr": "1",
     }, follow_redirects=True)
     assert r.status_code == 200
-    assert "Strafe vergeben".encode() in r.data
+    assert "Strafe(n) vergeben".encode() in r.data
     assert "+60 s".encode() in r.data
 
     with app.app_context():
@@ -106,10 +106,10 @@ def test_strafe_variabel_vergeben(client, app):
     r = client.post("/strafen/vergeben", data={
         "team_id": str(team_id),
         "regel_nr": "3.1",
-        "menge": "15",
+        "menge_3.1": "15",
     }, follow_redirects=True)
     assert r.status_code == 200
-    assert "Strafe vergeben".encode() in r.data
+    assert "Strafe(n) vergeben".encode() in r.data
 
     with app.app_context():
         strafe = Strafe.query.one()
@@ -129,6 +129,31 @@ def test_strafe_variabel_ohne_menge_abgelehnt(client, app):
     }, follow_redirects=True)
     assert "Bitte eine Menge".encode() in r.data
     assert Strafe.query.count() == 0
+
+
+def test_strafe_mehrfachauswahl_erzeugt_mehrere_strafen(client, app):
+    """Mehrere Regeln (fest + variabel) in einem Absenden auswaehlen -
+    jede erzeugt eine eigene Strafe."""
+    _login(client, "punkt1", "pw")
+    with app.app_context():
+        team = Team.query.filter_by(name="Team A").first()
+        team_id = team.id
+
+    r = client.post("/strafen/vergeben", data={
+        "team_id": str(team_id),
+        "regel_nr": ["1", "4", "3.1"],
+        "menge_3.1": "10",
+    }, follow_redirects=True)
+    assert r.status_code == 200
+    assert "3 Strafe(n) vergeben".encode() in r.data
+
+    with app.app_context():
+        strafen = Strafe.query.filter_by(team_id=team_id).order_by(Strafe.regel_nr).all()
+        assert len(strafen) == 3
+        nach_regel = {s.regel_nr: s.sekunden for s in strafen}
+        assert nach_regel["1"] == 60.0
+        assert nach_regel["4"] == 5.0
+        assert nach_regel["3.1"] == 10.0
 
 
 def test_strafe_ohne_team_abgelehnt(client):

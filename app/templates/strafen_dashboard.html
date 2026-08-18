@@ -12,7 +12,7 @@
     <form method="post" action="{{ url_for("strafen.vergeben") }}" class="strafen-form">
       <label class="ausschank-gruppe" for="team_id">
         <strong>Team auswählen (nur Teams des aktuellen Laufs)</strong>
-        <select id="team_id" name="team_id" required onchange="strafenRegelAktualisieren()">
+        <select id="team_id" name="team_id" required onchange="strafenVorschau()">
           <option value="">– Team wählen –</option>
           {% for team in teams %}
             <option value="{{ team.id }}">
@@ -23,14 +23,15 @@
         </select>
       </label>
 
-      <h2>Regel aus dem Strafenkatalog</h2>
+      <h2>Regeln aus dem Strafenkatalog (Mehrfachauswahl möglich)</h2>
       <div class="kasse-grid">
         {% for eintrag in katalog %}
         <div class="kasse-kachel kasse-getraenk strafen-regel"
              data-nr="{{ eintrag.nr }}"
              data-variabel="{{ "true" if "sekunden_pro_einheit" in eintrag else "false" }}">
-          <button type="button" class="kasse-tipp"
-                  onclick="strafenRegelWaehlen('{{ eintrag.nr }}')">
+          <label class="kasse-tipp" style="display:block; cursor:pointer;">
+            <input type="checkbox" name="regel_nr" value="{{ eintrag.nr }}"
+                   class="strafen-checkbox" onchange="strafenRegelAktualisieren(this)">
             <strong>Regel {{ eintrag.nr }}</strong>
             <span>{{ eintrag.regel }}
               {% if "sekunden_pro_einheit" in eintrag %}
@@ -39,19 +40,19 @@
                 · +{{ eintrag.sekunden }} s
               {% endif %}
             </span>
-          </button>
+          </label>
+          {% if "sekunden_pro_einheit" in eintrag %}
+          <div class="strafen-menge" id="menge-feld-{{ eintrag.nr }}" style="display:none;">
+            <label>Menge ({{ eintrag.einheit }})
+              <input type="number" name="menge_{{ eintrag.nr }}" min="1" step="1"
+                     inputmode="decimal" placeholder="0" oninput="strafenVorschau()">
+            </label>
+          </div>
+          {% endif %}
         </div>
         {% endfor %}
       </div>
 
-      <div id="strafen-menge-feld" class="strafen-menge" style="display:none;">
-        <label for="menge"><strong>Menge (<span id="strafen-einheit">Gramm</span>)</strong></label>
-        <input id="menge" name="menge" type="number" min="1" step="1"
-               inputmode="decimal" placeholder="0"
-               oninput="strafenVorschau()">
-      </div>
-
-      <input type="hidden" id="regel_nr" name="regel_nr" value="">
       <label for="notiz" class="strafen-notiz">
         <strong>Notiz (optional)</strong>
         <input id="notiz" name="notiz" type="text" maxlength="200" placeholder="z.B. Bahn 2">
@@ -108,52 +109,56 @@
       {% endfor %}
     };
 
-    function strafenRegelWaehlen(nr) {
-      document.getElementById("regel_nr").value = nr;
-      document.querySelectorAll(".strafen-regel").forEach(function(el) {
-        el.style.outline = el.dataset.nr === nr ? "3px solid #f9a825" : "none";
-      });
-      strafenRegelAktualisieren();
-    }
-
-    function strafenRegelAktualisieren() {
-      var nr = document.getElementById("regel_nr").value;
-      var teamFeld = document.getElementById("team_id");
-      var eintrag = KATALOG[nr];
-      var mengenFeld = document.getElementById("strafen-menge-feld");
-      if (eintrag && eintrag.variabel) {
-        mengenFeld.style.display = "";
-        document.getElementById("strafen-einheit").textContent = eintrag.einheit;
-      } else {
-        mengenFeld.style.display = "none";
+    function strafenRegelAktualisieren(checkbox) {
+      var nr = checkbox.value;
+      var kachel = checkbox.closest(".strafen-regel");
+      kachel.style.outline = checkbox.checked ? "3px solid #f9a825" : "none";
+      var mengenFeld = document.getElementById("menge-feld-" + nr);
+      if (mengenFeld) {
+        mengenFeld.style.display = checkbox.checked ? "" : "none";
       }
       strafenVorschau();
     }
 
+    function strafenAusgewaehlteRegeln() {
+      return Array.prototype.slice.call(
+        document.querySelectorAll(".strafen-checkbox:checked"));
+    }
+
     function strafenVorschau() {
-      var nr = document.getElementById("regel_nr").value;
       var teamFeld = document.getElementById("team_id");
-      var eintrag = KATALOG[nr];
       var absenden = document.getElementById("strafen-absenden");
       var vorschau = document.getElementById("strafen-vorschau-text");
-      if (!teamFeld.value || !nr) {
+      var ausgewaehlt = strafenAusgewaehlteRegeln();
+
+      if (!teamFeld.value || ausgewaehlt.length === 0) {
         absenden.disabled = true;
-        vorschau.textContent = "Bitte Team und Regel wählen";
+        vorschau.textContent = "Bitte Team und mindestens eine Regel wählen";
         return;
       }
-      if (eintrag.variabel) {
-        var menge = parseFloat(document.getElementById("menge").value || 0);
-        if (!menge || menge <= 0) {
-          absenden.disabled = true;
-          vorschau.textContent = "Bitte Menge eingeben";
-          return;
+
+      var gesamt = 0;
+      var teile = [];
+      for (var i = 0; i < ausgewaehlt.length; i++) {
+        var nr = ausgewaehlt[i].value;
+        var eintrag = KATALOG[nr];
+        if (eintrag.variabel) {
+          var mengenFeld = document.querySelector('[name="menge_' + nr + '"]');
+          var menge = parseFloat((mengenFeld && mengenFeld.value) || 0);
+          if (!menge || menge <= 0) {
+            absenden.disabled = true;
+            vorschau.textContent = "Bitte Menge für Regel " + nr + " eingeben";
+            return;
+          }
+          var sekunden = menge * eintrag.sekunden_pro_einheit;
+          teile.push(eintrag.regel + " (" + menge + " " + eintrag.einheit + ")");
+          gesamt += sekunden;
+        } else {
+          teile.push(eintrag.regel);
+          gesamt += eintrag.sekunden;
         }
-        var sekunden = menge * eintrag.sekunden_pro_einheit;
-        vorschau.textContent = "+" + Math.round(sekunden) + " s (" + eintrag.regel + ", " + menge + " " + eintrag.einheit + ")";
-      } else {
-        var sekunden = eintrag.sekunden;
-        vorschau.textContent = "+" + sekunden + " s (" + eintrag.regel + ")";
       }
+      vorschau.textContent = "+" + Math.round(gesamt) + " s gesamt: " + teile.join(", ");
       absenden.disabled = false;
     }
   </script>

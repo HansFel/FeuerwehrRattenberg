@@ -3,7 +3,7 @@ from flask import (Blueprint, flash, redirect, render_template, request,
                    url_for)
 
 from ..models import (db, Team, Disziplin, Ergebnis, WERTUNG_ZEIT,
-                      BestellPosition, Strafe)
+                      BestellPosition, Strafe, Startplatz)
 from ..wertung import rangliste_disziplin, gesamtwertung
 from ..auth import darf
 
@@ -24,16 +24,29 @@ def uebersicht():
             getraenkepunkte[pos.team_id] = (
                 getraenkepunkte.get(pos.team_id, 0) + pos.punkte_gesamt)
 
-    # Strafsekunden je Team (aus dem Strafenkatalog der Startrichter)
+    # Strafsekunden je Team (aus dem Strafenkatalog der Punkterichter)
     strafsekunden: dict[int, float] = {}
     for s in Strafe.query.all():
         strafsekunden[s.team_id] = (
             strafsekunden.get(s.team_id, 0.0) + s.sekunden)
 
+    # Summe der gemessenen Zeiten je Team (aus der Zeitmessung, ueber
+    # Startplatz.ergebnis_sekunden - z.B. beide Vorrunden-Laeufe addiert).
+    # None nur, wenn noch KEINE gemessene Zeit vorliegt (nicht 0).
+    gemessene_zeit: dict[int, float] = {}
+    for sp in Startplatz.query.filter(Startplatz.ergebnis_sekunden.isnot(None)).all():
+        gemessene_zeit[sp.team_id] = (
+            gemessene_zeit.get(sp.team_id, 0.0) + sp.ergebnis_sekunden)
+
     for zeile in tabelle:
         tid = zeile["team"].id
         zeile["getraenkepunkte"] = getraenkepunkte.get(tid, 0)
         zeile["strafsekunden"] = strafsekunden.get(tid, 0.0)
+        zeile["gemessene_zeit"] = gemessene_zeit.get(tid)
+        if zeile["gemessene_zeit"] is None:
+            zeile["gesamtzeit"] = None
+        else:
+            zeile["gesamtzeit"] = zeile["gemessene_zeit"] + zeile["strafsekunden"]
 
     return render_template("wertung/uebersicht.html",
                            disziplinen=disziplinen, tabelle=tabelle)

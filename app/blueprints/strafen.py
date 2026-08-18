@@ -1,8 +1,9 @@
 """Strafenkatalog fuer die Punkterichter: vergibt Strafsekunden an Teams
 nach dem festen Siloplanenrace-Strafenkatalog (models.py:STRAFKATALOG).
-Der Punkterichter waehlt eine Regel, ein Team und ggf. eine Menge
-(fuer variable Regeln wie Gramm-Reste) - die Strafsekunden werden sofort
-gespeichert und koennen in der Auswertung beruecksichtigt werden."""
+Der Punkterichter waehlt ein Team und EINE ODER MEHRERE Regeln (fuer
+variable Regeln wie Gramm-Reste je eine Menge) - pro ausgewaehlter Regel
+wird eine eigene Strafe gespeichert, damit die Auswertung/Loeschung je
+Regel granular bleibt."""
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
@@ -43,14 +44,23 @@ def dashboard():
                            teams_nach_id=teams_nach_id)
 
 
+def _menge_or_none(wert):
+    if wert is None or str(wert).strip() == "":
+        return None
+    try:
+        menge = float(str(wert).replace(",", "."))
+    except ValueError:
+        return None
+    return menge if menge > 0 else None
+
+
 @bp.route("/vergeben", methods=["GET", "POST"])
 @rolle_noetig("punkterichter")
 def vergeben():
     if request.method == "GET":
         return redirect(url_for("strafen.dashboard"))
     team_id = request.form.get("team_id", type=int)
-    regel_nr = request.form.get("regel_nr", "")
-    eintrag = STRAFKATALOG_NACH_NR.get(regel_nr)
+    regel_nrn = request.form.getlist("regel_nr")
 
     aktuelle_team_ids = {t.id for t in _aktuelle_teams()}
     team = db.session.get(Team, team_id) if team_id else None
@@ -61,31 +71,46 @@ def vergeben():
         flash("Dieses Team ist nicht im aktuellen Lauf (Moderator-Dashboard "
               "pruefen). Strafe wurde nicht vergeben.", "error")
         return redirect(url_for("strafen.dashboard"))
-    if eintrag is None:
-        flash("Bitte eine Regel aus dem Strafenkatalog auswaehlen.", "error")
+    if not regel_nrn:
+        flash("Bitte mindestens eine Regel aus dem Strafenkatalog auswaehlen.",
+              "error")
         return redirect(url_for("strafen.dashboard"))
 
-    if "sekunden_pro_einheit" in eintrag:
-        menge = request.form.get("menge", type=float)
-        if not menge or menge <= 0:
-            flash('Bitte eine Menge eingeben (in ' + eintrag['einheit'] + ').', 'error')
-            return redirect(url_for("strafen.dashboard"))
-        sekunden = menge * eintrag['sekunden_pro_einheit']
-    else:
-        sekunden = float(eintrag.get('sekunden', 0))
-
     notiz = request.form.get('notiz', '').strip()
-    strafe = Strafe(
-        team_id=team.id,
-        regel_nr=regel_nr,
-        regel_text=eintrag['regel'],
-        sekunden=sekunden,
-        notiz=notiz,
-        erfasst_von=current_user.username,
-    )
-    db.session.add(strafe)
+    neue_strafen = []
+    for regel_nr in regel_nrn:
+        eintrag = STRAFKATALOG_NACH_NR.get(regel_nr)
+        if eintrag is None:
+            continue
+        if "sekunden_pro_einheit" in eintrag:
+            menge = _menge_or_none(request.form.get(f"menge_{regel_nr}"))
+            if menge is None:
+                flash('Bitte eine Menge fuer Regel ' + regel_nr + ' eingeben (in '
+                      + eintrag['einheit'] + ').', 'error')
+                return redirect(url_for("strafen.dashboard"))
+            sekunden = menge * eintrag['sekunden_pro_einheit']
+        else:
+            sekunden = float(eintrag.get('sekunden', 0))
+        neue_strafen.append(Strafe(
+            team_id=team.id,
+            regel_nr=regel_nr,
+            regel_text=eintrag['regel'],
+            sekunden=sekunden,
+            notiz=notiz,
+            erfasst_von=current_user.username,
+        ))
+
+    if not neue_strafen:
+        flash("Bitte mindestens eine gueltige Regel aus dem Strafenkatalog "
+              "auswaehlen.", "error")
+        return redirect(url_for("strafen.dashboard"))
+
+    db.session.add_all(neue_strafen)
     db.session.commit()
-    flash('Strafe vergeben: ' + team.name + ' +' + str(int(sekunden)) + ' s (Regel ' + regel_nr + ').', 'ok')
+    gesamt_sekunden = sum(s.sekunden for s in neue_strafen)
+    regeln_text = ", ".join(s.regel_nr for s in neue_strafen)
+    flash(f"{len(neue_strafen)} Strafe(n) vergeben: {team.name} "
+          f"+{int(gesamt_sekunden)} s gesamt (Regel {regeln_text}).", "ok")
     return redirect(url_for("strafen.dashboard"))
 
 

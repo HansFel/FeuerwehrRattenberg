@@ -19,6 +19,8 @@
         <th>Rangpunkte</th>
         <th>🥤 Getränkepunkte</th>
         <th>📋 Strafsekunden</th>
+        <th>⏱ Gemessene Zeit gesamt</th>
+        <th>⏱ Gesamtzeit inkl. Strafen</th>
       </tr>
     </thead>
     <tbody>
@@ -29,6 +31,8 @@
         <td>{{ zeile.punkte }}</td>
         <td>{{ zeile.getraenkepunkte }}</td>
         <td>{{ zeile.strafsekunden|round(0) }}</td>
+        <td>{{ zeile.gemessene_zeit|zeit }}</td>
+        <td>{{ zeile.gesamtzeit|zeit }}</td>
       </tr>
       {% endfor %}
     </tbody>

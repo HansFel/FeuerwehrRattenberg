@@ -2,7 +2,8 @@
 import pytest
 
 from app import create_app
-from app.models import db, Team, Mitglied, Disziplin, Ergebnis, WERTUNG_ZEIT
+from app.models import (db, Team, Mitglied, Disziplin, Ergebnis, WERTUNG_ZEIT,
+                        Startplatz, Strafe)
 from app.wertung import rangliste_disziplin, gesamtwertung
 
 
@@ -178,3 +179,32 @@ def test_gesamtwertung_summiert_rangpunkte(app):
 
         tabelle = gesamtwertung([a, b], [d1, d2])
         assert {z["punkte"] for z in tabelle} == {3}
+
+
+def test_wertungsuebersicht_zeigt_gemessene_zeit_und_gesamtzeit(client, app):
+    """Gesamtwertung soll die Summe der über die Zeitmessung gemessenen
+    Laufzeiten (Startplatz.ergebnis_sekunden, z.B. beide Vorrunden-Läufe)
+    plus Strafsekunden als Gesamtzeit ausweisen."""
+    with app.app_context():
+        d = Disziplin(name="Siloplanen-Race")
+        team_a = Team(name="Team A")
+        team_b = Team(name="Team B")   # ohne gemessene Zeit
+        db.session.add_all([d, team_a, team_b])
+        db.session.commit()
+
+        # Team A: zwei Vorrunden-Läufe (30s + 25s = 55s gemessen)
+        db.session.add_all([
+            Startplatz(team_id=team_a.id, disziplin_id=d.id, startnummer=1,
+                      heat="Vorrunde 1", ergebnis_sekunden=30.0),
+            Startplatz(team_id=team_a.id, disziplin_id=d.id, startnummer=1,
+                      heat="Vorrunde 2", ergebnis_sekunden=25.0),
+        ])
+        db.session.add(Strafe(team_id=team_a.id, regel_nr="4",
+                              regel_text="Frühstart", sekunden=5.0))
+        db.session.commit()
+
+    r = client.get("/wertung/")
+    assert r.status_code == 200
+    # Team A: 55s gemessen + 5s Strafe = 60s = "1:00,00"
+    assert "55,00 s".encode() in r.data
+    assert "1:00,00".encode() in r.data
