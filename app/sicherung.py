@@ -22,7 +22,8 @@ from urllib.parse import urlparse
 from flask import current_app
 from werkzeug.utils import secure_filename
 
-from .models import db, Sicherung
+from .models import (db, Sicherung, Zeitereignis, NotfallLauf, NotfallBahn,
+                     Bestellung, BestellPosition, Strafe, Ergebnis, Startplatz)
 
 MAX_SICHERUNGEN = 30
 
@@ -273,3 +274,30 @@ def aufraeumen(max_sicherungen: int = MAX_SICHERUNGEN) -> int:
     if geloescht:
         db.session.commit()
     return geloescht
+
+
+def testdaten_loeschen() -> dict[str, int]:
+    """Löscht Zeitmessung, Bestellungen (inkl. Sympathiepunkte) und
+    vergebene Strafen/Ergebnisse aus Testläufen – behält aber Teams,
+    Mitglieder und die Speisekarte (Preise) unverändert.
+
+    Löschreihenfolge beachtet Fremdschlüssel (Kind vor Eltern). Aufrufer
+    ist dafür verantwortlich, vorher eine Sicherung anzulegen (siehe
+    Blueprint-Route) – diese Funktion selbst sichert nichts.
+    """
+    anzahl = {
+        "bestellpositionen": BestellPosition.query.delete(),
+        "bestellungen": Bestellung.query.delete(),
+        "notfallbahnen": NotfallBahn.query.delete(),
+        "notfalllaeufe": NotfallLauf.query.delete(),
+        "zeitereignisse": Zeitereignis.query.delete(),
+        "strafen": Strafe.query.delete(),
+        "ergebnisse": Ergebnis.query.delete(),
+    }
+    # Gemessene Zeiten im Zeitplan zurücksetzen, die Startplätze (Team/
+    # Disziplin/Bahn/Startzeit) selbst bleiben als Planungsdaten erhalten.
+    anzahl["startplaetze_zurueckgesetzt"] = Startplatz.query.filter(
+        Startplatz.ergebnis_sekunden.isnot(None)
+    ).update({"ergebnis_sekunden": None})
+    db.session.commit()
+    return anzahl

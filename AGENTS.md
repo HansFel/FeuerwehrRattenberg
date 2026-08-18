@@ -401,6 +401,12 @@ danach `/mnt/usb-backups/ffrattenberg-backups`.
 - Backup-Dateinamen müssen den Instanznamen enthalten (siehe
   `INSTANCE_NAME`), nicht generisch "backup_..." — projektübergreifende
   Konvention (gilt für alle Apps des Users, nicht nur dieses Projekt).
+- **"Testdaten löschen"** (seit 2026-08-18, `/sicherung/`): löscht
+  Zeitereignis/NotfallLauf+Bahn/Bestellung+BestellPosition/Strafe/Ergebnis
+  und setzt `Startplatz.ergebnis_sekunden` zurück (Startplatz-Zeile selbst
+  bleibt als Zeitplan erhalten). Team/Mitglied/Artikel (Preise) bewusst
+  NICHT angefasst. Legt wie „Wiederherstellen" vorher automatisch eine
+  Sicherung an (`typ="vor-testdaten-loeschen"`).
 
 ## Wichtige, teils noch offene fachliche Fragen
 

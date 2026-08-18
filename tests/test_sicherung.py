@@ -4,7 +4,10 @@ import os
 import pytest
 
 from app import create_app
-from app.models import db, Team, Sicherung
+from app.models import (db, Team, Mitglied, Sicherung, Artikel, Bestellung,
+                        BestellPosition, Zeitereignis, NotfallLauf,
+                        NotfallBahn, Strafe, Disziplin, Ergebnis, Startplatz,
+                        KATEGORIE_GETRAENK)
 from app import sicherung as dienst
 
 
@@ -162,6 +165,81 @@ def test_upload_weicht_bei_namenskonflikt_aus(app):
         assert erster.dateiname == "kollision.sql.gz"
         assert zweiter.dateiname != "kollision.sql.gz"   # Konflikt -> Ausweichname
         assert "upload" in zweiter.dateiname
+
+
+def test_testdaten_loeschen_behaelt_stammdaten(client, app):
+    """Zeitmessung/Bestellungen/Strafen/Ergebnisse müssen weg sein, Teams,
+    Mitglieder und Speisekarte (Preise) müssen unverändert bleiben."""
+    with app.app_context():
+        team = Team(name="Team Test")
+        team.mitglieder.append(Mitglied(vorname="Max", nachname="Muster", position=1))
+        db.session.add(team)
+        artikel = Artikel(name="Bier", kategorie=KATEGORIE_GETRAENK, preis=3.5,
+                          punkte_pro_einheit=1)
+        db.session.add(artikel)
+        disziplin = Disziplin(name="Siloplanen-Race")
+        db.session.add(disziplin)
+        db.session.commit()
+
+        db.session.add(Zeitereignis(geraet_id="mega-1", bahn=1, kontakt="kontakt"))
+
+        lauf = NotfallLauf(bezeichnung="Testlauf")
+        lauf.bahnen.append(NotfallBahn(bahn_nr=1, team_id=team.id,
+                                       zeit_laeufer1=1.0, zeit_laeufer2=2.0,
+                                       zeit_laeufer3=3.0, zeit_laeufer4=4.0))
+        db.session.add(lauf)
+
+        bestellung = Bestellung(tisch_nummer=5)
+        bestellung.positionen.append(BestellPosition(
+            artikel_id=artikel.id, artikel_name="Bier", einzelpreis=3.5,
+            menge=2, team_id=team.id, punkte_gesamt=2))
+        db.session.add(bestellung)
+
+        db.session.add(Strafe(team_id=team.id, regel_nr="4",
+                              regel_text="Frühstart", sekunden=5))
+        db.session.add(Ergebnis(team_id=team.id, disziplin_id=disziplin.id,
+                                zeit_sekunden=42.0))
+        startplatz = Startplatz(team_id=team.id, disziplin_id=disziplin.id,
+                                startnummer=1, ergebnis_sekunden=42.0)
+        db.session.add(startplatz)
+        db.session.commit()
+        startplatz_id = startplatz.id
+        team_id = team.id
+
+    _login(client)
+    r = client.post("/sicherung/testdaten-loeschen", follow_redirects=True)
+    assert r.status_code == 200
+
+    with app.app_context():
+        # Testdaten weg
+        assert Zeitereignis.query.count() == 0
+        assert NotfallLauf.query.count() == 0
+        assert NotfallBahn.query.count() == 0
+        assert Bestellung.query.count() == 0
+        assert BestellPosition.query.count() == 0
+        assert Strafe.query.count() == 0
+        assert Ergebnis.query.count() == 0
+
+        # Startplatz (Zeitplan) bleibt, nur das Ergebnis wird zurückgesetzt
+        sp = Startplatz.query.get(startplatz_id)
+        assert sp is not None
+        assert sp.ergebnis_sekunden is None
+
+        # Stammdaten unverändert
+        team = Team.query.get(team_id)
+        assert team is not None
+        assert team.name == "Team Test"
+        assert len(team.mitglieder) == 1
+        assert Artikel.query.filter_by(name="Bier").first() is not None
+        assert Disziplin.query.filter_by(name="Siloplanen-Race").first() is not None
+
+        # Automatische Sicherung wurde vorher angelegt
+        assert Sicherung.query.filter_by(typ="vor-testdaten-loeschen").count() == 1
+
+
+def test_testdaten_loeschen_nur_admin(client):
+    r = client.post("/sicherung/testdaten-loeschen", follow_redirects=True)
+    assert "anmelden".encode() in r.data.lower()
 
 
 def test_instanzname_aus_umgebungsvariable(tmp_path):

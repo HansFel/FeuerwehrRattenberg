@@ -16,6 +16,16 @@
     </form>
   </div>
 
+  <h2 style="margin-top:1.5rem">Testdaten löschen</h2>
+  <p>Löscht Zeitmessdaten, Bestellungen/Sympathiepunkte, Strafen und
+     Ergebnisse aus Testläufen. <strong>Teams, Mitglieder und die
+     Speisekarte (Preise) bleiben erhalten.</strong> Der aktuelle Stand wird
+     vorher automatisch gesichert.</p>
+  <form class="inline" method="post" action="{{ url_for('sicherung.testdaten_loeschen') }}"
+        onsubmit="return confirm('Wirklich ALLE Zeitmessdaten, Bestellungen/Sympathiepunkte, Strafen und Ergebnisse löschen? Teams, Mitglieder und Speisekarte bleiben erhalten. Der aktuelle Stand wird vorher automatisch gesichert.');">
+    <button class="knopf gefahr" type="submit">🗑 Testdaten löschen</button>
+  </form>
+
   {% if sicherungen %}
   <table>
     <thead>

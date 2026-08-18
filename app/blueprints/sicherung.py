@@ -71,3 +71,21 @@ def loeschen(sicherung_id: int):
     dienst.loeschen(sicherung_id)
     flash("Sicherung gelöscht.", "ok")
     return redirect(url_for("sicherung.index"))
+
+
+@bp.route("/testdaten-loeschen", methods=["POST"])
+@rolle_noetig("administrator")
+def testdaten_loeschen():
+    try:
+        dienst.erstellen(typ="vor-testdaten-loeschen", von=current_user.username)
+        anzahl = dienst.testdaten_loeschen()
+        flash(
+            f"Testdaten gelöscht: {anzahl['zeitereignisse']} Zeitereignisse, "
+            f"{anzahl['notfalllaeufe']} Läufe, {anzahl['bestellungen']} "
+            f"Bestellungen, {anzahl['strafen']} Strafen, "
+            f"{anzahl['ergebnisse']} Ergebnisse. Teams, Mitglieder und "
+            "Speisekarte sind unverändert. Der vorherige Stand wurde "
+            "automatisch gesichert.", "ok")
+    except Exception as e:  # noqa: BLE001
+        flash(f"Löschen der Testdaten fehlgeschlagen: {e}", "error")
+    return redirect(url_for("sicherung.index"))
