@@ -1,9 +1,10 @@
 """Berechnung von Ranglisten (pro Disziplin und Gesamtwertung)."""
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
-from .models import Disziplin, Ergebnis, Team, WERTUNG_ZEIT
+from .models import Disziplin, Ergebnis, Team, WERTUNG_ZEIT, Startplatz
 
 
 @dataclass
@@ -68,3 +69,43 @@ def format_zeit(sekunden: float | None) -> str:
     if minuten:
         return f"{minuten}:{rest:05.2f}".replace(".", ",")
     return f"{rest:.2f}".replace(".", ",") + " s"
+
+
+_ZIEL_PLATZ_MUSTER = re.compile(r"Platz (\d+)-(\d+)")
+
+
+def _lauf_nummer(heat: str | None) -> int:
+    zahlen = re.findall(r"\d+", heat or "")
+    return int(zahlen[0]) if zahlen else 0
+
+
+def finale_platzierung(team: Team,
+                       strafsekunden: dict[int, float] | None = None) -> int | None:
+    """Definitive Platzierung eines Teams (siehe app/blueprints/zeitplan.py:
+    _naechste_runde_erzeugen/_finale_erzeugen fuer das Heat-Namensschema).
+
+    Sobald ein Team einen Ziellauf (Platzierungslauf oder Finale, erkennbar
+    am "Platz <von>-<bis>" im Heat-Namen) mit erfasstem Ergebnis absolviert
+    hat, ist DAS die endgueltige Platzierung - unabhaengig vom weiteren
+    Turnierverlauf. Gibt None zurueck, wenn das Team noch in keinem Ziellauf
+    war (Platzierung noch nicht definitiv, siehe stattdessen die
+    vorlaeufige Summenzeit aus der Vorrunde).
+    """
+    strafsekunden = strafsekunden or {}
+    eintraege = [sp for sp in Startplatz.query.filter_by(team_id=team.id).all()
+                if sp.ergebnis_sekunden is not None]
+    ziel_eintraege = [sp for sp in eintraege if _ZIEL_PLATZ_MUSTER.search(sp.heat or "")]
+    if not ziel_eintraege:
+        return None
+
+    letzter = max(ziel_eintraege, key=lambda sp: _lauf_nummer(sp.heat))
+    von = int(_ZIEL_PLATZ_MUSTER.search(letzter.heat).group(1))
+
+    teilnehmer = (Startplatz.query.filter_by(heat=letzter.heat)
+                 .filter(Startplatz.ergebnis_sekunden.isnot(None)).all())
+    teilnehmer.sort(key=lambda sp: sp.ergebnis_sekunden
+                    + strafsekunden.get(sp.team_id, 0.0))
+    for rang, sp in enumerate(teilnehmer, start=1):
+        if sp.team_id == team.id:
+            return von + (rang - 1)
+    return None

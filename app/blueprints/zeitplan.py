@@ -1,5 +1,6 @@
 """Startlisten / Zeitplan je Disziplin."""
 import random
+import re
 from datetime import datetime, timedelta
 
 from flask import (Blueprint, flash, redirect, render_template, request,
@@ -33,22 +34,38 @@ def rangliste(disziplin_id: int):
     praefix = request.args.get("quelle", "Vorrunde").strip() or "Vorrunde"
 
     if request.method == "POST":
-        team_ids = [_int_or_none(t) for t in request.form.getlist("team_id")]
-        team_ids = [t for t in team_ids if t]
-        neuer_heat = request.form.get("neuer_heat", "").strip()
-        if not team_ids or not neuer_heat:
-            flash("Bitte mindestens ein Team und einen Namen für den neuen "
-                  "Lauf angeben.", "error")
-        elif len(team_ids) > BAHNEN:
-            flash(f"Ein Lauf hat maximal {BAHNEN} Bahnen - bitte höchstens "
-                  f"{BAHNEN} Teams auswählen.", "error")
+        aktion = request.form.get("aktion", "manuell")
+        if aktion == "naechste_runde":
+            try:
+                ergebnis = _naechste_runde_erzeugen(disziplin)
+                flash("Nächste Runde erzeugt: "
+                      f"{ergebnis['platzierungslaeufe']} Platzierungslauf/-läufe "
+                      "+ 2 Halbfinal-Läufe (zufällig ausgelost).", "ok")
+            except ValueError as e:
+                flash(str(e), "error")
+        elif aktion == "finale":
+            try:
+                _finale_erzeugen(disziplin)
+                flash("Kleines und Großes Finale erzeugt.", "ok")
+            except ValueError as e:
+                flash(str(e), "error")
         else:
-            for lane, team_id in enumerate(team_ids, start=1):
-                db.session.add(Startplatz(
-                    team_id=team_id, disziplin_id=disziplin.id,
-                    startnummer=lane, heat=neuer_heat))
-            db.session.commit()
-            flash(f"Lauf „{neuer_heat}“ mit {len(team_ids)} Team(s) angelegt.", "ok")
+            team_ids = [_int_or_none(t) for t in request.form.getlist("team_id")]
+            team_ids = [t for t in team_ids if t]
+            neuer_heat = request.form.get("neuer_heat", "").strip()
+            if not team_ids or not neuer_heat:
+                flash("Bitte mindestens ein Team und einen Namen für den neuen "
+                      "Lauf angeben.", "error")
+            elif len(team_ids) > BAHNEN:
+                flash(f"Ein Lauf hat maximal {BAHNEN} Bahnen - bitte höchstens "
+                      f"{BAHNEN} Teams auswählen.", "error")
+            else:
+                for lane, team_id in enumerate(team_ids, start=1):
+                    db.session.add(Startplatz(
+                        team_id=team_id, disziplin_id=disziplin.id,
+                        startnummer=lane, heat=neuer_heat))
+                db.session.commit()
+                flash(f"Lauf „{neuer_heat}“ mit {len(team_ids)} Team(s) angelegt.", "ok")
         return redirect(url_for("zeitplan.rangliste", disziplin_id=disziplin.id,
                                 quelle=praefix))
 
@@ -56,9 +73,21 @@ def rangliste(disziplin_id: int):
     vorhandene_praefixe = sorted({
         sp.heat.rsplit(" ", 1)[0] for sp in disziplin.startplaetze if sp.heat
     })
+
+    naechste_runde_bereit = (
+        praefix == "Vorrunde" and len(platzierungen) >= 8
+        and all(p["vollstaendig"] for p in platzierungen))
+    halbfinale_rangliste = _rangliste_fuer_heats(
+        disziplin, lambda heat: "Halbfinale" in heat)
+    finale_bereit = (
+        praefix == "Halbfinale" and len(halbfinale_rangliste) == 8
+        and all(p["vollstaendig"] for p in halbfinale_rangliste))
+
     return render_template("zeitplan/rangliste.html", disziplin=disziplin,
                            platzierungen=platzierungen, praefix=praefix,
-                           vorhandene_praefixe=vorhandene_praefixe)
+                           vorhandene_praefixe=vorhandene_praefixe,
+                           naechste_runde_bereit=naechste_runde_bereit,
+                           finale_bereit=finale_bereit)
 
 
 @bp.route("/startplatz/<int:startplatz_id>/loeschen", methods=["POST"])
@@ -211,6 +240,118 @@ def _vorrunde_auslosen(disziplin: Disziplin, bahnen: int = BAHNEN,
     return heat_nr
 
 
+# ── Automatischer Turnier-Fortschritt (Platzierungsläufe, Halbfinale, Finale) ─
+# Reihenfolge/Ziel-Erkennung laeuft ueber den Heat-Namen: jeder neue Lauf
+# bekommt eine fortlaufende Nummer als Praefix (sortiert numerisch hinter die
+# Vorrunde ein, siehe _heats_in_reihenfolge), Platzierungslaeufe und beide
+# Finals tragen zusaetzlich "Platz <von>-<bis>" im Namen (Grundlage fuer die
+# Gesamtwertung in app/wertung.py:finale_platzierung).
+
+def _naechste_lauf_nummer(disziplin: Disziplin) -> int:
+    hoechste = 0
+    for heat in _heats_in_reihenfolge(disziplin):
+        zahlen = re.findall(r"\d+", heat)
+        if zahlen:
+            hoechste = max(hoechste, int(zahlen[0]))
+    return hoechste + 1
+
+
+def _naechste_runde_erzeugen(disziplin: Disziplin) -> dict:
+    """Erzeugt aus der Vorrunden-Gesamtrangliste automatisch die
+    Platzierungslaeufe (Plaetze 9..N, 4er-Gruppen von unten nach oben, damit
+    die schlechteste Gruppe zuerst laeuft) sowie die zwei zufaellig
+    ausgelosten Halbfinal-Laeufe (Plaetze 1-8). Ersetzt eine vorhandene
+    Platzierungs-/Halbfinale-Einteilung dieser Disziplin komplett."""
+    rangliste = _rangliste_berechnen(disziplin, "Vorrunde")
+    unvollstaendig = [e for e in rangliste if not e["vollstaendig"]]
+    if unvollstaendig:
+        namen = ", ".join(e["team"].name for e in unvollstaendig)
+        raise ValueError(
+            "Vorrunde noch nicht fuer alle Teams vollstaendig - fehlt bei: "
+            + namen)
+    if len(rangliste) < 8:
+        raise ValueError(
+            "Mindestens 8 Teams mit Vorrunden-Ergebnis noetig fuer "
+            "Halbfinale/Platzierungslaeufe.")
+
+    for sp in list(disziplin.startplaetze):
+        if sp.heat and ("Platzierungslauf" in sp.heat or "Halbfinale" in sp.heat):
+            db.session.delete(sp)
+
+    nr = _naechste_lauf_nummer(disziplin)
+    platzierungslaeufe = 0
+
+    rest = rangliste[8:]                 # Plaetze 9..N, aufsteigend
+    rest_schlechteste_zuerst = list(reversed(rest))
+    bloecke = [rest_schlechteste_zuerst[i:i + BAHNEN]
+              for i in range(0, len(rest_schlechteste_zuerst), BAHNEN)]
+    for block in bloecke:
+        block = list(reversed(block))    # innerhalb der Gruppe wieder bester zuerst
+        von, bis = block[0]["rang"], block[-1]["rang"]
+        heat_name = f"{nr} Platzierungslauf Platz {von}-{bis}"
+        for lane, eintrag in enumerate(block, start=1):
+            db.session.add(Startplatz(
+                team_id=eintrag["team"].id, disziplin_id=disziplin.id,
+                startnummer=lane, heat=heat_name))
+        nr += 1
+        platzierungslaeufe += 1
+
+    top8 = [e["team"] for e in rangliste[:8]]
+    random.shuffle(top8)
+    for buchstabe, gruppe in zip("AB", (top8[:4], top8[4:])):
+        heat_name = f"{nr} Halbfinale {buchstabe}"
+        for lane, team in enumerate(gruppe, start=1):
+            db.session.add(Startplatz(
+                team_id=team.id, disziplin_id=disziplin.id,
+                startnummer=lane, heat=heat_name))
+        nr += 1
+
+    db.session.commit()
+    return {"platzierungslaeufe": platzierungslaeufe}
+
+
+def _finale_erzeugen(disziplin: Disziplin) -> dict:
+    """Erzeugt aus den kombinierten Halbfinale-Ergebnissen (8 Teams) das
+    Kleine Finale (Plaetze 5-8, langsamere Haelfte) und das Grosse Finale
+    (Plaetze 1-4, schnellste 4 Zeiten insgesamt). Ersetzt vorhandene
+    Finale-Laeufe dieser Disziplin."""
+    rangliste = _rangliste_fuer_heats(disziplin, lambda heat: "Halbfinale" in heat)
+    if len(rangliste) != 8:
+        raise ValueError(
+            f"Es muessen genau 8 Teams aus dem Halbfinale kommen (gefunden: "
+            f"{len(rangliste)}). Bitte zuerst die Halbfinale-Laeufe anlegen.")
+    unvollstaendig = [e for e in rangliste if not e["vollstaendig"]]
+    if unvollstaendig:
+        namen = ", ".join(e["team"].name for e in unvollstaendig)
+        raise ValueError(
+            "Halbfinale noch nicht fuer alle Teams vollstaendig - fehlt bei: "
+            + namen)
+
+    for sp in list(disziplin.startplaetze):
+        if sp.heat and ("Kleines Finale" in sp.heat or "Großes Finale" in sp.heat):
+            db.session.delete(sp)
+
+    nr = _naechste_lauf_nummer(disziplin)
+    grosses_finale = rangliste[:4]
+    kleines_finale = rangliste[4:]
+
+    heat_name = f"{nr} Kleines Finale Platz 5-8"
+    for lane, eintrag in enumerate(kleines_finale, start=1):
+        db.session.add(Startplatz(
+            team_id=eintrag["team"].id, disziplin_id=disziplin.id,
+            startnummer=lane, heat=heat_name))
+    nr += 1
+
+    heat_name = f"{nr} Großes Finale Platz 1-4"
+    for lane, eintrag in enumerate(grosses_finale, start=1):
+        db.session.add(Startplatz(
+            team_id=eintrag["team"].id, disziplin_id=disziplin.id,
+            startnummer=lane, heat=heat_name))
+
+    db.session.commit()
+    return {}
+
+
 def _int_or_none(wert):
     try:
         return int(wert)
@@ -228,14 +369,20 @@ def _float_or_none(wert):
 
 def _rangliste_berechnen(disziplin: Disziplin, praefix: str) -> list[dict]:
     """Rangliste für alle Läufe einer Disziplin, deren Heat-Name mit
-    `praefix` beginnt (z.B. "Vorrunde"): je Team die Summe der
-    `ergebnis_sekunden` über alle passenden Läufe. Nur Teams, bei denen ALLE
-    passenden Läufe eine erfasste Zeit haben, werden gerankt - andere
-    erscheinen als "unvollständig" ohne Rang. Sortiert aufsteigend (schneller
-    = besser).
+    `praefix` beginnt (z.B. "Vorrunde")."""
+    return _rangliste_fuer_heats(
+        disziplin, lambda heat: heat.startswith(praefix))
+
+
+def _rangliste_fuer_heats(disziplin: Disziplin, passt_fn) -> list[dict]:
+    """Rangliste für alle Läufe einer Disziplin, deren Heat-Name `passt_fn`
+    erfüllt: je Team die Summe der `ergebnis_sekunden` über alle passenden
+    Läufe. Nur Teams, bei denen ALLE passenden Läufe eine erfasste Zeit
+    haben, werden gerankt - andere erscheinen als "unvollständig" ohne Rang.
+    Sortiert aufsteigend (schneller = besser).
     """
     passende = [sp for sp in disziplin.startplaetze
-               if sp.heat and sp.heat.startswith(praefix)]
+               if sp.heat and passt_fn(sp.heat)]
     je_team: dict[int, list[Startplatz]] = {}
     for sp in passende:
         je_team.setdefault(sp.team_id, []).append(sp)

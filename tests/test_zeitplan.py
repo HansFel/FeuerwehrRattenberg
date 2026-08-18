@@ -226,6 +226,161 @@ def test_naechste_runde_aus_rangliste_anlegen(client, app):
         assert sorted(bahnen) == [1, 2, 3, 4]
 
 
+def _zwoelf_teams_mit_vollstaendiger_vorrunde(app, d_id):
+    """Ergaenzt die 8 Fixture-Teams um 4 weitere (Team 9-12) und gibt allen
+    12 Teams vollstaendige Vorrunden-Ergebnisse - Rang entspricht der
+    Startnummer (Team 1 = Rang 1 = schnellste)."""
+    with app.app_context():
+        for i in range(9, 13):
+            db.session.add(Team(name=f"Team {i}", startnummer=i))
+        db.session.commit()
+        for t in Team.query.order_by(Team.startnummer).all():
+            db.session.add(Startplatz(team_id=t.id, disziplin_id=d_id,
+                                      heat="Vorrunde 1",
+                                      ergebnis_sekunden=t.startnummer * 10.0))
+            db.session.add(Startplatz(team_id=t.id, disziplin_id=d_id,
+                                      heat="Vorrunde 2",
+                                      ergebnis_sekunden=t.startnummer * 10.0))
+        db.session.commit()
+
+
+def test_naechste_runde_automatisch_erzeugt_platzierung_und_halbfinale(client, app):
+    with app.app_context():
+        d_id = Disziplin.query.first().id
+    _zwoelf_teams_mit_vollstaendiger_vorrunde(app, d_id)
+
+    _login(client, "orga", "pw")
+    r = client.post(f"/zeitplan/disziplin/{d_id}/rangliste",
+                    data={"aktion": "naechste_runde"}, follow_redirects=True)
+    assert r.status_code == 200
+    assert "Nächste Runde erzeugt".encode() in r.data
+
+    with app.app_context():
+        alle = Startplatz.query.filter_by(disziplin_id=d_id).all()
+        heats: dict[str, list] = {}
+        for sp in alle:
+            if sp.heat and ("Platzierungslauf" in sp.heat or "Halbfinale" in sp.heat):
+                heats.setdefault(sp.heat, []).append(sp)
+
+        platzierung = [n for n in heats if "Platzierungslauf" in n]
+        assert len(platzierung) == 1
+        assert "Platz 9-12" in platzierung[0]
+        teams_platzierung = {Team.query.get(sp.team_id).startnummer
+                             for sp in heats[platzierung[0]]}
+        assert teams_platzierung == {9, 10, 11, 12}
+
+        halbfinale_namen = [n for n in heats if "Halbfinale" in n]
+        assert len(halbfinale_namen) == 2
+        teams_halbfinale = set()
+        for name in halbfinale_namen:
+            eintraege = heats[name]
+            assert len(eintraege) == 4
+            teams_halbfinale.update(Team.query.get(sp.team_id).startnummer
+                                    for sp in eintraege)
+        assert teams_halbfinale == {1, 2, 3, 4, 5, 6, 7, 8}
+
+        # Reihenfolge: Platzierungslauf (Plaetze 9+) muss VOR dem Halbfinale
+        # laufen (niedrigere fortlaufende Nummer im Heat-Namen)
+        import re
+        platz_nr = int(re.match(r"\d+", platzierung[0]).group())
+        halbfinale_nrn = [int(re.match(r"\d+", n).group()) for n in halbfinale_namen]
+        assert platz_nr < min(halbfinale_nrn)
+
+
+def test_naechste_runde_erneut_erzeugen_ersetzt_statt_zu_duplizieren(client, app):
+    with app.app_context():
+        d_id = Disziplin.query.first().id
+    _zwoelf_teams_mit_vollstaendiger_vorrunde(app, d_id)
+
+    _login(client, "orga", "pw")
+    client.post(f"/zeitplan/disziplin/{d_id}/rangliste",
+               data={"aktion": "naechste_runde"})
+    client.post(f"/zeitplan/disziplin/{d_id}/rangliste",
+               data={"aktion": "naechste_runde"})
+
+    with app.app_context():
+        platzierung = Startplatz.query.filter(
+            Startplatz.disziplin_id == d_id,
+            Startplatz.heat.contains("Platzierungslauf")).all()
+        assert len(platzierung) == 4   # nicht 8 (dupliziert)
+
+
+def test_naechste_runde_lehnt_unvollstaendige_vorrunde_ab(client, app):
+    with app.app_context():
+        d = Disziplin.query.first()
+        d_id = d.id
+        teams = Team.query.order_by(Team.startnummer).all()
+        for t in teams:
+            db.session.add(Startplatz(team_id=t.id, disziplin_id=d_id,
+                                      heat="Vorrunde 1", ergebnis_sekunden=10.0))
+            # Vorrunde 2 existiert, aber noch ohne erfasste Zeit -> unvollstaendig
+            db.session.add(Startplatz(team_id=t.id, disziplin_id=d_id,
+                                      heat="Vorrunde 2", ergebnis_sekunden=None))
+        db.session.commit()
+
+    _login(client, "orga", "pw")
+    r = client.post(f"/zeitplan/disziplin/{d_id}/rangliste",
+                    data={"aktion": "naechste_runde"}, follow_redirects=True)
+    assert "noch nicht" in r.data.decode("utf-8").lower()
+    with app.app_context():
+        assert Startplatz.query.filter(
+            Startplatz.heat.contains("Halbfinale")).count() == 0
+
+
+def test_finale_erzeugt_kleines_und_grosses_finale(client, app):
+    with app.app_context():
+        d_id = Disziplin.query.first().id
+        teams = Team.query.order_by(Team.startnummer).all()
+        # 8 Teams im Halbfinale, Zeit = startnummer -> Team 1 schnellstes
+        for t in teams:
+            heat = "Halbfinale A" if t.startnummer <= 4 else "Halbfinale B"
+            db.session.add(Startplatz(team_id=t.id, disziplin_id=d_id,
+                                      heat=f"5 {heat}",
+                                      ergebnis_sekunden=float(t.startnummer)))
+        db.session.commit()
+
+    _login(client, "orga", "pw")
+    r = client.post(f"/zeitplan/disziplin/{d_id}/rangliste?quelle=Halbfinale",
+                    data={"aktion": "finale"}, follow_redirects=True)
+    assert r.status_code == 200
+    assert "Finale erzeugt".encode() in r.data
+
+    with app.app_context():
+        grosses = Startplatz.query.filter(
+            Startplatz.disziplin_id == d_id,
+            Startplatz.heat.contains("Großes Finale")).all()
+        kleines = Startplatz.query.filter(
+            Startplatz.disziplin_id == d_id,
+            Startplatz.heat.contains("Kleines Finale")).all()
+        assert {Team.query.get(sp.team_id).startnummer for sp in grosses} == {1, 2, 3, 4}
+        assert {Team.query.get(sp.team_id).startnummer for sp in kleines} == {5, 6, 7, 8}
+
+        import re
+        kleines_nr = int(re.match(r"\d+", kleines[0].heat).group())
+        grosses_nr = int(re.match(r"\d+", grosses[0].heat).group())
+        assert kleines_nr < grosses_nr   # Kleines Finale laeuft vor dem Grossen
+
+
+def test_finale_lehnt_unvollstaendiges_halbfinale_ab(client, app):
+    with app.app_context():
+        d_id = Disziplin.query.first().id
+        teams = Team.query.order_by(Team.startnummer).limit(4).all()
+        for t in teams:
+            db.session.add(Startplatz(team_id=t.id, disziplin_id=d_id,
+                                      heat="5 Halbfinale A",
+                                      ergebnis_sekunden=float(t.startnummer)))
+        db.session.commit()
+
+    _login(client, "orga", "pw")
+    r = client.post(f"/zeitplan/disziplin/{d_id}/rangliste?quelle=Halbfinale",
+                    data={"aktion": "finale"}, follow_redirects=True)
+    assert "genau 8 teams" in r.data.decode("utf-8").lower()
+    with app.app_context():
+        assert Startplatz.query.filter(
+            db.or_(Startplatz.heat.contains("Kleines Finale"),
+                  Startplatz.heat.contains("Großes Finale"))).count() == 0
+
+
 def test_naechste_runde_lehnt_zu_viele_teams_ab(client, app):
     with app.app_context():
         d = Disziplin.query.first()

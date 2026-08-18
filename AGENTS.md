@@ -422,13 +422,38 @@ danach `/mnt/usb-backups/ffrattenberg-backups`.
 
 ## Wichtige, teils noch offene fachliche Fragen
 
-- Turnierformat Siloplanen-Race: 4 Bahnen, Vorrunde (jedes Team läuft 2×
-  gegen wechselnde Gegner), danach Halbfinale (Plätze 1-8), Platzierungsläufe
-  in 4er-Gruppen (Plätze 9-44), Kleines Finale (5-8), Großes Finale (1-4).
-  **Wie genau das Halbfinale aus der Vorrunden-Rangliste gesetzt wird
-  (zufällig oder z.B. 1-4-5-8 gegen 2-3-6-7), ist bewusst NICHT fest
-  programmiert** — der Organisator wählt das manuell über die
-  Rangliste-Ansicht unter `/zeitplan/`.
+- **Turnierformat Siloplanen-Race – seit 2026-08-18 abschließend geklärt UND
+  automatisiert** (löst die früher widersprüchlichen Notizen ab): 4 Bahnen,
+  2 Vorrunden (jedes Team läuft 2× gegen wechselnde Gegner, Zeiten addiert
+  → Gesamtrangliste). Plätze 1-8 → 2 Halbfinal-Läufe (**zufällig** ausgelost,
+  `random.shuffle`). Aus den 8 Halbfinalisten: die 4 schnellsten Zeiten
+  insgesamt → Großes Finale (Platz 1-4), die anderen 4 → Kleines Finale
+  (Platz 5-8). Restliche Plätze 9-N in 4er-Gruppen als eigene
+  Platzierungsläufe, von unten nach oben gruppiert (ein Rest <4 Teams bildet
+  die beste verbleibende Gruppe). **Laufreihenfolge**: Platzierungsläufe
+  zuerst (schlechteste Gruppe zuerst), dann Halbfinale, dann Kleines Finale,
+  zuletzt Großes Finale.
+
+  Vollautomatisiert unter `/zeitplan/disziplin/<id>/rangliste`
+  (`app/blueprints/zeitplan.py: _naechste_runde_erzeugen()` +
+  `_finale_erzeugen()`, Buttons erscheinen erst wenn die jeweilige
+  Vorstufe vollständig ist). **Heat-Namensschema steuert Reihenfolge UND
+  Ziel-Platzerkennung**: jeder neue Lauf bekommt eine fortlaufende Nummer
+  als Präfix (sortiert numerisch hinter die Vorrunde ein, siehe
+  `_heats_in_reihenfolge`); Platzierungsläufe und beide Finals tragen
+  zusätzlich `"Platz <von>-<bis>"` im Namen (Regex `Platz (\d+)-(\d+)`) -
+  das ist die Grundlage für `app/wertung.py: finale_platzierung()`.
+  Manuelles Zusammenstellen (bestehendes Formular auf derselben Seite)
+  bleibt als Fallback für Sonderfälle erhalten.
+
+  **Gesamtwertung ist bracket-aware** (seit Build 39, löst eine Ungenauigkeit
+  aus Build 38 - reine Zeitmessungs-Summe - für den echten Turnierverlauf):
+  Sobald ein Team einen Ziellauf (Platzierungslauf/Finale) mit Ergebnis
+  absolviert hat, ist DAS die endgültige Platzierung (`von + Rang-im-Lauf`,
+  inkl. Strafsekunden als Sortierkriterium innerhalb dieses einen Laufs) -
+  ändert sich nicht mehr durch spätere Läufe. Teams ohne Ziellauf werden in
+  `/wertung/` als „vorläufig" markiert und nach der Vorrunden-Summenzeit
+  gereiht.
 - Zeitmessung: nur noch 1 Öffner-Kontakt pro Bahn (nicht mehr Start+Ziel
   getrennt), siehe `firmware/zeitmessung/README.md`. Die Zuordnung "welche
   der 5 Auslösungen pro Bahn war welcher Läufer" ist **seit 2026-08-16
@@ -496,17 +521,6 @@ danach `/mnt/usb-backups/ffrattenberg-backups`.
   _automatische_zuordnung_pruefen()`). Schließt den Kreis Startliste →
   Messung → Ergebnis, OHNE die bestehende manuelle `/notfall/neu`-Eingabe
   zu ersetzen (bleibt Fallback für Läufe ohne Startplatz-Bezug).
-- **Offen: automatische Turnier-Fortschritts-Logik.** Format lt. User
-  (2026-08-17, weicht von der obigen älteren Notiz "Vorrunde → Halbfinale"
-  ab, noch zu klären welche Fassung aktuell gilt): **zwei** Vorrunden,
-  danach Achtelfinale, Viertelfinale, Halbfinale, Finale - "die Besten"
-  müssen automatisch in die jeweils nächste Runde. `Startplatz.
-  ergebnis_sekunden` ist genau dafür als Grundlage vorgesehen (siehe
-  Modell-Kommentar in `app/models.py`), aber es gibt noch KEINEN Code, der
-  aus den Ergebnissen einer Runde automatisch die Startliste der nächsten
-  Runde (Team-Setzung, Bahn-Zuordnung) erzeugt. Braucht vor Umsetzung noch
-  Klärung: genaue Teilnehmerzahl je Runde, Setzungsschema (z.B. 1 gegen 16
-  oder anders), Umgang mit Gleichstand.
 
 ## Datenschutz/Rechtliches
 

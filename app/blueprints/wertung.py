@@ -4,7 +4,7 @@ from flask import (Blueprint, flash, redirect, render_template, request,
 
 from ..models import (db, Team, Disziplin, Ergebnis, WERTUNG_ZEIT,
                       BestellPosition, Strafe, Startplatz)
-from ..wertung import rangliste_disziplin, gesamtwertung
+from ..wertung import rangliste_disziplin, gesamtwertung, finale_platzierung
 from ..auth import darf
 
 bp = Blueprint("wertung", __name__, url_prefix="/wertung")
@@ -47,14 +47,24 @@ def uebersicht():
             zeile["gesamtzeit"] = None
         else:
             zeile["gesamtzeit"] = zeile["gemessene_zeit"] + zeile["strafsekunden"]
+        # Definitive Platzierung, sobald das Team einen Ziellauf
+        # (Platzierungslauf/Finale) absolviert hat - danach aendert sich
+        # dieser Platz nicht mehr, unabhaengig vom weiteren Turnierverlauf.
+        zeile["finaler_platz"] = finale_platzierung(zeile["team"], strafsekunden)
 
-    # Reihung der Gesamtwertung: niedrigste Gesamtzeit (gemessene Zeit +
-    # Strafsekunden) zuerst - nicht mehr die Rangpunkte aus "punkte" (die
-    # bleiben als eigene Spalte informativ erhalten). Teams ohne gemessene
-    # Zeit (noch nicht gelaufen) stehen ans Ende, behalten aber einen Rang.
-    tabelle.sort(key=lambda z: (z["gesamtzeit"] is None, z["gesamtzeit"]))
+    # Reihung: Teams mit definitiver Platzierung zuerst (nach ihrem echten,
+    # feststehenden Platz), danach Teams ohne Ziellauf nach ihrer
+    # vorlaeufigen Gesamtzeit (gemessene Zeit + Strafsekunden), ganz am Ende
+    # Teams ganz ohne Zeit.
+    def _sortier_schluessel(z):
+        if z["finaler_platz"] is not None:
+            return (0, z["finaler_platz"])
+        if z["gesamtzeit"] is not None:
+            return (1, z["gesamtzeit"])
+        return (2, 0)
+    tabelle.sort(key=_sortier_schluessel)
     for i, zeile in enumerate(tabelle, start=1):
-        zeile["rang"] = i
+        zeile["rang"] = zeile["finaler_platz"] if zeile["finaler_platz"] is not None else i
 
     return render_template("wertung/uebersicht.html",
                            disziplinen=disziplinen, tabelle=tabelle)

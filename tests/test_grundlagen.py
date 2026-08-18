@@ -240,3 +240,66 @@ def test_gesamtwertung_gereiht_nach_gesamtzeit(app):
     pos_a = text.index("Team A")
     pos_c = text.index("Team C")
     assert pos_b < pos_a < pos_c
+
+
+def test_gesamtwertung_definitive_platzierung_aus_platzierungslauf(app):
+    """Sobald ein Team einen Ziellauf (Heat mit "Platz von-bis") absolviert
+    hat, ist das die endgueltige Platzierung - inkl. Strafsekunden als
+    Sortierkriterium INNERHALB dieses einen Laufs."""
+    with app.app_context():
+        d = Disziplin(name="Siloplanen-Race")
+        team_e = Team(name="Team E")   # 20s, kein Strafe -> Platz 9
+        team_f = Team(name="Team F")   # 21s + 5s Strafe = 26s -> schlechtester -> Platz 12
+        team_g = Team(name="Team G")   # 22s -> Platz 10
+        team_h = Team(name="Team H")   # 23s -> Platz 11
+        db.session.add_all([d, team_e, team_f, team_g, team_h])
+        db.session.commit()
+
+        heat = "12 Platzierungslauf Platz 9-12"
+        db.session.add_all([
+            Startplatz(team_id=team_e.id, disziplin_id=d.id, startnummer=1,
+                      heat=heat, ergebnis_sekunden=20.0),
+            Startplatz(team_id=team_f.id, disziplin_id=d.id, startnummer=2,
+                      heat=heat, ergebnis_sekunden=21.0),
+            Startplatz(team_id=team_g.id, disziplin_id=d.id, startnummer=3,
+                      heat=heat, ergebnis_sekunden=22.0),
+            Startplatz(team_id=team_h.id, disziplin_id=d.id, startnummer=4,
+                      heat=heat, ergebnis_sekunden=23.0),
+        ])
+        db.session.add(Strafe(team_id=team_f.id, regel_nr="4",
+                              regel_text="Frühstart", sekunden=5.0))
+        db.session.commit()
+
+    client = app.test_client()
+    r = client.get("/wertung/")
+    assert r.status_code == 200
+
+    from app.wertung import finale_platzierung
+    with app.app_context():
+        team_e = Team.query.filter_by(name="Team E").first()
+        team_f = Team.query.filter_by(name="Team F").first()
+        team_g = Team.query.filter_by(name="Team G").first()
+        team_h = Team.query.filter_by(name="Team H").first()
+        strafsekunden = {team_f.id: 5.0}
+        assert finale_platzierung(team_e, strafsekunden) == 9
+        assert finale_platzierung(team_g, strafsekunden) == 10
+        assert finale_platzierung(team_h, strafsekunden) == 11
+        assert finale_platzierung(team_f, strafsekunden) == 12   # Strafe wirft es ans Ende
+
+
+def test_gesamtwertung_ohne_ziellauf_bleibt_vorlaeufig(app):
+    with app.app_context():
+        d = Disziplin(name="Siloplanen-Race")
+        team = Team(name="Team Nurvorrunde")
+        db.session.add_all([d, team])
+        db.session.commit()
+        db.session.add(Startplatz(team_id=team.id, disziplin_id=d.id,
+                                  startnummer=1, heat="Vorrunde 1",
+                                  ergebnis_sekunden=30.0))
+        db.session.commit()
+
+    client = app.test_client()
+    r = client.get("/wertung/")
+    text = r.data.decode("utf-8")
+    assert "Team Nurvorrunde" in text
+    assert "(vorläufig)" in text

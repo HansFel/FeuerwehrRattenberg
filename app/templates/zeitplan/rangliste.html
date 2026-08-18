@@ -18,6 +18,25 @@
     <button class="knopf klein grau" type="submit">Anzeigen</button>
   </form>
 
+  {% if naechste_runde_bereit %}
+  <form method="post" style="margin-top:1rem;">
+    <input type="hidden" name="aktion" value="naechste_runde">
+    <button class="knopf" type="submit"
+            onclick="return confirm('Nächste Runde automatisch erzeugen? Platzierungsläufe (Plätze 9+, schlechteste Gruppe zuerst) und 2 zufällig ausgeloste Halbfinal-Läufe werden angelegt. Eine bereits vorhandene Platzierungs-/Halbfinale-Einteilung dieser Disziplin wird dabei ersetzt!');">
+      🤖 Nächste Runde automatisch erzeugen (Platzierungsläufe + Halbfinale auslosen)
+    </button>
+  </form>
+  {% endif %}
+  {% if finale_bereit %}
+  <form method="post" style="margin-top:1rem;">
+    <input type="hidden" name="aktion" value="finale">
+    <button class="knopf" type="submit"
+            onclick="return confirm('Finale erzeugen? Die 4 schnellsten Halbfinale-Zeiten kommen ins Große Finale (Platz 1-4), die anderen 4 ins Kleine Finale (Platz 5-8). Ein bereits vorhandenes Finale dieser Disziplin wird dabei ersetzt!');">
+      🏆 Finale erzeugen (Kleines + Großes Finale)
+    </button>
+  </form>
+  {% endif %}
+
   {% if platzierungen %}
   <table style="margin-top:1rem">
     <thead>

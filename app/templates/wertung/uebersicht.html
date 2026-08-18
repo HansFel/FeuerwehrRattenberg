@@ -2,9 +2,12 @@
 {% block titel %}Wertung{% endblock %}
 {% block inhalt %}
   <h1>Gesamtwertung</h1>
-  <p>Gereiht nach <strong>Gesamtzeit inkl. Strafen</strong> (niedrigste Zeit = Rang 1).
-     Teams ohne gemessene Zeit stehen am Ende. Die Rangpunkte je Disziplin sind
-     zusätzlich als eigene Spalte informativ dabei.</p>
+  <p>Sobald ein Team einen Platzierungslauf oder ein Finale absolviert hat, ist
+     <strong>dieser Platz endgültig</strong> und ändert sich nicht mehr. Teams,
+     die noch keinen dieser Läufe hinter sich haben, werden vorläufig nach
+     ihrer bisherigen Gesamtzeit (gemessene Zeit + Strafen) gereiht – markiert
+     mit „vorläufig". Die Rangpunkte je Disziplin sind zusätzlich als eigene
+     Spalte informativ dabei.</p>
 
   <div class="werkzeugleiste">
     <a class="knopf klein" href="{{ url_for('pdf.gesamt') }}">📄 Gesamtwertung als PDF</a>
@@ -28,7 +31,7 @@
     <tbody>
       {% for zeile in tabelle %}
       <tr>
-        <td class="rang">{{ zeile.rang }}</td>
+        <td class="rang">{{ zeile.rang }}{% if zeile.finaler_platz is none %} <small>(vorläufig)</small>{% endif %}</td>
         <td>{{ zeile.team.name }}{% if zeile.team.wehr %} <small>({{ zeile.team.wehr }})</small>{% endif %}</td>
         <td>{{ zeile.punkte }}</td>
         <td>{{ zeile.getraenkepunkte }}</td>
