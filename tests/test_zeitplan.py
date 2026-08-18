@@ -361,6 +361,31 @@ def test_finale_erzeugt_kleines_und_grosses_finale(client, app):
         assert kleines_nr < grosses_nr   # Kleines Finale laeuft vor dem Grossen
 
 
+def test_finale_button_erscheint_unabhaengig_von_angezeigter_runde(client, app):
+    """Der 'Finale erzeugen'-Button muss erscheinen, sobald das Halbfinale
+    vollstaendig ist - unabhaengig davon, welche Runde/Quelle gerade in der
+    Rangliste-Ansicht ausgewaehlt ist (z.B. weil man auf der Standard-Ansicht
+    "Vorrunde" geblieben ist, oder weil man ueber die Vorschlagsliste
+    versehentlich "29 Halbfinale" statt "Halbfinale" eingegeben hat)."""
+    with app.app_context():
+        d_id = Disziplin.query.first().id
+        teams = Team.query.order_by(Team.startnummer).all()
+        for t in teams:
+            heat = "29 Halbfinale A" if t.startnummer <= 4 else "30 Halbfinale B"
+            db.session.add(Startplatz(team_id=t.id, disziplin_id=d_id,
+                                      heat=heat,
+                                      ergebnis_sekunden=float(t.startnummer)))
+        db.session.commit()
+
+    _login(client, "orga", "pw")
+    # Standardansicht (kein "quelle"-Parameter -> zeigt "Vorrunde")
+    r = client.get(f"/zeitplan/disziplin/{d_id}/rangliste")
+    assert "Finale erzeugen".encode() in r.data
+    # Auch mit der laufnummer-behafteten Quelle aus der Vorschlagsliste
+    r = client.get(f"/zeitplan/disziplin/{d_id}/rangliste?quelle=29+Halbfinale")
+    assert "Finale erzeugen".encode() in r.data
+
+
 def test_finale_lehnt_unvollstaendiges_halbfinale_ab(client, app):
     with app.app_context():
         d_id = Disziplin.query.first().id

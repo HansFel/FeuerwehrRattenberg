@@ -74,13 +74,18 @@ def rangliste(disziplin_id: int):
         sp.heat.rsplit(" ", 1)[0] for sp in disziplin.startplaetze if sp.heat
     })
 
+    # Bereitschaft der beiden Automatik-Buttons haengt NUR vom Datenstand ab,
+    # nicht von der gerade angezeigten Runde/Quelle - sonst sieht man den
+    # Button z.B. nicht, wenn man "29 Halbfinale" statt "Halbfinale" ins
+    # Filterfeld eingibt/auswaehlt (Vorschlagsliste zeigt die Laufnummer mit).
+    vorrunde_rangliste = _rangliste_berechnen(disziplin, "Vorrunde")
     naechste_runde_bereit = (
-        praefix == "Vorrunde" and len(platzierungen) >= 8
-        and all(p["vollstaendig"] for p in platzierungen))
+        len(vorrunde_rangliste) >= 8
+        and all(p["vollstaendig"] for p in vorrunde_rangliste))
     halbfinale_rangliste = _rangliste_fuer_heats(
         disziplin, lambda heat: "Halbfinale" in heat)
     finale_bereit = (
-        praefix == "Halbfinale" and len(halbfinale_rangliste) == 8
+        len(halbfinale_rangliste) == 8
         and all(p["vollstaendig"] for p in halbfinale_rangliste))
 
     return render_template("zeitplan/rangliste.html", disziplin=disziplin,
