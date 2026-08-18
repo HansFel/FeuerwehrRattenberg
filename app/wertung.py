@@ -4,7 +4,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .models import Disziplin, Ergebnis, Team, WERTUNG_ZEIT, Startplatz
+from .models import (Disziplin, Ergebnis, Team, WERTUNG_ZEIT, Startplatz,
+                     BestellPosition, Strafe)
 
 
 @dataclass
@@ -109,3 +110,54 @@ def finale_platzierung(team: Team,
         if sp.team_id == team.id:
             return von + (rang - 1)
     return None
+
+
+def gesamtwertung_vollstaendig(teams: list[Team],
+                               disziplinen: list[Disziplin]) -> list[dict]:
+    """Vollstaendige Gesamtwertungs-Tabelle inkl. Getraenkepunkte,
+    Strafsekunden, gemessener Zeit und definitiver/vorlaeufiger Platzierung -
+    einzige Quelle fuer diese Berechnung, damit Web-Ansicht (wertung/
+    uebersicht.html) und PDF-Export (pdf.gesamt) garantiert uebereinstimmen.
+    Jede Zeile: team, punkte (Rangpunkte), getraenkepunkte, strafsekunden,
+    gemessene_zeit, gesamtzeit, finaler_platz, rang.
+    """
+    tabelle = gesamtwertung(teams, disziplinen)
+
+    getraenkepunkte: dict[int, int] = {}
+    for pos in BestellPosition.query.all():
+        if pos.team_id and pos.punkte_gesamt:
+            getraenkepunkte[pos.team_id] = (
+                getraenkepunkte.get(pos.team_id, 0) + pos.punkte_gesamt)
+
+    strafsekunden: dict[int, float] = {}
+    for s in Strafe.query.all():
+        strafsekunden[s.team_id] = (
+            strafsekunden.get(s.team_id, 0.0) + s.sekunden)
+
+    gemessene_zeit: dict[int, float] = {}
+    for sp in Startplatz.query.filter(Startplatz.ergebnis_sekunden.isnot(None)).all():
+        gemessene_zeit[sp.team_id] = (
+            gemessene_zeit.get(sp.team_id, 0.0) + sp.ergebnis_sekunden)
+
+    for zeile in tabelle:
+        tid = zeile["team"].id
+        zeile["getraenkepunkte"] = getraenkepunkte.get(tid, 0)
+        zeile["strafsekunden"] = strafsekunden.get(tid, 0.0)
+        zeile["gemessene_zeit"] = gemessene_zeit.get(tid)
+        if zeile["gemessene_zeit"] is None:
+            zeile["gesamtzeit"] = None
+        else:
+            zeile["gesamtzeit"] = zeile["gemessene_zeit"] + zeile["strafsekunden"]
+        zeile["finaler_platz"] = finale_platzierung(zeile["team"], strafsekunden)
+
+    def _sortier_schluessel(z):
+        if z["finaler_platz"] is not None:
+            return (0, z["finaler_platz"])
+        if z["gesamtzeit"] is not None:
+            return (1, z["gesamtzeit"])
+        return (2, 0)
+    tabelle.sort(key=_sortier_schluessel)
+    for i, zeile in enumerate(tabelle, start=1):
+        zeile["rang"] = zeile["finaler_platz"] if zeile["finaler_platz"] is not None else i
+
+    return tabelle

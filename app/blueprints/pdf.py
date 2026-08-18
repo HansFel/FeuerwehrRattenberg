@@ -16,7 +16,7 @@ from reportlab.platypus import (SimpleDocTemplate, Table, TableStyle,
                                 Paragraph, Spacer)
 
 from ..models import db, Team, Disziplin, Startplatz, WERTUNG_ZEIT
-from ..wertung import rangliste_disziplin, gesamtwertung, format_zeit
+from ..wertung import rangliste_disziplin, gesamtwertung_vollstaendig, format_zeit
 
 bp = Blueprint("pdf", __name__, url_prefix="/pdf")
 
@@ -72,11 +72,17 @@ def _tabelle(daten: list[list], breiten: list[float]) -> Table:
 def gesamt():
     teams = Team.query.all()
     disziplinen = Disziplin.query.order_by(Disziplin.reihenfolge).all()
-    daten = [["Rang", "Mannschaft", "Wehr / Ort", "Rangpunkte"]]
-    for z in gesamtwertung(teams, disziplinen):
-        daten.append([str(z["rang"]), z["team"].name, z["team"].wehr or "",
-                      str(z["punkte"])])
-    tabelle = _tabelle(daten, [18 * mm, 70 * mm, 55 * mm, 27 * mm])
+    daten = [["Rang", "Mannschaft", "Wehr / Ort", "Rangpunkte",
+             "Getränkepunkte", "Strafsek.", "Gemessene Zeit", "Gesamtzeit"]]
+    for z in gesamtwertung_vollstaendig(teams, disziplinen):
+        rang = str(z["rang"]) + (" (vorl.)" if z["finaler_platz"] is None else "")
+        daten.append([rang, z["team"].name, z["team"].wehr or "",
+                      str(z["punkte"]), str(z["getraenkepunkte"]),
+                      str(round(z["strafsekunden"])),
+                      format_zeit(z["gemessene_zeit"]),
+                      format_zeit(z["gesamtzeit"])])
+    tabelle = _tabelle(daten, [20 * mm, 30 * mm, 26 * mm, 18 * mm,
+                               20 * mm, 16 * mm, 22 * mm, 22 * mm])
     return _dokument("Gesamtwertung", [tabelle], "gesamtwertung.pdf")
 
 

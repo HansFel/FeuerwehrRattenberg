@@ -43,3 +43,35 @@ def test_pdf_export(client):
         assert antwort.status_code == 200, pfad
         assert antwort.headers["Content-Type"] == "application/pdf"
         assert antwort.data[:4] == b"%PDF"
+
+
+def test_pdf_gesamtwertung_enthaelt_gemessene_zeit_und_strafen(app):
+    """Der PDF-Export der Gesamtwertung muss dieselben Spalten wie die
+    normale Web-Ansicht enthalten (Getraenkepunkte/Strafsekunden/gemessene
+    Zeit/Gesamtzeit), nicht nur die alten Rangpunkte."""
+    from app.models import db, Disziplin, Team, Startplatz
+    with app.app_context():
+        d = Disziplin(name="Siloplanen-Race")
+        team = Team(name="PDF-Test-Team")
+        db.session.add_all([d, team])
+        db.session.commit()
+        db.session.add(Startplatz(team_id=team.id, disziplin_id=d.id,
+                                  startnummer=1, heat="12 Platzierungslauf Platz 9-9",
+                                  ergebnis_sekunden=42.0))
+        db.session.commit()
+
+    client = app.test_client()
+    r = client.get("/pdf/gesamtwertung.pdf")
+    assert r.status_code == 200
+
+    # ReportLab komprimiert den Seiteninhalt (ASCII85 + Flate) - zum Prüfen
+    # der enthaltenen Spalten muss der Stream erst dekodiert werden.
+    import base64
+    import re
+    import zlib
+    match = re.search(rb"stream\r?\n(.*?)endstream", r.data, re.DOTALL)
+    roh = match.group(1).strip().rstrip(b"~>")
+    dekodiert = zlib.decompress(base64.a85decode(roh, adobe=False))
+    text = dekodiert.decode("latin-1")
+    for stichwort in ("Get", "Strafsek", "Gemessene Zeit", "Gesamtzeit"):
+        assert stichwort in text
