@@ -19,8 +19,8 @@
         <span>Bahn {{ sp.startnummer or loop.index }}</span>
         <strong>{{ sp.team.name }}</strong>
         {% if sp.team.wehr %}<small>{{ sp.team.wehr }}</small>{% endif %}
-        {% if sp.team.motto %}<small>💬 {{ sp.team.motto }}</small>{% endif %}
-        {% if sp.team.lieblingslied %}<small>🎵 {{ sp.team.lieblingslied }}</small>{% endif %}
+        {% if sp.team.motto %}<div class="moderator-motto">💬 {{ sp.team.motto }}</div>{% endif %}
+        {% if sp.team.lieblingslied %}<div class="moderator-lied">🎵 {{ sp.team.lieblingslied }}</div>{% endif %}
       </article>
       {% endfor %}
     </div>
@@ -33,6 +33,22 @@
     <h2>Noch kein aktueller Lauf ausgewählt</h2>
   {% endif %}
 </section>
+
+<details class="moderator-alle-teams" style="margin-top:1rem;">
+  <summary style="cursor:pointer; font-weight:700; font-size:1.1rem;">👥 Alle Mannschaften – Motto & Lieblingslied</summary>
+  <div class="moderator-bahnen" style="margin-top:0.8rem;">
+    {% for t in alle_teams %}
+    <article class="moderator-bahn">
+      <span>{{ t.startnummer if t.startnummer else "–" }}</span>
+      <strong>{{ t.name }}</strong>
+      {% if t.wehr %}<small>{{ t.wehr }}</small>{% endif %}
+      {% if t.motto %}<div class="moderator-motto">💬 {{ t.motto }}</div>{% endif %}
+      {% if t.lieblingslied %}<div class="moderator-lied">🎵 {{ t.lieblingslied }}</div>{% endif %}
+      {% if not t.motto and not t.lieblingslied %}<small class="leer">kein Motto/Lied</small>{% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</details>
 
 <div class="moderator-grid">
   <section class="dash-karte moderator-info">

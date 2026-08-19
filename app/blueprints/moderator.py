@@ -5,7 +5,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
 from ..auth import rolle_noetig
-from ..models import (db, Disziplin, ModeratorStatus, Nachricht, Startplatz)
+from ..models import (db, Disziplin, ModeratorStatus, Nachricht, Startplatz, Team)
 
 bp = Blueprint("moderator", __name__, url_prefix="/moderator")
 
@@ -60,10 +60,12 @@ def dashboard():
                    .filter((Nachricht.ziel_rolle == "moderator") |
                            (Nachricht.ziel_benutzer_id == current_user.id))
                    .order_by(Nachricht.erstellt.desc()).limit(20).all())
+    alle_teams = Team.query.order_by(Team.startnummer, Team.name).all()
     return render_template(
         "moderator/dashboard.html", status=status,
         laufende_teams=_laufende_teams(status),
-        lauf_optionen=_lauf_optionen(), nachrichten=nachrichten)
+        lauf_optionen=_lauf_optionen(), nachrichten=nachrichten,
+        alle_teams=alle_teams)
 
 
 @bp.route("/status", methods=["POST"])
