@@ -137,6 +137,46 @@ def test_dashboard_zeigt_motto_und_lieblingslied(client, app):
     assert "Highway to Hell".encode() in r.data
 
 
+def test_live_fragment_zeigt_neue_zeiten_ohne_seiten_reload(client, app):
+    """Der /moderator/live-fragment-Endpoint (per JS-Polling eingebettet)
+    liefert die aktuellen Zeiten aus dem abgeschlossenen Lauf, sobald sie
+    erfasst sind - ohne dass die Hauptseite neu geladen werden muss."""
+    with app.app_context():
+        disziplin = Disziplin.query.filter_by(name="Siloplanen-Race").one()
+        team1 = Team.query.filter_by(name="Team Rattenberg").one()
+        team2 = Team.query.filter_by(name="Team Brixlegg").one()
+        lauf = f"{disziplin.id}|Vorrunde 1"
+
+    _login(client, "orga")
+    client.post("/moderator/status", data={"lauf": lauf,
+                                           "publikumsinfo": "",
+                                           "sponsoren": ""})
+
+    # Vor der Zeitmessung: noch keine Zeiten im Fragment
+    r = client.get("/moderator/live-fragment")
+    assert r.status_code == 200
+    daten = r.get_json()
+    assert "Noch kein abgeschlossener Lauf".encode() in daten["live_html"].encode()
+
+    # Zeiten werden erfasst (z.B. durch die Zeitmessung-Automatik)
+    with app.app_context():
+        Startplatz.query.filter_by(team_id=team1.id).update({"ergebnis_sekunden": 42.5})
+        Startplatz.query.filter_by(team_id=team2.id).update({"ergebnis_sekunden": 39.1})
+        db.session.commit()
+
+    r = client.get("/moderator/live-fragment")
+    daten = r.get_json()
+    assert "42.50 s".encode() in daten["live_html"].encode()
+    assert "39.10 s".encode() in daten["live_html"].encode()
+    assert "39.1".encode() in daten["rangliste_html"].encode()
+
+    # Die Hauptseite selbst zeigt beim ersten Laden dasselbe und bindet das
+    # Polling auf den Fragment-Endpoint ein
+    hauptseite = client.get("/moderator/")
+    assert "42.50 s".encode() in hauptseite.data
+    assert "/moderator/live-fragment".encode() in hauptseite.data
+
+
 def test_moderator_sieht_keinen_freigabe_button_organisator_schon(client, app):
     """Die aktive Rolle `moderator` sieht das Dashboard rein Lese-Ansicht:
     Live-Teams + Team-Infos, aber KEINEN Lauffreigabe-Button und nicht die

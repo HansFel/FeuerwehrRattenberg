@@ -1,7 +1,7 @@
 """Live-Dashboard für die Moderation und Pflege durch den Organisator."""
 import re
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user
 
 from ..auth import rolle_noetig
@@ -52,6 +52,22 @@ def _laufende_teams(status: ModeratorStatus) -> list[Startplatz]:
     return query.order_by(Startplatz.startnummer, Startplatz.id).all()
 
 
+def _live_daten(status: ModeratorStatus) -> dict:
+    """Daten fuer die live aktualisierten Dashboard-Bereiche (aktueller Lauf,
+    abgeschlossener Lauf mit Zeiten, naechster Lauf, Rangliste)."""
+    letzter_lauf = _letzter_abgeschlossener_lauf(status)
+    naechster = _naechster_lauf(status)
+    return dict(
+        status=status,
+        laufende_teams=_laufende_teams(status),
+        rangliste=_rangliste_mit_strafen(),
+        letzter_lauf=letzter_lauf,
+        letzter_lauf_teams=_teams_fuer_heat(letzter_lauf) if letzter_lauf else [],
+        naechster=naechster,
+        naechster_teams=_teams_fuer_heat(naechster) if naechster else [],
+    )
+
+
 @bp.route("/")
 @rolle_noetig("moderator", "dj", "organisator")
 def dashboard():
@@ -62,25 +78,24 @@ def dashboard():
                    .order_by(Nachricht.erstellt.desc()).limit(20).all())
     alle_teams = Team.query.order_by(Team.startnummer, Team.name).all()
 
-    # Rangliste: Laufzeit (Summe ergebnis_sekunden) + Strafsekunden je Team
-    rangliste = _rangliste_mit_strafen()
-
-    # Abgeschlossener Lauf = letzter Heat mit allen ergebnis_sekunden gesetzt
-    letzter_lauf = _letzter_abgeschlossener_lauf(status)
-    letzter_lauf_teams = _teams_fuer_heat(letzter_lauf) if letzter_lauf else []
-
-    # Naechster geplanter Lauf
-    naechster = _naechster_lauf(status)
-    naechster_teams = _teams_fuer_heat(naechster) if naechster else []
-
     return render_template(
-        "moderator/dashboard.html", status=status,
-        laufende_teams=_laufende_teams(status),
+        "moderator/dashboard.html",
         lauf_optionen=_lauf_optionen(), nachrichten=nachrichten,
         alle_teams=alle_teams,
-        rangliste=rangliste,
-        letzter_lauf=letzter_lauf, letzter_lauf_teams=letzter_lauf_teams,
-        naechster=naechster, naechster_teams=naechster_teams)
+        **_live_daten(status))
+
+
+@bp.route("/live-fragment")
+@rolle_noetig("moderator", "dj", "organisator")
+def live_fragment():
+    """Liefert die live aktualisierten Dashboard-Bereiche als HTML-Fragmente
+    (per JS-Polling eingebettet), damit neue Zeiten sofort erscheinen, ohne
+    die Seite neu zu laden und ohne laufende Formulareingaben zu stoeren."""
+    daten = _live_daten(_status())
+    return jsonify(
+        live_html=render_template("moderator/_live.html", **daten),
+        rangliste_html=render_template("moderator/_rangliste.html", **daten),
+    )
 
 
 @bp.route("/status", methods=["POST"])

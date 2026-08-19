@@ -1,0 +1,75 @@
+<section class="moderator-live">
+  <div class="moderator-live-titel">GERADE IM BEWERB</div>
+  {% if status.disziplin and laufende_teams %}
+    <h2>{{ status.disziplin.name }}{% if status.heat %} · {{ status.heat }}{% endif %}</h2>
+    <div class="moderator-bahnen">
+      {% for sp in laufende_teams %}
+      <article class="moderator-bahn">
+        <span>Bahn {{ sp.startnummer or loop.index }}</span>
+        <strong>{{ sp.team.name }}</strong>
+        {% if sp.team.wehr %}<small>{{ sp.team.wehr }}</small>{% endif %}
+        {% if sp.team.motto %}<div class="moderator-motto">💬 {{ sp.team.motto }}</div>{% endif %}
+        {% if sp.team.lieblingslied %}<div class="moderator-lied">🎵 {{ sp.team.lieblingslied }}</div>{% endif %}
+      </article>
+      {% endfor %}
+    </div>
+    {% if dashboard_zeigt("organisator") %}
+    <form method="post" action="{{ url_for('notfall.aus_startliste_freigeben') }}" style="margin-top:0.75rem">
+      <button class="knopf" type="submit">⏱️ Zeitmessung für diesen Lauf freigeben</button>
+    </form>
+    {% endif %}
+  {% else %}
+    <h2>Noch kein aktueller Lauf ausgewählt</h2>
+  {% endif %}
+</section>
+
+{% if dashboard_zeigt("organisator") %}
+<section class="moderator-live" style="margin-top:1rem; border-color: var(--rand);">
+  <div class="moderator-live-titel">ABGESCHLOSSENER LAUF</div>
+  {% if letzter_lauf %}
+    {% set ab_heat = letzter_lauf[0] %}
+    {% set ab_sps = letzter_lauf_teams %}
+    <h2>{{ status.disziplin.name }} · {{ ab_heat }}</h2>
+    <div class="moderator-bahnen">
+      {% for sp in ab_sps %}
+      <article class="moderator-bahn">
+        <span>Bahn {{ sp.startnummer or loop.index }}</span>
+        <strong>{{ sp.team.name }}</strong>
+        <div class="moderator-ergebnis">{{ "%.2f"|format(sp.ergebnis_sekunden) }} s</div>
+      </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="leer" style="padding:1rem;">Noch kein abgeschlossener Lauf (mit Ergebnissen).</p>
+  {% endif %}
+</section>
+
+<section class="moderator-live" style="margin-top:1rem; border-color: #2e7d32;">
+  <div class="moderator-live-titel" style="color:#2e7d32;">NÄCHSTER LAUF</div>
+  {% if naechster %}
+    {% set nx_heat = naechster[0] %}
+    {% set nx_sps = naechster_teams %}
+    <h2>{{ status.disziplin.name }} · {{ nx_heat }}</h2>
+    <div class="moderator-bahnen">
+      {% for sp in nx_sps %}
+      <article class="moderator-bahn">
+        <span>Bahn {{ sp.startnummer or loop.index }}</span>
+        <strong>{{ sp.team.name }}</strong>
+        {% if sp.team.wehr %}<small>{{ sp.team.wehr }}</small>{% endif %}
+      </article>
+      {% endfor %}
+    </div>
+    <div style="display:flex; gap:0.5rem; margin-top:0.75rem; flex-wrap:wrap;">
+      <form method="post" action="{{ url_for('moderator.naechster_lauf_starten') }}">
+        <button class="knopf" type="submit">▶️ Als aktuellen Lauf setzen</button>
+      </form>
+      <form method="post" action="{{ url_for('notfall.aus_startliste_freigeben') }}">
+        <button class="knopf" type="submit"
+                onclick="return confirm('Zeitmessung für {{ nx_heat }} freigeben?')">⏱️ Zeitmessung freigeben</button>
+      </form>
+    </div>
+  {% else %}
+    <p class="leer" style="padding:1rem;">Kein weiterer Lauf geplant.</p>
+  {% endif %}
+</section>
+{% endif %}
