@@ -103,10 +103,12 @@ def kellner_dashboard():
             menge = _int_or_null(request.form.get(f"menge_{a.id}"))
             if not menge or menge <= 0:
                 continue
+            ist_getraenk = a.kategorie == KATEGORIE_GETRAENK
             bestellung.positionen.append(BestellPosition(
                 artikel_id=a.id, artikel_name=a.name, einzelpreis=a.preis,
-                menge=menge, team_id=team.id if team else None,
-                punkte_gesamt=(a.punkte_pro_einheit or 0) * menge,
+                menge=menge,
+                team_id=team.id if (team and ist_getraenk) else None,
+                punkte_gesamt=(a.punkte_pro_einheit or 0) * menge if ist_getraenk else 0,
                 pfand_pro_einheit=a.pfand_pro_einheit or 0.0,
             ))
 
