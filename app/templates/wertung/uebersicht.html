@@ -51,6 +51,9 @@
   <h1>🏆 Team Challenge</h1>
   <p>Getraenkepunkte (aus dem Ausschank) + Fanpunkte (vom Organisator) = Team-Challenge-Gesamt.
      <strong>Hoechste Punktzahl = bester.</strong> Live aktualisiert.</p>
+  <div class="werkzeugleiste">
+    <a class="knopf klein" href="{{ url_for('pdf.team_challenge') }}">📄 Team Challenge als PDF</a>
+  </div>
 
   {% if team_challenge %}
   <table>

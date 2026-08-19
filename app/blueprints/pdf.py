@@ -17,6 +17,7 @@ from reportlab.platypus import (SimpleDocTemplate, Table, TableStyle,
 
 from ..models import db, Team, Disziplin, Startplatz, WERTUNG_ZEIT
 from ..wertung import rangliste_disziplin, gesamtwertung_vollstaendig, format_zeit
+from ..models import BestellPosition
 
 bp = Blueprint("pdf", __name__, url_prefix="/pdf")
 
@@ -84,6 +85,30 @@ def gesamt():
     tabelle = _tabelle(daten, [20 * mm, 30 * mm, 26 * mm, 18 * mm,
                                20 * mm, 16 * mm, 22 * mm, 22 * mm])
     return _dokument("Gesamtwertung", [tabelle], "gesamtwertung.pdf")
+
+
+@bp.route("/team_challenge.pdf")
+def team_challenge():
+    """Team Challenge als PDF: Getraenkepunkte + Fanpunkte je Team, gereiht."""
+    teams = Team.query.order_by(Team.startnummer, Team.name).all()
+    gp = {}
+    for pos in BestellPosition.query.all():
+        if pos.team_id and pos.punkte_gesamt:
+            gp[pos.team_id] = gp.get(pos.team_id, 0) + pos.punkte_gesamt
+    daten = [["Rang", "Mannschaft", "Wehr / Ort",
+              "Getraenkepunkte", "Fanpunkte", "Gesamt"]]
+    eintraege = []
+    for t in teams:
+        g = gp.get(t.id, 0)
+        f = t.fanpunkte or 0
+        eintraege.append((t, g, f, g + f))
+    eintraege.sort(key=lambda e: e[3], reverse=True)
+    for i, (t, g, f, ges) in enumerate(eintraege, start=1):
+        daten.append([str(i), t.name, t.wehr or "",
+                      str(g), str(f), str(ges)])
+    tabelle = _tabelle(daten, [18 * mm, 35 * mm, 30 * mm,
+                               25 * mm, 22 * mm, 20 * mm])
+    return _dokument("Team Challenge", [tabelle], "team_challenge.pdf")
 
 
 @bp.route("/disziplin/<int:disziplin_id>.pdf")

@@ -254,3 +254,23 @@ def _rangliste_mit_strafen():
     for i, e in enumerate(eintraege, start=1):
         e["rang"] = i
     return eintraege
+
+def _team_challenge_berechnen():
+    """Team Challenge: Getraenkepunkte + Fanpunkte je Team, live gereiht."""
+    teams = Team.query.order_by(Team.startnummer, Team.name).all()
+    gp = {}
+    for pos in BestellPosition.query.all():
+        if pos.team_id and pos.punkte_gesamt:
+            gp[pos.team_id] = gp.get(pos.team_id, 0) + pos.punkte_gesamt
+    eintraege = []
+    for t in teams:
+        g = gp.get(t.id, 0)
+        f = t.fanpunkte or 0
+        eintraege.append({
+            "team": t, "getraenkepunkte": g,
+            "fanpunkte": f, "gesamt": g + f,
+        })
+    eintraege.sort(key=lambda e: e["gesamt"], reverse=True)
+    for i, e in enumerate(eintraege, start=1):
+        e["rang"] = i
+    return eintraege
