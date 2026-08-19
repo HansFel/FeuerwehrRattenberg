@@ -39,7 +39,7 @@
       {% if dashboard_zeigt('punkterichter') %}
         <a href="{{ url_for('strafen.dashboard') }}">📋 Strafen</a>
       {% endif %}
-      {% if dashboard_zeigt('moderator', 'organisator') %}
+      {% if dashboard_zeigt('moderator', 'dj', 'organisator') %}
         <a href="{{ url_for('moderator.dashboard') }}">🎙️ Moderation</a>
       {% endif %}
       {% if aktive_rolle() == 'administrator' %}

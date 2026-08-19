@@ -253,3 +253,7 @@ form.formular textarea { min-height: 4rem; }
 .moderator-alle-teams summary { padding: 0.5rem; border-radius: 8px; background: var(--hell); }
 .moderator-alle-teams .moderator-bahn { min-width: 200px; }
 .moderator-ergebnis { font-size: 1.1rem; font-weight: 700; color: var(--rot-dunkel); margin-top: 0.2rem; }
+.moderator-rangliste { width: 100%; border-collapse: collapse; font-size: 1rem; }
+.moderator-rangliste th { text-align: left; padding: 0.5rem; border-bottom: 2px solid var(--rand); }
+.moderator-rangliste td { padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--hell); }
+.moderator-rangliste td.rang { font-weight: 700; text-align: center; width: 3rem; }

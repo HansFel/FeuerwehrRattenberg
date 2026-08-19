@@ -5,7 +5,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
 from ..auth import rolle_noetig
-from ..models import (db, Disziplin, ModeratorStatus, Nachricht, Startplatz, Team)
+from ..models import (db, Disziplin, ModeratorStatus, Nachricht, Startplatz, Team, Strafe, BestellPosition)
 
 bp = Blueprint("moderator", __name__, url_prefix="/moderator")
 
@@ -53,7 +53,7 @@ def _laufende_teams(status: ModeratorStatus) -> list[Startplatz]:
 
 
 @bp.route("/")
-@rolle_noetig("moderator", "organisator")
+@rolle_noetig("moderator", "dj", "organisator")
 def dashboard():
     status = _status()
     nachrichten = (Nachricht.query
@@ -61,6 +61,9 @@ def dashboard():
                            (Nachricht.ziel_benutzer_id == current_user.id))
                    .order_by(Nachricht.erstellt.desc()).limit(20).all())
     alle_teams = Team.query.order_by(Team.startnummer, Team.name).all()
+
+    # Rangliste: Laufzeit (Summe ergebnis_sekunden) + Strafsekunden je Team
+    rangliste = _rangliste_mit_strafen()
 
     # Abgeschlossener Lauf = letzter Heat mit allen ergebnis_sekunden gesetzt
     letzter_lauf = _letzter_abgeschlossener_lauf(status)
@@ -75,6 +78,7 @@ def dashboard():
         laufende_teams=_laufende_teams(status),
         lauf_optionen=_lauf_optionen(), nachrichten=nachrichten,
         alle_teams=alle_teams,
+        rangliste=rangliste,
         letzter_lauf=letzter_lauf, letzter_lauf_teams=letzter_lauf_teams,
         naechster=naechster, naechster_teams=naechster_teams)
 
@@ -198,3 +202,40 @@ def naechster_lauf_starten():
     flash(f"Lauf „{heat}“ als aktuell gesetzt. "
           f"Jetzt „Zeitmessung freigeben“ klicken zum Starten.", "ok")
     return redirect(url_for("moderator.dashboard"))
+
+def _rangliste_mit_strafen():
+    """Rangliste: je Team die Summe aller ergebnis_sekunden (Laufzeit)
+    plus Strafsekunden aus dem Strafenkatalog. Sortiert nach Gesamt."""
+    teams = Team.query.order_by(Team.startnummer, Team.name).all()
+
+    # Laufzeit je Team (Summe aller Startplatz.ergebnis_sekunden)
+    laufzeiten = {}
+    for sp in Startplatz.query.all():
+        if sp.ergebnis_sekunden is not None:
+            laufzeiten[sp.team_id] = laufzeiten.get(sp.team_id, 0.0) + sp.ergebnis_sekunden
+
+    # Strafsekunden je Team
+    strafen = {}
+    for s in Strafe.query.all():
+        strafen[s.team_id] = strafen.get(s.team_id, 0.0) + s.sekunden
+
+    # Getraenkepunkte je Team
+    punkte = {}
+    for pos in BestellPosition.query.all():
+        if pos.team_id and pos.punkte_gesamt:
+            punkte[pos.team_id] = punkte.get(pos.team_id, 0) + pos.punkte_gesamt
+
+    eintraege = []
+    for t in teams:
+        lz = laufzeiten.get(t.id, 0.0)
+        st = strafen.get(t.id, 0.0)
+        eintraege.append({
+            "team": t, "laufzeit": lz, "strafen": st,
+            "gesamt": lz + st,
+            "getraenkepunkte": punkte.get(t.id, 0),
+        })
+    # Sortiert nach Gesamt (niedrig = besser bei Zeit-Wertung)
+    eintraege.sort(key=lambda e: e["gesamt"])
+    for i, e in enumerate(eintraege, start=1):
+        e["rang"] = i
+    return eintraege

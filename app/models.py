@@ -31,6 +31,7 @@ ROLLEN = {
     "kellner": "Kellner",
     "ausschank": "Ausschank",
     "moderator": "Moderator",
+    "dj": "DJ",
 }
 
 

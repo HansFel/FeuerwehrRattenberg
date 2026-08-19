@@ -101,6 +101,38 @@
   </div>
 </details>
 
+<section class="dash-karte" style="margin-top:1rem">
+  <h2>🏆 Aktuelle Rangliste</h2>
+  {% if rangliste %}
+  <table class="moderator-rangliste">
+    <thead>
+      <tr>
+        <th class="rang">Rang</th>
+        <th>Mannschaft</th>
+        <th>Laufzeit</th>
+        <th>Strafen</th>
+        <th>Gesamt</th>
+        <th>🥤 Pkt.</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in rangliste %}
+      <tr>
+        <td class="rang">{{ e.rang }}</td>
+        <td>{{ e.team.name }}</td>
+        <td>{{ "%.1f"|format(e.laufzeit) }} s</td>
+        <td>{{ "+%.0f"|format(e.strafen) if e.strafen > 0 else "–" }}</td>
+        <td><strong>{{ "%.1f"|format(e.gesamt) }} s</strong></td>
+        <td>{{ e.getraenkepunkte }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p class="leer">Noch keine Ergebnisse erfasst.</p>
+  {% endif %}
+</section>
+
 <div class="moderator-grid">
   <section class="dash-karte moderator-info">
     <h2>📣 Informationen fürs Publikum</h2>
