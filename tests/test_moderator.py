@@ -25,7 +25,8 @@ def app():
         fremd.rollen.append(BenutzerRolle(rolle="kellner"))
 
         disziplin = Disziplin(name="Siloplanen-Race", reihenfolge=1)
-        team1 = Team(name="Team Rattenberg", wehr="Rattenberg")
+        team1 = Team(name="Team Rattenberg", wehr="Rattenberg",
+                     motto="Wasser marsch!", lieblingslied="Highway to Hell")
         team2 = Team(name="Team Brixlegg", wehr="Brixlegg")
         db.session.add_all([moderator, organisator, fremd,
                             disziplin, team1, team2])
@@ -117,6 +118,23 @@ def test_kellner_kann_keine_moderator_nachricht_senden(client, app):
     client.post("/moderator/nachricht", data={"text": "Nicht erlaubt"})
     with app.app_context():
         assert Nachricht.query.count() == 0
+
+
+def test_dashboard_zeigt_motto_und_lieblingslied(client, app):
+    """Motto/Lieblingslied eines Teams sollen bei den laufenden Bahnen im
+    Moderator-Dashboard erscheinen, wenn gepflegt - fehlen sie, kein
+    leerer Platzhalter (Team Brixlegg hat keine)."""
+    with app.app_context():
+        disziplin = Disziplin.query.filter_by(name="Siloplanen-Race").one()
+        lauf = f"{disziplin.id}|Vorrunde 1"
+
+    _login(client, "orga")
+    client.post("/moderator/status", data={"lauf": lauf,
+                                           "publikumsinfo": "",
+                                           "sponsoren": ""})
+    r = client.get("/moderator/")
+    assert "Wasser marsch!".encode() in r.data
+    assert "Highway to Hell".encode() in r.data
 
 
 def test_moderator_sieht_keinen_freigabe_button_organisator_schon(client, app):

@@ -19,6 +19,8 @@
         <span>Bahn {{ sp.startnummer or loop.index }}</span>
         <strong>{{ sp.team.name }}</strong>
         {% if sp.team.wehr %}<small>{{ sp.team.wehr }}</small>{% endif %}
+        {% if sp.team.motto %}<small>💬 {{ sp.team.motto }}</small>{% endif %}
+        {% if sp.team.lieblingslied %}<small>🎵 {{ sp.team.lieblingslied }}</small>{% endif %}
       </article>
       {% endfor %}
     </div>
