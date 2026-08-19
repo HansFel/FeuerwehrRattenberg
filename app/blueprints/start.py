@@ -12,6 +12,8 @@ bp = Blueprint("start", __name__)
 def index():
     if current_user.is_authenticated and aktive_rolle() == "ausschank":
         return redirect(url_for("bestellung.ausschank_dashboard"))
+    if current_user.is_authenticated and aktive_rolle() == "kellner":
+        return redirect(url_for("bestellung.kellner_dashboard"))
     disziplinen = Disziplin.query.order_by(Disziplin.reihenfolge,
                                            Disziplin.name).all()
     return render_template(

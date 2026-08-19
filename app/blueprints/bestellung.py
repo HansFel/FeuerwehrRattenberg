@@ -72,6 +72,68 @@ def ausschank_dashboard():
                            teams=teams)
 
 
+@bp.route("/kellner/", methods=["GET", "POST"])
+@rolle_noetig("kellner", "organisator")
+def kellner_dashboard():
+    """Vereinfachtes Kellner-Dashboard (wie Ausschank, aber mit Tischnummer
+    und allen Artikeln inkl. Essen). Bestellung wird sofort als bezahlt
+    gebucht, Getraenkepunkte dem gewaehlten Team zugewiesen."""
+    artikel = (Artikel.query.filter_by(aktiv=True)
+               .order_by(Artikel.kategorie, Artikel.reihenfolge, Artikel.name)
+               .all())
+    teams = Team.query.order_by(Team.name).all()
+    nach_kategorie = {k: [a for a in artikel if a.kategorie == k]
+                      for k in KATEGORIEN}
+
+    if request.method == "POST":
+        tisch = request.form.get("tisch_nummer", type=int)
+        if not tisch or tisch <= 0:
+            flash("Bitte eine Tischnummer eingeben.", "error")
+            return redirect(url_for("bestellung.kellner_dashboard"))
+        team_id = request.form.get("team_id", type=int)
+        team = db.session.get(Team, team_id) if team_id else None
+
+        bestellung = Bestellung(
+            tisch_nummer=tisch,
+            erfasst_von=current_user.username,
+            bezahlt=True,
+            bezahlt_am=datetime.now(timezone.utc),
+        )
+        for a in artikel:
+            menge = _int_or_null(request.form.get(f"menge_{a.id}"))
+            if not menge or menge <= 0:
+                continue
+            bestellung.positionen.append(BestellPosition(
+                artikel_id=a.id, artikel_name=a.name, einzelpreis=a.preis,
+                menge=menge, team_id=team.id if team else None,
+                punkte_gesamt=(a.punkte_pro_einheit or 0) * menge,
+                pfand_pro_einheit=a.pfand_pro_einheit or 0.0,
+            ))
+
+        pfand_zurueck = _int_or_null(request.form.get("pfand_zurueck")) or 0
+        pfand_gutschrift = pfand_zurueck * 1.0
+
+        if not bestellung.positionen:
+            flash("Bitte mindestens einen Artikel auswählen.", "error")
+            return redirect(url_for("bestellung.kellner_dashboard"))
+
+        db.session.add(bestellung)
+        db.session.commit()
+        zahlbetrag = bestellung.gesamtbetrag - pfand_gutschrift
+        team_text = f", {team.name}" if team else ""
+        flash(
+            f"Bestellung und Bezahlung bestätigt: Tisch {tisch}{team_text}, "
+            f"Zahlbetrag {zahlbetrag:.2f} €, "
+            f"{bestellung.gesamtpunkte} Getränkepunkte.",
+            "ok",
+        )
+        return redirect(url_for("bestellung.kellner_dashboard"))
+
+    return render_template("kellner_dashboard.html",
+                           nach_kategorie=nach_kategorie,
+                           artikel=artikel, teams=teams, KATEGORIEN=KATEGORIEN)
+
+
 @bp.route("/bestellen/<int:tisch>", methods=["GET", "POST"])
 def bestellen(tisch: int):
     artikel = (Artikel.query.filter_by(aktiv=True)

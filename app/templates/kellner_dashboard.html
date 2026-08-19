@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block titel %}Kellner{% endblock %}
+{% block inhalt %}
+  <div class="ausschank-dashboard">
+    <h1>🍽️ Kellner-Kasse</h1>
+
+    <form method="post" id="kellner-formular">
+      <div class="ausschank-gruppe" style="flex-direction:row; gap:1rem; align-items:end;">
+        <label for="tisch_nummer" style="flex:0 0 auto;">
+          <strong>Tischnummer</strong>
+          <input id="tisch_nummer" name="tisch_nummer" type="number" min="1" required
+                 style="font-size:1.15rem; padding:0.9rem; width:6rem; border:2px solid var(--rand); border-radius:8px;">
+        </label>
+        <label class="ausschank-gruppe" for="team_id" style="flex:1;">
+          <strong>Gruppe (optional – für Getränkepunkte)</strong>
+          <select id="team_id" name="team_id" onchange="kellnerAktualisieren()">
+            <option value="">– keine Gruppe –</option>
+            {% for team in teams %}
+              <option value="{{ team.id }}">{{ team.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+
+      {% for kat_key, kat_name in KATEGORIEN.items() %}
+      {% set kat_artikel = nach_kategorie.get(kat_key, []) %}
+      {% if kat_artikel %}
+      <h2>{{ kat_name }}</h2>
+      <div class="kasse-grid">
+        {% for a in kat_artikel %}
+        <div class="kasse-kachel {{ "kasse-getraenk" if a.kategorie == "getraenk" else "kasse-essen" }}">
+          <button type="button" class="kasse-tipp"
+                  data-preis="{{ a.preis }}"
+                  data-pfand="{{ a.pfand_pro_einheit or 0 }}"
+                  onclick="kellnerMenge('menge_{{ a.id }}', 1)">
+            <strong>{{ a.name }}</strong>
+            <span>{{ "%.2f"|format(a.preis) }} €
+              {% if a.pfand_pro_einheit %} + {{ "%.2f"|format(a.pfand_pro_einheit) }} € Pfand{% endif %}
+              {% if a.punkte_pro_einheit %} · {{ a.punkte_pro_einheit }} Pkt.{% endif %}
+            </span>
+          </button>
+          <div class="kasse-zaehler">
+            <button type="button" class="knopf klein grau"
+                    onclick="kellnerMenge('menge_{{ a.id }}', -1)">−</button>
+            <span id="anzeige_menge_{{ a.id }}" class="kasse-anzahl">0</span>
+            <input type="hidden" id="menge_{{ a.id }}" name="menge_{{ a.id }}" value="0">
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% endfor %}
+
+      <h2>Pfandrückgabe</h2>
+      <p class="leer">Zurückgegebene Behälter abziehen – 1,00 € pro Stück.</p>
+      <div class="kasse-grid">
+        <div class="kasse-kachel kasse-pfand">
+          <button type="button" class="kasse-tipp"
+                  data-rueckgabepreis="1.00"
+                  onclick="kellnerMenge('pfand_zurueck', 1)">
+            <strong>Pfand zurück</strong>
+            <span>−1,00 € pro Stück</span>
+          </button>
+          <div class="kasse-zaehler">
+            <button type="button" class="knopf klein grau"
+                    onclick="kellnerMenge('pfand_zurueck', -1)">−</button>
+            <span id="anzeige_pfand_zurueck" class="kasse-anzahl">0</span>
+            <input type="hidden" id="pfand_zurueck" name="pfand_zurueck" value="0">
+          </div>
+        </div>
+      </div>
+
+      <section class="ausschank-rueckgeld">
+        <h2>Rückgeld berechnen</h2>
+        <div><span>Artikel</span><strong id="kellner-artikel-summe">0,00 €</strong></div>
+        <div><span>Pfand (neu)</span><strong id="kellner-pfand-neu">0,00 €</strong></div>
+        <div><span>Pfand zurück</span><strong id="kellner-pfand-zurueck">− 0,00 €</strong></div>
+        <div class="ausschank-gesamt"><span>Zu bezahlen</span><strong id="kellner-summe">0,00 €</strong></div>
+        <label for="gegeben">Gegeben (€)</label>
+        <input id="gegeben" type="number" min="0" step="0.01" inputmode="decimal"
+               placeholder="0,00" oninput="kellnerAktualisieren()">
+        <div><span>Rückgeld</span><strong id="kellner-rueckgeld">0,00 €</strong></div>
+      </section>
+
+      <div class="ausschank-abschluss">
+        <strong id="kellner-auswahl">Noch kein Artikel gewählt</strong>
+        <button class="knopf gross" type="submit" id="kellner-absenden"
+                {% if not artikel or not teams %}disabled{% endif %}>
+          Bestellung und Bezahlung
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    function kellnerMenge(feldId, delta) {
+      var feld = document.getElementById(feldId);
+      var menge = Math.max(0, parseInt(feld.value || "0", 10) + delta);
+      feld.value = menge;
+      document.getElementById("anzeige_" + feldId).textContent = menge;
+      kellnerAktualisieren();
+    }
+
+    function kellnerAktualisieren() {
+      var artikel = 0;
+      var rueckgaben = 0;
+      var artikelSumme = 0;
+      var pfandNeu = 0;
+      var pfandZurueck = 0;
+      document.querySelectorAll(".kasse-getraenk, .kasse-essen").forEach(function (kachel) {
+        var menge = parseInt(kachel.querySelector("input").value || "0", 10);
+        var tipp = kachel.querySelector(".kasse-tipp");
+        artikel += menge;
+        artikelSumme += menge * parseFloat(tipp.dataset.preis || "0");
+        pfandNeu += menge * parseFloat(tipp.dataset.pfand || "0");
+      });
+      document.querySelectorAll(".kasse-pfand").forEach(function (kachel) {
+        var menge = parseInt(kachel.querySelector("input").value || "0", 10);
+        rueckgaben += menge;
+        pfandZurueck += menge * parseFloat(kachel.querySelector(".kasse-tipp").dataset.rueckgabepreis || "0");
+      });
+      var summe = artikelSumme + pfandNeu - pfandZurueck;
+      var tischFeld = document.getElementById("tisch_nummer");
+      var absenden = document.getElementById("kellner-absenden");
+      absenden.disabled = artikel === 0 || !tischFeld.value;
+      var status;
+      if (artikel === 0) { status = "Noch kein Artikel gewählt"; }
+      else if (!tischFeld.value) { status = artikel + " Artikel · bitte Tischnummer eingeben"; }
+      else { status = artikel + " Artikel · " + rueckgaben + " Pfand zurück · Tisch " + tischFeld.value; }
+      document.getElementById("kellner-auswahl").textContent = status;
+      document.getElementById("kellner-artikel-summe").textContent = euro(artikelSumme);
+      document.getElementById("kellner-pfand-neu").textContent = euro(pfandNeu);
+      document.getElementById("kellner-pfand-zurueck").textContent = "− " + euro(pfandZurueck);
+      document.getElementById("kellner-summe").textContent = euro(summe);
+      var gegebenFeld = document.getElementById("gegeben");
+      document.getElementById("kellner-rueckgeld").textContent = gegebenFeld.value
+        ? euro(parseFloat(gegebenFeld.value) - summe) : "–";
+    }
+
+    function euro(betrag) {
+      return betrag.toLocaleString("de-AT", {minimumFractionDigits: 2, maximumFractionDigits: 2}) + " €";
+    }
+
+    document.getElementById("tisch_nummer").addEventListener("input", kellnerAktualisieren);
+  </script>
+{% endblock %}
