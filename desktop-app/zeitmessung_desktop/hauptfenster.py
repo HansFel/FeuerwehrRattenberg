@@ -182,6 +182,17 @@ class Hauptfenster(QMainWindow):
         stopp_zeile.addStretch()
         manuell_tasten_layout.addLayout(start_zeile)
         manuell_tasten_layout.addLayout(stopp_zeile)
+
+        # Notfall-Stopp: bricht den kompletten Lauf ab (Verletzung etc.)
+        abort_zeile = QHBoxLayout()
+        self.abort_knopf = QPushButton("🚨 LAUF ABBRECHEN (Notfall / Verletzung)")
+        self.abort_knopf.setMinimumHeight(50)
+        self.abort_knopf.setStyleSheet(
+            "font-size: 1.1rem; font-weight: bold; "
+            "background-color: #d32f2f; color: white; border: 2px solid #b71c1c;")
+        self.abort_knopf.clicked.connect(self._lauf_abbrechen)
+        abort_zeile.addWidget(self.abort_knopf)
+        manuell_tasten_layout.addLayout(abort_zeile)
         layout.addWidget(manuell_tasten_box)
 
         manuell_box = QGroupBox("Manueller Modus (offline, ohne Webapp-Verbindung)")
@@ -431,6 +442,41 @@ class Hauptfenster(QMainWindow):
             self.ereignis_tabelle.setItem(row, 0, QTableWidgetItem(str(zeile["bahn"])))
             self.ereignis_tabelle.setItem(row, 1, QTableWidgetItem(zeile["empfangen_um"]))
             self.ereignis_tabelle.setItem(row, 2, QTableWidgetItem(zeile["sync_status"]))
+
+    def _lauf_abbrechen(self) -> None:
+        """Bricht den aktiven Lauf ab - serverseitig (online) und lokal
+        (offline). Bereits erfasste Teilzeiten bleiben erhalten."""
+        antwort = QMessageBox.warning(
+            self, "Lauf abbrechen",
+            "Den aktuell aktiven Lauf WIRKLICH abbrechen?\n"
+            "Already erfasste Teilzeiten bleiben erhalten.\n"
+            "Dies ist fuer Notfaelle (Verletzung, Abbruch).",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if antwort != QMessageBox.StandardButton.Yes:
+            return
+
+        # 1. Lokalen Lauf deaktivieren (falls offline-Modus aktiv)
+        datenbank.verbindung.execute(
+            "UPDATE lokaler_lauf SET aktiv = 0 WHERE aktiv = 1")
+        datenbank.verbindung.commit()
+
+        # 2. Server-Call: aktiven NotfallLauf deaktivieren
+        import requests
+        try:
+            url = self.einstellungen.webapp_url.replace(
+                "/api/zeitmessung/event", "") + "/notfall/api/abrechen"
+            requests.post(url, headers={
+                "X-API-Key": self.einstellungen.api_key,
+            }, timeout=5)
+        except Exception:
+            pass  # Server nicht erreichbar - lokaler Abbruch reicht
+
+        self._lokalen_lauf_anzeigen()
+        QMessageBox.information(self, "Lauf abgebrochen",
+                                "Der Lauf wurde abgebrochen.\n"
+                                "Teilzeiten sind erhalten geblieben.")
 
     def _manuelles_event(self, bahn: int) -> None:
         """Erzeugt ein manuelles Kontaktereignis fuer die angegebene Bahn -

@@ -184,6 +184,27 @@ def api_aktiver_lauf():
     return jsonify(aktiv=True, lauf_id=lauf.id, bezeichnung=lauf.bezeichnung, aktiviert_um=aktiviert_um, bahnen=bahnen)
 
 
+@bp.route("/api/abrechen", methods=["POST"])
+def api_lauf_abrechen():
+    """Bricht den aktuell aktiven Lauf ab (Notfall: Verletzung, Abbruch).
+    Setzt aktiv=False auf den aktiven NotfallLauf - bereits erfasste
+    Teilzeiten bleiben erhalten (fuer Dokumentation). Authentifizierung
+    ueber X-API-Key wie die anderen Zeitmessung-Endpunkte."""
+    erwarteter_key = current_app.config["ZEITMESSUNG_API_KEY"]
+    if request.headers.get("X-API-Key") != erwarteter_key:
+        return jsonify(fehler="Ungueltiger oder fehlender API-Key."), 401
+
+    lauf = NotfallLauf.query.filter_by(aktiv=True).first()
+    if not lauf:
+        return jsonify(fehler="Kein aktiver Lauf zum Abbrechen."), 404
+
+    lauf.aktiv = False
+    db.session.commit()
+    return jsonify(ok=True, lauf_id=lauf.id,
+                   bezeichnung=lauf.bezeichnung,
+                   meldung="Lauf abgebrochen - Teilzeiten bleiben erhalten.")
+
+
 @bp.route("/api/importieren", methods=["POST"])
 def api_importieren():
     """Nimmt einen OFFLINE (ohne Netzverbindung zur Webapp) gemessenen Lauf
