@@ -522,39 +522,22 @@ class Hauptfenster(QMainWindow):
                                 "Teilzeiten sind erhalten geblieben.")
 
     def _manuelles_event(self, bahn: int) -> None:
-        """Erzeugt ein manuelles Kontaktereignis fuer die angegebene Bahn.
-        Wenn es der erste Kontakt fuer den aktiven Lauf ist, wird er
-        automatisch auf alle 4 Bahnen verteilt (gemeinsamer Start)."""
-        from .lokale_zuordnung import zuordnung_pruefen
+        """Erzeugt ein manuelles Kontaktereignis fuer die angegebene Bahn -
+        aequivalent zu einem vom Arduino empfangenen EVENT, nur per Button-
+        Klick statt Hardware-Kontakt. Geht durch dieselbe Pipeline:
+        lokale SQLite -> lokale Zuordnung -> Sync zur Webapp."""
+        client_event_id = uuid.uuid4().hex
         empfangen_um = datetime.now(timezone.utc).isoformat()
         geraet_millis = int(time.time() * 1000) % 1_000_000
-        if self._ist_erster_kontakt():
-            for b in range(1, 5):
-                datenbank.ereignis_hinzufuegen(
-                    self.db, bahn=b, geraet_millis=geraet_millis,
-                    empfangen_um=empfangen_um, client_event_id=uuid.uuid4().hex,
-                )
-                zuordnung_pruefen(self.db, b)
-        else:
-            datenbank.ereignis_hinzufuegen(
-                self.db, bahn=bahn, geraet_millis=geraet_millis,
-                empfangen_um=empfangen_um, client_event_id=uuid.uuid4().hex,
-            )
-            zuordnung_pruefen(self.db, bahn)
+        datenbank.ereignis_hinzufuegen(
+            self.db, bahn=bahn, geraet_millis=geraet_millis,
+            empfangen_um=empfangen_um, client_event_id=client_event_id,
+        )
+        from .lokale_zuordnung import zuordnung_pruefen
+        zuordnung_pruefen(self.db, bahn)
         self._tabelle_neu_laden()
         self._auf_ereignis({"neues_ereignis": {"bahn": bahn},
                            "zustaende": [0, 0, 0, 0]})
-
-    def _ist_erster_kontakt(self) -> bool:
-        """True wenn noch kein Event fuer den aktiven lokalen Lauf existiert."""
-        lauf = datenbank.aktiver_lokaler_lauf(self.db)
-        if lauf is None:
-            return False
-        zeile = self.db.execute(
-            "SELECT COUNT(*) AS n FROM ereignis WHERE empfangen_um >= ?",
-            (lauf["aktiviert_um"],),
-        ).fetchone()
-        return zeile["n"] == 0
 
     def closeEvent(self, event) -> None:
         for worker in (self._seriell_worker, self._sync_worker, self._sicherung_worker,

@@ -76,36 +76,14 @@ class SeriellWorker(threading.Thread):
         self.letzter_kontakt = time.monotonic()
 
         if geparst["typ"] == "event":
+            client_event_id = uuid.uuid4().hex
             empfangen_um = datetime.now(timezone.utc).isoformat()
-            bahn = geparst["bahn"]
-            # Erster Kontakt fuer den aktiven Lauf? -> auf alle 4 Bahnen verteilen
-            if self._ist_erster_kontakt():
-                for b in range(1, 5):
-                    datenbank.ereignis_hinzufuegen(
-                        self._db, bahn=b, geraet_millis=geparst["geraet_millis"],
-                        empfangen_um=empfangen_um, client_event_id=uuid.uuid4().hex,
-                    )
-                    zuordnung_pruefen(self._db, b)
-            else:
-                datenbank.ereignis_hinzufuegen(
-                    self._db, bahn=bahn, geraet_millis=geparst["geraet_millis"],
-                    empfangen_um=empfangen_um, client_event_id=uuid.uuid4().hex,
-                )
-                zuordnung_pruefen(self._db, bahn)
+            datenbank.ereignis_hinzufuegen(
+                self._db, bahn=geparst["bahn"], geraet_millis=geparst["geraet_millis"],
+                empfangen_um=empfangen_um, client_event_id=client_event_id,
+            )
+            zuordnung_pruefen(self._db, geparst["bahn"])
             self._auf_status_geaendert({"neues_ereignis": geparst})
-
-    def _ist_erster_kontakt(self) -> bool:
-        """True wenn noch kein Event fuer den aktiven lokalen Lauf existiert
-        (ueber alle Bahnen hinweg). Der erste physische Kontakt wird damit
-        automatisch zum gemeinsamen Start fuer alle 4 Bahnen."""
-        lauf = datenbank.aktiver_lokaler_lauf(self._db)
-        if lauf is None:
-            return False
-        zeile = self._db.execute(
-            "SELECT COUNT(*) AS n FROM ereignis WHERE empfangen_um >= ?",
-            (lauf["aktiviert_um"],),
-        ).fetchone()
-        return zeile["n"] == 0
 
         elif geparst["typ"] == "state":
             # Nur Live-Anzeige (Verkabeln/Testen) - bewusst NICHT in der
