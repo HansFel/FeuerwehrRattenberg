@@ -233,6 +233,7 @@ def _schema_migrieren() -> None:
         "haftungsausschluss": "BOOLEAN NOT NULL DEFAULT FALSE",
         "motto": "TEXT",
         "lieblingslied": "TEXT",
+        "fanpunkte": "INTEGER NOT NULL DEFAULT 0",
     })
     _spalten_ergaenzen("artikel", {
         "pfand_pro_einheit": f"{gleitkomma} NOT NULL DEFAULT 0.0",

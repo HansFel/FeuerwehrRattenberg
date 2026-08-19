@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block titel %}Wertung{% endblock %}
 {% block inhalt %}
-  <h1>Gesamtwertung</h1>
+  <h1>🏁 Siloplanen-Race Wertung</h1>
   <p>Sobald ein Team einen Platzierungslauf oder ein Finale absolviert hat, ist
      <strong>dieser Platz endgültig</strong> und ändert sich nicht mehr. Teams,
      die noch keinen dieser Läufe hinter sich haben, werden vorläufig nach
@@ -45,6 +45,66 @@
   {% else %}
   <p class="leer">Noch keine Mannschaften vorhanden.</p>
   {% endif %}
+
+  <hr style="margin:2rem 0; border:none; border-top:2px solid var(--rand);">
+
+  <h1>🏆 Team Challenge</h1>
+  <p>Getraenkepunkte (aus dem Ausschank) + Fanpunkte (vom Organisator) = Team-Challenge-Gesamt.
+     <strong>Hoechste Punktzahl = bester.</strong> Live aktualisiert.</p>
+
+  {% if team_challenge %}
+  <table>
+    <thead>
+      <tr>
+        <th class="rang">Rang</th>
+        <th>Mannschaft</th>
+        <th>🥤 Getraenkepunkte</th>
+        <th>🎉 Fanpunkte</th>
+        <th>🏆 Gesamt</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in team_challenge %}
+      <tr>
+        <td class="rang">{{ e.rang }}</td>
+        <td>{{ e.team.name }}{% if e.team.wehr %} <small>({{ e.team.wehr }})</small>{% endif %}</td>
+        <td>{{ e.getraenkepunkte }}</td>
+        <td>{{ e.fanpunkte }}</td>
+        <td><strong>{{ e.gesamt }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p class="leer">Noch keine Mannschaften vorhanden.</p>
+  {% endif %}
+
+  {% if darf('organisator') %}
+  <details style="margin-top:1rem; border:2px solid var(--rand); border-radius:10px; padding:1rem;">
+    <summary style="cursor:pointer; font-weight:700;">🎉 Fanpunkte bearbeiten</summary>
+    <form method="post" style="margin-top:1rem;">
+      <table>
+        <thead><tr><th>Mannschaft</th><th>Getraenkepunkte (auto)</th><th>Fanpunkte eingeben</th></tr></thead>
+        <tbody>
+          {% for e in team_challenge %}
+          <tr>
+            <td>{{ e.team.name }}</td>
+            <td>{{ e.getraenkepunkte }}</td>
+            <td>
+              <input type="number" name="fanpunkte_{{ e.team.id }}"
+                     value="{{ e.fanpunkte }}" min="0" step="1"
+                     style="width:6rem; font-size:1.1rem; padding:0.4rem;">
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <button class="knopf" type="submit" style="margin-top:0.8rem;">Fanpunkte speichern</button>
+    </form>
+  </details>
+  {% endif %}
+
+  <hr style="margin:2rem 0; border:none; border-top:2px solid var(--rand);">
 
   <h2>Einzelwertung je Disziplin</h2>
   {% if disziplinen %}

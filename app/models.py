@@ -198,6 +198,11 @@ class Team(db.Model):
     getraenk = db.Column(db.String(20), default="")        # Pflichtgetränk (Bier/Spritzer)
     bezahlt = db.Column(db.Boolean, default=False)
     haftungsausschluss = db.Column(db.Boolean, default=False)
+    # Fanpunkte fuer die Team Challenge (vom Organisator manuell vergeben,
+    # z.B. fuer Kreativitaet, Fankultur, Fan-Voting etc.). Getraenkepunkte
+    # kommen aus dem Bestellsystem, die Summe ergibt die Team-Challenge-
+    # Wertung (unabhaengig von der Siloplanen-Race-Zeitwertung).
+    fanpunkte = db.Column(db.Integer, default=0)
     erstellt = db.Column(db.DateTime, default=_jetzt)
 
     ergebnisse = db.relationship("Ergebnis", back_populates="team",
