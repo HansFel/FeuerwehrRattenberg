@@ -144,6 +144,18 @@ class Hauptfenster(QMainWindow):
         self.lauf_tabelle.setMaximumHeight(160)
         layout.addWidget(self.lauf_tabelle)
 
+        # Gemeinsamer Start: 1. Kontakt fuer alle 4 Bahnen gleichzeitig
+        start_box = QGroupBox("Gemeinsamer Start (Startrichter-Startkommando)")
+        start_layout = QHBoxLayout(start_box)
+        self.gemeinsamer_start_knopf = QPushButton("🏁 GEMEINSAMER START\n(1. Kontakt fuer alle 4 Bahnen)")
+        self.gemeinsamer_start_knopf.setMinimumHeight(55)
+        self.gemeinsamer_start_knopf.setStyleSheet(
+            "font-size: 1.1rem; font-weight: bold; "
+            "background-color: #2e7d32; color: white; border: 2px solid #1b5e20;")
+        self.gemeinsamer_start_knopf.clicked.connect(self._gemeinsamer_start)
+        start_layout.addWidget(self.gemeinsamer_start_knopf)
+        layout.addWidget(start_box)
+
         # Manuelle Tasten (Fallback wenn Hardware-Kontakt aussetzt)
         manuell_tasten_box = QGroupBox("Manuelle Zeitnahme (pro Bahn)")
         manuell_tasten_layout = QVBoxLayout(manuell_tasten_box)
@@ -442,6 +454,37 @@ class Hauptfenster(QMainWindow):
             self.ereignis_tabelle.setItem(row, 0, QTableWidgetItem(str(zeile["bahn"])))
             self.ereignis_tabelle.setItem(row, 1, QTableWidgetItem(zeile["empfangen_um"]))
             self.ereignis_tabelle.setItem(row, 2, QTableWidgetItem(zeile["sync_status"]))
+
+    def _gemeinsamer_start(self) -> None:
+        """Setzt den 1. Kontakt fuer ALLE 4 Bahnen gleichzeitig – der
+        offizielle Startzeitpunkt. Danach braucht es nur noch 4 physische
+        Kontakte pro Bahn (statt 5). Verhindert, dass ein Team durch
+        Nicht-Ausloesen des 1. Kontakts taktisch Vorteile erlangt."""
+        antwort = QMessageBox.question(
+            self, "Gemeinsamer Start",
+            "Gemeinsamen Start fuer alle 4 Bahnen ausloesen?\n"
+            "Dies setzt den 1. Kontakt (Startzeitpunkt) fuer alle Bahnen.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if antwort != QMessageBox.StandardButton.Yes:
+            return
+        from .lokale_zuordnung import zuordnung_pruefen
+        empfangen_um = datetime.now(timezone.utc).isoformat()
+        geraet_millis = int(time.time() * 1000) % 1_000_000
+        for bahn in range(1, 5):
+            client_event_id = uuid.uuid4().hex
+            datenbank.ereignis_hinzufuegen(
+                self.db, bahn=bahn, geraet_millis=geraet_millis,
+                empfangen_um=empfangen_um, client_event_id=client_event_id,
+            )
+            zuordnung_pruefen(self.db, bahn)
+        self._tabelle_neu_laden()
+        self._auf_ereignis({"neues_ereignis": {"bahn": 0},
+                           "zustaende": [1, 1, 1, 1]})
+        QMessageBox.information(self, "Gemeinsamer Start",
+                                "Start fuer alle 4 Bahnen gesetzt!\n"
+                                "Jetzt 4 weitere Kontakte pro Bahn abwarten.")
 
     def _lauf_abbrechen(self) -> None:
         """Bricht den aktiven Lauf ab - serverseitig (online) und lokal
