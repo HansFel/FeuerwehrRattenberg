@@ -2,7 +2,7 @@
 import pytest
 
 from app import create_app
-from app.models import db, Team, Disziplin, Startplatz, Strafe
+from app.models import db, Team, Disziplin, Startplatz, Strafe, Mitglied
 
 
 @pytest.fixture
@@ -88,3 +88,57 @@ def test_besucheransicht_zeigt_keine_admin_aktionen(client, app):
 
     r = client.get("/besucher/")
     assert b'method="post"' not in r.data
+
+
+def test_besucheransicht_zeigt_keine_wehr_und_keine_personennamen(client, app):
+    """Datenschutz: in der oeffentlichen Besucheransicht duerfen weder die
+    Wehr/Ort-Angabe des Teams noch Namen einzelner Teammitglieder
+    erscheinen - nur der Teamname (und die Startnummer/Bahn)."""
+    with app.app_context():
+        d = Disziplin(name="Siloplanen-Race")
+        team = Team(name="Datenschutz-Team", wehr="Geheimort")
+        team.mitglieder.append(Mitglied(vorname="Maximilian",
+                                        nachname="Musterperson", position=1))
+        db.session.add_all([d, team])
+        db.session.commit()
+        db.session.add(Startplatz(team_id=team.id, disziplin_id=d.id,
+                                  startnummer=3, heat="Vorrunde 1",
+                                  ergebnis_sekunden=30.0))
+        db.session.commit()
+
+    r = client.get("/besucher/")
+    text = r.data.decode("utf-8")
+    assert "Datenschutz-Team" in text
+    assert "Geheimort" not in text
+    assert "Maximilian" not in text
+    assert "Musterperson" not in text
+
+
+def test_zeitplan_zeigt_strafsekunden_und_gesamtzeit_pro_lauf(client, app):
+    """Strafsekunden/Gesamtzeit sollen auch in der Zeitplan-Tabelle je Lauf
+    stehen (gilt fuer alle Laufarten: Vorrunde, Platzierungslauf,
+    Halbfinale, Finale - technisch dieselbe Tabelle/Spalte)."""
+    with app.app_context():
+        d = Disziplin(name="Siloplanen-Race")
+        team_a = Team(name="Team A")   # 30s, keine Strafe
+        team_b = Team(name="Team B")   # 20s + 8s Strafe = 28s
+        db.session.add_all([d, team_a, team_b])
+        db.session.commit()
+        db.session.add(Startplatz(team_id=team_a.id, disziplin_id=d.id,
+                                  startnummer=1,
+                                  heat="21 Platzierungslauf Platz 9-10",
+                                  ergebnis_sekunden=30.0))
+        db.session.add(Startplatz(team_id=team_b.id, disziplin_id=d.id,
+                                  startnummer=2,
+                                  heat="21 Platzierungslauf Platz 9-10",
+                                  ergebnis_sekunden=20.0))
+        db.session.add(Strafe(team_id=team_b.id, regel_nr="1",
+                              regel_text="Getränk weggeschüttet", sekunden=8.0))
+        db.session.commit()
+
+    r = client.get("/besucher/")
+    text = r.data.decode("utf-8")
+    assert "Platzierungslauf" in text
+    assert "20,00 s" in text    # Rennzeit Team B
+    assert "28,00 s" in text    # Gesamtzeit Team B (20+8)
+    assert "30,00 s" in text    # Rennzeit/Gesamtzeit Team A (keine Strafe)

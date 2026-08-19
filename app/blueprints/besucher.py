@@ -6,7 +6,7 @@ in die vollstaendige Organisator-Navigation - diese Seite ist bewusst
 reduziert fuer Gaeste am Handy)."""
 from flask import Blueprint, render_template
 
-from ..models import Team, Disziplin, Startplatz
+from ..models import Team, Disziplin, Startplatz, Strafe
 from ..wertung import gesamtwertung_vollstaendig
 from .zeitplan import _startplaetze_numerisch_sortieren
 
@@ -20,6 +20,13 @@ def index():
     teams = Team.query.all()
     tabelle = gesamtwertung_vollstaendig(teams, disziplinen)
 
+    # Strafsekunden je Team - auch je einzelnem Lauf (Vorrunde,
+    # Platzierungslauf, Halbfinale, Finale) mit angezeigt, nicht nur in der
+    # Gesamtwertung oben.
+    strafsekunden: dict[int, float] = {}
+    for s in Strafe.query.all():
+        strafsekunden[s.team_id] = strafsekunden.get(s.team_id, 0.0) + s.sekunden
+
     zeitplan = []
     for d in disziplinen:
         startplaetze = (Startplatz.query.filter_by(disziplin_id=d.id)
@@ -29,4 +36,4 @@ def index():
             zeitplan.append({"disziplin": d, "startplaetze": startplaetze})
 
     return render_template("besucher/index.html", tabelle=tabelle,
-                           zeitplan=zeitplan)
+                           zeitplan=zeitplan, strafsekunden=strafsekunden)
