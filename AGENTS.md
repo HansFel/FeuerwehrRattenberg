@@ -9,7 +9,7 @@ Für den aktuellen **Aufgaben-/Wunschzettel der Administratoren** siehe
 stattdessen `ANFORDERUNGEN.md` (wird automatisch aus der App exportiert,
 ändert sich bei jeder Admin-Aktion im Bereich "Anforderungen").
 
-_(Stand 2026-08-17. Bei Widersprüchen zum aktuellen Code gilt der Code -
+_(Stand 2026-08-19. Bei Widersprüchen zum aktuellen Code gilt der Code -
 diese Datei kann veralten.)_
 
 ## Aktuell in Bearbeitung
@@ -530,8 +530,15 @@ danach `/mnt/usb-backups/ffrattenberg-backups`.
   Je Server unabhängig (Standby-Instanzen melden sich nur bei der
   Produktion DES EIGENEN Servers an, keine serverübergreifende
   Weiterleitung).
-- Startfreigabe-Button für den Startrichter (offiziellen Start-Zeitpunkt
-  eines Laufs markieren) wurde angefragt, ist noch nicht gebaut.
+- **Startfreigabe / Gemeinsamer Start (seit Build 58, Desktop-App):** Der
+  "Gemeinsamer Start"-Button in der Desktop-App setzt den 1. Kontakt für
+  alle 4 Bahnen gleichzeitig (bewusste Aktion des Startrichters). ZUSÄTZLICH
+  gibt es ein **5-Sekunden Start-Fenster** (seit 2026-08-19): nach der
+  ersten Kontaktauslösung (egal welche Bahn/Quelle) haben andere Bahnen 5
+  Sekunden Zeit für ihren eigenen 1. Kontakt. Danach bekommen Bahnen mit
+  0 Kontakten automatisch den 1. Kontakt gesetzt (mit dem Zeitpunkt des
+  ersten Kontakts) – verhindert taktisches Nicht-Auslösen. Jede Bahn braucht
+  insgesamt 5 Kontakte (1 Start + 4 Handover/Ziel).
 - **Brücke Startliste → Zeitmessung (seit 2026-08-17):** Bisher waren
   Zeitplan (`Startplatz`: Team/Disziplin/Bahn/Heat/Startzeit) und
   Zeitmessung-Automatik (`NotfallLauf`) komplett getrennt - der
@@ -569,6 +576,42 @@ danach `/mnt/usb-backups/ffrattenberg-backups`.
   test_moderator_sieht_keinen_freigabe_button_organisator_schon`,
   `tests/test_notfall.py::
   test_aus_startliste_freigeben_startrichter_abgewiesen`.
+
+**Team Challenge (seit Build 55, 2026-08-19):** Zweite, unabhängige
+  Wertung neben der Siloplanen-Race-Zeitwertung. Setzt sich zusammen aus:
+  - **🥤 Getränkepunkte**: automatisch aus dem Bestell-/Ausschank-System
+    (Kellner/Ausschank können über Bestellungen Punkte für Teams sammeln)
+  - **🎉 Fanpunkte**: manuell vom Organisator eingegeben (für Kreativität,
+    Fankultur, Voting etc.) – Eingabeformular auf `/wertung/`, nur für
+    `darf('organisator')`
+  - **🏆 Gesamt** = Getränkepunkte + Fanpunkte, gereiht nach höchster = bester
+  - **Getrennt von der Siloplanen-Race-Wertung**: die Zeitwertung enthält
+    KEINE Getränkepunkte mehr (seit Build 57), nur Rangpunkte/Strafsekunden/Zeit
+  - Team Challenge erscheint auf `/wertung/` (mit PDF-Export
+    `/pdf/team_challenge.pdf`), im Moderator-Dashboard (als eigene Karte),
+    und die Fanpunkte sind im `Team`-Modell als `fanpunkte`-Spalte gespeichert
+    (Schema-Migration in `__init__.py`).
+  - **Motto & Lieblingslied**: `Team.motto` und `Team.lieblingslied` werden
+    im Moderator-Dashboard pro Bahn angezeigt (sowie "Alle Mannschaften"-
+    Übersicht), zusätzlich der **Teamchef** (1. Mannschaftsmitglied,
+    `Mitglied.position == 1`). Felder im Team-Bearbeiten-Formular.
+
+**Moderator-Dashboard Layout (seit Build 58-60):** Reihenfolge für die
+  aktive Rolle Moderator/DJ: (1) Gerade im Bewerb + Teamchef/Motto/Lied,
+  (2) Publikumsinfo + Sponsoren + Nachrichten, (3) Siloplanen-Race-Wertung
+  als eigene Karte, (4) Team-Challenge-Wertung als eigene Karte. Der
+  Organisator sieht zusätzlich: Abgeschlossener Lauf, Nächster Lauf mit
+  Start-Button, und die "Anzeige als Organisator steuern"-Steuerung.
+
+**Desktop-App Zeitnahme-Buttons (seit Build 51-54):**
+  - **🏁 Gemeinsamer Start**: 1. Kontakt für alle 4 Bahnen gleichzeitig
+  - **Bahn X START** (grün): manueller 1. Kontakt für einzelne Bahn (Fallback)
+  - **Bahn X STOPP** (rot): manueller Kontakt für einzelne Bahn (Fallback)
+  - **🚨 Lauf abbrechen**: Notfall-Stopp bei Verletzung (deaktiviert aktiven
+    NotfallLauf serverseitig + lokalen Lauf, Teilzeiten bleiben erhalten)
+  - **Live-Zwischenzeiten**: nach jedem Kontakt wird die entsprechende
+    Läuferzeit sofort angezeigt (nicht erst warten bis alle 5 da sind),
+    inkl. Kontakt-Zähler (x/5) pro Bahn
 
 ## Datenschutz/Rechtliches
 
