@@ -74,10 +74,18 @@ class Hauptfenster(QMainWindow):
     lauf_aktualisiert = Signal(dict)
     lauf_status_geaendert = Signal(dict)
 
+    # Start-Fenster: nach der ersten Kontaktausloesung haben andere
+    # Bahnen diese Zeit, um ihren eigenen 1. Kontakt zu setzen. Danach
+    # wird fehlenden Bahnen automatisch der 1. Kontakt gesetzt (mit dem
+    # Zeitpunkt des ersten Kontakts) – verhindert taktisches Nicht-Ausloesen.
+    START_FENSTER_SEKUNDEN = 5.0
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Zeitmessung Siloplanen-Race – Desktop")
         self.resize(760, 820)
+        self._start_fenster_aktiv = False
+        self._start_fenster_zeitpunkt = None
 
         self.einstellungen = einstellungen_modul.laden()
         self.db = datenbank.verbinden(self.einstellungen.db_pfad)
@@ -97,6 +105,10 @@ class Hauptfenster(QMainWindow):
         self._aktualisierungs_timer = QTimer(self)
         self._aktualisierungs_timer.timeout.connect(self._status_aktualisieren)
         self._aktualisierungs_timer.start(1000)
+
+        self._start_fenster_timer = QTimer(self)
+        self._start_fenster_timer.setSingleShot(True)
+        self._start_fenster_timer.timeout.connect(self._start_fenster_abgelaufen)
 
     def _aufbauen(self) -> None:
         zentral = QWidget()
@@ -251,6 +263,7 @@ class Hauptfenster(QMainWindow):
         self._seriell_worker = SeriellWorker(
             self.db, self.einstellungen.com_port, self.einstellungen.baudrate,
             auf_status_geaendert=lambda status: self.ereignis_empfangen.emit(status),
+            auf_event_verarbeitet=lambda bahn: self._arduino_event_verarbeitet(bahn),
         )
         self._seriell_worker.start()
 
@@ -455,6 +468,72 @@ class Hauptfenster(QMainWindow):
             self.ereignis_tabelle.setItem(row, 1, QTableWidgetItem(zeile["empfangen_um"]))
             self.ereignis_tabelle.setItem(row, 2, QTableWidgetItem(zeile["sync_status"]))
 
+    def _event_verarbeiten(self, bahn: int, geraet_millis: int) -> None:
+        """Zentrale Event-Verarbeitung fuer manuelle Kontakte: erzeugt ein
+        Event, prueft das Start-Fenster und loest die Zuordnung aus."""
+        from .lokale_zuordnung import zuordnung_pruefen
+        empfangen_um = datetime.now(timezone.utc).isoformat()
+        datenbank.ereignis_hinzufuegen(
+            self.db, bahn=bahn, geraet_millis=geraet_millis,
+            empfangen_um=empfangen_um, client_event_id=uuid.uuid4().hex,
+        )
+        zuordnung_pruefen(self.db, bahn)
+        self._start_fenster_pruefen(empfangen_um)
+        self._tabelle_neu_laden()
+        self._auf_ereignis({"neues_ereignis": {"bahn": bahn},
+                           "zustaende": [0, 0, 0, 0]})
+
+    def _start_fenster_pruefen(self, empfangen_um: str) -> None:
+        """Prueft ob das Start-Fenster gestartet werden muss (1. Kontakt
+        fuer den aktiven Lauf). Wird sowohl von manuellen als auch von
+        Arduino-Events aufgerufen."""
+        if not self._start_fenster_aktiv:
+            lauf = datenbank.aktiver_lokaler_lauf(self.db)
+            if lauf is not None:
+                count = self.db.execute(
+                    "SELECT COUNT(*) AS n FROM ereignis WHERE empfangen_um >= ?",
+                    (lauf["aktiviert_um"],),
+                ).fetchone()["n"]
+                if count == 1:
+                    self._start_fenster_aktiv = True
+                    self._start_fenster_zeitpunkt = empfangen_um
+                    self._start_fenster_timer.start(
+                        int(self.START_FENSTER_SEKUNDEN * 1000))
+
+    def _arduino_event_verarbeitet(self, bahn: int) -> None:
+        """Callback vom SeriellWorker: Arduino hat bereits Event+Zuordnung
+        erledigt, wir muessen nur das Start-Fenster pruefen."""
+        empfangen_um = datetime.now(timezone.utc).isoformat()
+        self._start_fenster_pruefen(empfangen_um)
+
+    def _start_fenster_abgelaufen(self) -> None:
+        """Wenn das Start-Fenster ablaeuft: alle Bahnen, die noch 0 Kontakte
+        haben, bekommen automatisch den 1. Kontakt mit dem Zeitpunkt des
+        ersten Kontakts gesetzt. Verhindert taktisches Nicht-Ausloesen."""
+        from .lokale_zuordnung import zuordnung_pruefen
+        lauf = datenbank.aktiver_lokaler_lauf(self.db)
+        if lauf is None or not self._start_fenster_zeitpunkt:
+            self._start_fenster_aktiv = False
+            return
+        start_zeit = self._start_fenster_zeitpunkt
+        for bahn in range(1, 5):
+            count = self.db.execute(
+                "SELECT COUNT(*) AS n FROM ereignis "
+                "WHERE bahn = ? AND empfangen_um >= ?",
+                (bahn, lauf["aktiviert_um"]),
+            ).fetchone()["n"]
+            if count == 0:
+                datenbank.ereignis_hinzufuegen(
+                    self.db, bahn=bahn, geraet_millis=0,
+                    empfangen_um=start_zeit,
+                    client_event_id=uuid.uuid4().hex,
+                )
+                zuordnung_pruefen(self.db, bahn)
+        self._start_fenster_aktiv = False
+        self._tabelle_neu_laden()
+        self._auf_ereignis({"neues_ereignis": {"bahn": 0},
+                           "zustaende": [0, 0, 0, 0]})
+
     def _gemeinsamer_start(self) -> None:
         """Setzt den 1. Kontakt fuer ALLE 4 Bahnen gleichzeitig – der
         offizielle Startzeitpunkt. Danach braucht es nur noch 4 physische
@@ -522,22 +601,8 @@ class Hauptfenster(QMainWindow):
                                 "Teilzeiten sind erhalten geblieben.")
 
     def _manuelles_event(self, bahn: int) -> None:
-        """Erzeugt ein manuelles Kontaktereignis fuer die angegebene Bahn -
-        aequivalent zu einem vom Arduino empfangenen EVENT, nur per Button-
-        Klick statt Hardware-Kontakt. Geht durch dieselbe Pipeline:
-        lokale SQLite -> lokale Zuordnung -> Sync zur Webapp."""
-        client_event_id = uuid.uuid4().hex
-        empfangen_um = datetime.now(timezone.utc).isoformat()
-        geraet_millis = int(time.time() * 1000) % 1_000_000
-        datenbank.ereignis_hinzufuegen(
-            self.db, bahn=bahn, geraet_millis=geraet_millis,
-            empfangen_um=empfangen_um, client_event_id=client_event_id,
-        )
-        from .lokale_zuordnung import zuordnung_pruefen
-        zuordnung_pruefen(self.db, bahn)
-        self._tabelle_neu_laden()
-        self._auf_ereignis({"neues_ereignis": {"bahn": bahn},
-                           "zustaende": [0, 0, 0, 0]})
+        """Erzeugt ein manuelles Kontaktereignis fuer die angegebene Bahn."""
+        self._event_verarbeiten(bahn, int(time.time() * 1000) % 1_000_000)
 
     def closeEvent(self, event) -> None:
         for worker in (self._seriell_worker, self._sync_worker, self._sicherung_worker,

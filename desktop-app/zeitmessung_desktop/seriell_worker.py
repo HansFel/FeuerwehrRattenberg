@@ -28,12 +28,14 @@ VERBINDUNG_TIMEOUT_S = 8
 
 class SeriellWorker(threading.Thread):
     def __init__(self, db_verbindung, com_port: str, baudrate: int,
-                 auf_status_geaendert: Callable[[dict], None] | None = None):
+                 auf_status_geaendert: Callable[[dict], None] | None = None,
+                 auf_event_verarbeitet: Callable[[int], None] | None = None):
         super().__init__(daemon=True)
         self._db = db_verbindung
         self._com_port = com_port
         self._baudrate = baudrate
         self._auf_status_geaendert = auf_status_geaendert or (lambda status: None)
+        self._auf_event_verarbeitet = auf_event_verarbeitet or (lambda bahn: None)
         self._stop_angefordert = threading.Event()
         self.letzter_kontakt: float | None = None
         self.verbunden = False
@@ -83,6 +85,7 @@ class SeriellWorker(threading.Thread):
                 empfangen_um=empfangen_um, client_event_id=client_event_id,
             )
             zuordnung_pruefen(self._db, geparst["bahn"])
+            self._auf_event_verarbeitet(geparst["bahn"])
             self._auf_status_geaendert({"neues_ereignis": geparst})
 
         elif geparst["typ"] == "state":
