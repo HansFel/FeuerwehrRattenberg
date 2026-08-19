@@ -108,6 +108,32 @@ def test_team_status_felder(client, app):
         assert team.haftungsausschluss is False
 
 
+def test_team_motto_und_lieblingslied_anlegen_und_bearbeiten(client, app):
+    client.post("/anmelden", data={"username": "admin", "passwort": "admin"})
+    client.post("/teams/neu", data={
+        "name": "Discofeger",
+        "motto": "Wir loeschen jedes Feuer",
+        "lieblingslied": "Highway to Hell",
+        "person_1_vorname": "Anna", "person_1_nachname": "Huber",
+    })
+    with app.app_context():
+        team = Team.query.filter_by(name="Discofeger").first()
+        assert team.motto == "Wir loeschen jedes Feuer"
+        assert team.lieblingslied == "Highway to Hell"
+        team_id = team.id
+
+    client.post(f"/teams/{team_id}/bearbeiten", data={
+        "name": "Discofeger",
+        "motto": "Neues Motto",
+        "lieblingslied": "Neues Lied",
+        "person_1_vorname": "Anna", "person_1_nachname": "Huber",
+    })
+    with app.app_context():
+        team = db.session.get(Team, team_id)
+        assert team.motto == "Neues Motto"
+        assert team.lieblingslied == "Neues Lied"
+
+
 def test_mitglied_minderjaehrig_und_bearbeiten_erhaelt_haken(client, app):
     """Import setzt Haftungsausschluss/Ausweis/Einv.-Erklärung je Läufer -
     ein simples Speichern im Bearbeiten-Formular (das diese Felder nicht

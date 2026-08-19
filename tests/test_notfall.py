@@ -30,6 +30,11 @@ def app():
         startrichter.rollen.append(BenutzerRolle(rolle="startrichter"))
         db.session.add(startrichter)
 
+        organisator = Benutzer(username="orga", name="Olga", aktiv=True)
+        organisator.set_password("pw")
+        organisator.rollen.append(BenutzerRolle(rolle="organisator"))
+        db.session.add(organisator)
+
         kellner = Benutzer(username="kellner1", aktiv=True)
         kellner.set_password("pw")
         kellner.rollen.append(BenutzerRolle(rolle="kellner"))
@@ -285,8 +290,20 @@ def test_aus_startliste_freigeben_erfordert_rolle(client, app):
     assert "anmelden".encode() in r.data.lower() or "rolle".encode() in r.data.lower()
 
 
-def test_aus_startliste_freigeben_ohne_aktuellen_heat(client, app):
+def test_aus_startliste_freigeben_startrichter_abgewiesen(client, app):
+    """Die Lauffreigabe aus der Startliste darf NUR dem Organisator
+    zustaehen - der Startrichter wird bewusst abgewiesen (seine manuelle
+    Notfall-Erfassung unter /notfall/neu bleibt davon unberuehrt)."""
+    _moderator_status_setzen(app)
     _login(client, "richter", "pw")
+    r = client.post("/notfall/aus-startliste-freigeben", follow_redirects=True)
+    assert "rolle".encode() in r.data.lower()
+    with app.app_context():
+        assert NotfallLauf.query.count() == 0
+
+
+def test_aus_startliste_freigeben_ohne_aktuellen_heat(client, app):
+    _login(client, "orga", "pw")
     r = client.post("/notfall/aus-startliste-freigeben", follow_redirects=True)
     assert "kein aktueller lauf".encode() in r.data.lower()
     with app.app_context():
@@ -295,7 +312,7 @@ def test_aus_startliste_freigeben_ohne_aktuellen_heat(client, app):
 
 def test_aus_startliste_freigeben_erzeugt_und_aktiviert_lauf(client, app):
     sp1_id, sp2_id = _moderator_status_setzen(app)
-    _login(client, "richter", "pw")
+    _login(client, "orga", "pw")
 
     r = client.post("/notfall/aus-startliste-freigeben", follow_redirects=True)
     assert r.status_code == 200
@@ -313,7 +330,7 @@ def test_aus_startliste_freigeben_erzeugt_und_aktiviert_lauf(client, app):
 
 def test_aus_startliste_freigeben_deaktiviert_vorherigen_lauf(client, app):
     _moderator_status_setzen(app)
-    _login(client, "richter", "pw")
+    _login(client, "orga", "pw")
     with app.app_context():
         alter_lauf = NotfallLauf(bezeichnung="Alt", aktiv=True)
         db.session.add(alter_lauf)
@@ -329,7 +346,7 @@ def test_aus_startliste_freigeben_deaktiviert_vorherigen_lauf(client, app):
 
 def test_automatische_zuordnung_schreibt_ergebnis_in_startplatz_zurueck(client, app):
     sp1_id, _ = _moderator_status_setzen(app)
-    _login(client, "richter", "pw")
+    _login(client, "orga", "pw")
     client.post("/notfall/aus-startliste-freigeben")
 
     for _ in range(5):

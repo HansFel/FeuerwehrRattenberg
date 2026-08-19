@@ -117,3 +117,32 @@ def test_kellner_kann_keine_moderator_nachricht_senden(client, app):
     client.post("/moderator/nachricht", data={"text": "Nicht erlaubt"})
     with app.app_context():
         assert Nachricht.query.count() == 0
+
+
+def test_moderator_sieht_keinen_freigabe_button_organisator_schon(client, app):
+    """Die aktive Rolle `moderator` sieht das Dashboard rein Lese-Ansicht:
+    Live-Teams + Team-Infos, aber KEINEN Lauffreigabe-Button und nicht die
+    'Anzeige als Organisator steuern'-Steuerung. Die Lauffreigabe und die
+    Anzeige-Steuerung duerfen nur als aktive Rolle `organisator` erscheinen."""
+    with app.app_context():
+        disziplin = Disziplin.query.filter_by(name="Siloplanen-Race").one()
+        lauf = f"{disziplin.id}|Vorrunde 1"
+
+    _login(client, "orga")
+    client.post("/moderator/status", data={"lauf": lauf,
+                                           "publikumsinfo": "",
+                                           "sponsoren": ""})
+    client.post("/abmelden")
+
+    _login(client, "mod")
+    r = client.get("/moderator/")
+    assert "Team Rattenberg".encode() in r.data          # Live-Teams sichtbar
+    assert "Team Brixlegg".encode() in r.data
+    assert "Zeitmessung für diesen Lauf freigeben".encode() not in r.data
+    assert "Anzeige als Organisator steuern".encode() not in r.data
+
+    client.post("/abmelden")
+    _login(client, "orga")
+    r = client.get("/moderator/")
+    assert "Zeitmessung für diesen Lauf freigeben".encode() in r.data
+    assert "Anzeige als Organisator steuern".encode() in r.data

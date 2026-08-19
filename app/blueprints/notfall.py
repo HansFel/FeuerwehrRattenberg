@@ -105,7 +105,7 @@ def loeschen(lauf_id: int):
 
 
 @bp.route("/aus-startliste-freigeben", methods=["POST"])
-@rolle_noetig("startrichter", "organisator")
+@rolle_noetig("organisator")
 def aus_startliste_freigeben():
     """Erzeugt und aktiviert einen NotfallLauf aus dem aktuell im
     Moderator-Dashboard eingestellten Heat (siehe moderator.py) - vermeidet
@@ -113,7 +113,13 @@ def aus_startliste_freigeben():
     Startliste (Startplatz) bekannt ist. Jede erzeugte NotfallBahn wird per
     startplatz_id mit dem Ursprungs-Startplatz verknüpft, damit das Ergebnis
     nach Abschluss automatisch dorthin zurückgeschrieben wird (siehe
-    app/blueprints/zeitmessung.py:_automatische_zuordnung_pruefen)."""
+    app/blueprints/zeitmessung.py:_automatische_zuordnung_pruefen).
+
+    bewusst NUR fuer `organisator` (nicht startrichter): die Lauffreigabe
+    soll laut Anforderung nur ueber den Operator/Organisator laufen; das
+    Moderator-Dashboard ist fuer die aktive Rolle `moderator` rein
+    Lese-Ansicht. Der manuelle NotfallLauf unter /notfall/neu + aktivieren
+    bleibt als Fallback fuer den Startrichter. """
     status = _moderator_status()
     startplaetze = _laufende_teams(status)
     if not startplaetze:

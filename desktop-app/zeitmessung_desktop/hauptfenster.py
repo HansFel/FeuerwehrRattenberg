@@ -70,6 +70,7 @@ class EinstellungenDialog(QDialog):
 class Hauptfenster(QMainWindow):
     ereignis_empfangen = Signal(dict)
     lauf_aktualisiert = Signal(dict)
+    lauf_status_geaendert = Signal(dict)
 
     def __init__(self):
         super().__init__()
@@ -88,6 +89,7 @@ class Hauptfenster(QMainWindow):
         self._aufbauen()
         self.ereignis_empfangen.connect(self._auf_ereignis)
         self.lauf_aktualisiert.connect(self._lauf_anzeigen)
+        self.lauf_status_geaendert.connect(self._lauf_status_anzeigen)
         self._worker_starten()
 
         self._aktualisierungs_timer = QTimer(self)
@@ -125,8 +127,13 @@ class Hauptfenster(QMainWindow):
         zustandszeile.addStretch()
         layout.addLayout(zustandszeile)
 
+        lauf_kopfzeile = QHBoxLayout()
         self.lauf_label = QLabel("Aktiver Lauf: –")
-        layout.addWidget(self.lauf_label)
+        self.lauf_status_label = QLabel("Lauf-Abfrage: –")
+        lauf_kopfzeile.addWidget(self.lauf_label)
+        lauf_kopfzeile.addWidget(self.lauf_status_label)
+        lauf_kopfzeile.addStretch()
+        layout.addLayout(lauf_kopfzeile)
 
         self.lauf_tabelle = QTableWidget(0, 4)
         self.lauf_tabelle.setHorizontalHeaderLabels(
@@ -198,6 +205,7 @@ class Hauptfenster(QMainWindow):
             self.einstellungen.webapp_url, self.einstellungen.api_key,
             self.einstellungen.sync_intervall_s,
             auf_lauf_aktualisiert=lambda daten: self.lauf_aktualisiert.emit(daten),
+            auf_status_geaendert=lambda status: self.lauf_status_geaendert.emit(status),
         )
         self._lauf_worker.start()
 
@@ -258,6 +266,16 @@ class Hauptfenster(QMainWindow):
             self.lauf_tabelle.setItem(row, 1, QTableWidgetItem(bahn.get("team_name") or "–"))
             self.lauf_tabelle.setItem(row, 2, QTableWidgetItem(zeiten_text or "–"))
             self.lauf_tabelle.setItem(row, 3, QTableWidgetItem(summe_text))
+
+    def _lauf_status_anzeigen(self, status: dict) -> None:
+        jetzt = datetime.now().strftime("%H:%M:%S")
+        if status.get("erfolgreich"):
+            self.lauf_status_label.setText(f"Lauf-Abfrage: OK ({jetzt})")
+            self.lauf_status_label.setStyleSheet("")
+        else:
+            grund = status.get("fehler") or f"HTTP {status.get('status_code')}"
+            self.lauf_status_label.setText(f"Lauf-Abfrage: Fehler ({jetzt}) – {grund}")
+            self.lauf_status_label.setStyleSheet("color: #b30000;")
 
     def _alle_loeschen(self) -> None:
         """Löscht NUR den lokalen Puffer (z.B. nach einem Testlauf) - bereits

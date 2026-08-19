@@ -190,6 +190,8 @@ class Team(db.Model):
     name = db.Column(db.String(120), nullable=False)
     wehr = db.Column(db.String(120), default="")          # Ort / Feuerwehr
     startnummer = db.Column(db.Integer)                    # optionale feste Nummer
+    motto = db.Column(db.String(200), default="")
+    lieblingslied = db.Column(db.String(200), default="")
     kontakt = db.Column(db.String(120), default="")
     notiz = db.Column(db.Text, default="")
     getraenk = db.Column(db.String(20), default="")        # Pflichtgetränk (Bier/Spritzer)

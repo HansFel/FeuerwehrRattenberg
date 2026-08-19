@@ -287,6 +287,31 @@ keine alte `hosts`-Zeile die AdGuard-Auflösung überschreibt. Bis DNS auf
 allen benötigten Geräten manuell umgestellt ist, bleibt Port 8000 (siehe
 oben) der Fallback.
 
+**Update 2026-08-19:** Seitdem zusätzlich **Tailscale** auf ThinkPad +
+Entwicklungs-PC eingerichtet (SSH funktioniert dadurch auch ohne
+Port-22-Weiterleitung, siehe `ssh -i ~/.ssh/id_ed25519_ffrattenberg
+hans@100.119.59.86` bzw. `tailscale ssh hans@hans-thinkpad-e590` - Letzteres
+verlangt gelegentlich eine erneute manuelle Bestätigung über einen
+Tailscale-Link ("requires an additional check"), dann lieber den
+regulären SSH-Schlüssel nehmen). Ausserdem wurde **AdGuard zusaetzlich als
+DHCP-Server** eingerichtet (nicht mehr nur DNS), weil der Hauptrouter
+selbst GAR KEIN DHCP macht (war zuvor ein unbekanntes/inzwischen
+abgeschaltetes Zweitgeraet) - das sollte das Problem "jeder Client braucht
+manuell den AdGuard-DNS eingetragen" beheben, da AdGuard beim DHCP-Lease
+automatisch sich selbst als DNS mitgibt.
+
+**Trotzdem weiterhin nicht wirklich geloest: Die LAN-IP des ThinkPad
+driftet nach wie vor** (WLAN vs. Kabel wechselt offenbar von selbst) -
+zuletzt beobachtet `.238` → `.14` → `.177` → `.34` (Stand 2026-08-19,
+frueher Abend). Eine DHCP-Reservierung wurde mehrfach versucht, haelt aber
+offenbar nicht dauerhaft. **AdGuards eigene DNS-Rewrite/Bind-Config wird
+bei jedem Wechsel manuell nachgezogen** (`docker exec adguardhome cat
+/opt/adguardhome/conf/AdGuardHome.yaml` zeigt aktuelle `bind_hosts`/
+`address` - **immer zuerst hier die tatsaechlich aktuelle IP prüfen**,
+nicht auf einen hier dokumentierten Wert verlassen). Wirklich stabile
+Lösung (feste IP im Router UND passendes Interface/Kabel statt WLAN
+erzwingen) steht weiterhin aus.
+
 **Weiterer Fallback: Zugriff per SSH-Tunnel** - falls weder Domain noch
 direkter LAN-Port 8000 erreichbar sind (z.B. von außerhalb des
 Veranstaltungs-WLANs, oder wenn gerade keine der beiden Lösungen oben
@@ -521,6 +546,27 @@ danach `/mnt/usb-backups/ffrattenberg-backups`.
   _automatische_zuordnung_pruefen()`). Schließt den Kreis Startliste →
   Messung → Ergebnis, OHNE die bestehende manuelle `/notfall/neu`-Eingabe
   zu ersetzen (bleibt Fallback für Läufe ohne Startplatz-Bezug).
+
+  **Rollentrennung Moderator vs. Organisator (seit Build 45, 2026-08-19):**
+  Die Lauffreigabe aus der Startliste darf **nur dem Organisator**
+  zustehen. `aus_startliste_freigeben()` ist deshalb auf
+  `@rolle_noetig("organisator")` beschränkt (vorher
+  `startrichter, organisator`). Das Moderator-Dashboard
+  (`app/templates/moderator/dashboard.html`) ist für die **aktive Rolle
+  `moderator`** jetzt **rein Lese-Ansicht**: es zeigt „Gerade im Bewerb"
+  (Disziplin/Heat + Bahnen + Teamnamen/Wehr) sowie Publikumsinfo,
+  Sponsoren und Nachrichten, aber **keinen** „Zeitmessung für diesen Lauf
+  freigeben"-Button und **nicht** die „Anzeige als Organisator steuern"-
+  Steuerung. Beide werden per `dashboard_zeigt('organisator')` (aktive
+  Rolle, nicht `darf()`) eingeblendet – erscheinen also nur, wenn der
+  Benutzer als Organisator (oder Admin) agiert, nicht als Moderator.
+  Der Startrichter behält seine manuelle Erfassung unter `/notfall/neu`
+  + `/notfall/<id>/aktivieren` (unverändert `startrichter, organisator`),
+  nur der Ein-Klick-Freigabe-Knopf aus der Startliste ist ihm entzogen.
+  Tests: `tests/test_moderator.py::
+  test_moderator_sieht_keinen_freigabe_button_organisator_schon`,
+  `tests/test_notfall.py::
+  test_aus_startliste_freigeben_startrichter_abgewiesen`.
 
 ## Datenschutz/Rechtliches
 

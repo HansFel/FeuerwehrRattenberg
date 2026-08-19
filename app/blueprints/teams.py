@@ -24,6 +24,8 @@ def neu():
         team = Team(
             name=request.form["name"].strip(),
             wehr=request.form.get("wehr", "").strip(),
+            motto=request.form.get("motto", "").strip(),
+            lieblingslied=request.form.get("lieblingslied", "").strip(),
             kontakt=request.form.get("kontakt", "").strip(),
             notiz=request.form.get("notiz", "").strip(),
             startnummer=_int_or_none(request.form.get("startnummer")),
@@ -51,6 +53,8 @@ def bearbeiten(team_id: int):
     if request.method == "POST":
         team.name = request.form["name"].strip()
         team.wehr = request.form.get("wehr", "").strip()
+        team.motto = request.form.get("motto", "").strip()
+        team.lieblingslied = request.form.get("lieblingslied", "").strip()
         team.kontakt = request.form.get("kontakt", "").strip()
         team.notiz = request.form.get("notiz", "").strip()
         team.startnummer = _int_or_none(request.form.get("startnummer"))
