@@ -180,14 +180,16 @@ Auch `git push` (HTTPS nach GitHub) braucht dasselbe, da der
 Die Approval-Policy muss `ask` oder weaker sein, damit die Eskalation
 funktioniert (bei `never` wird sie automatisch abgelehnt).
 
-**Aktueller Deploy-Stand (2026-08-18):** ThinkPad läuft Build 35
-(`ffrattenberg-app:build24` als Image-Tag) auf ALLEN vier Instanzen
-(Produktion + test1/test2/generalprobe). `BUILD_TAG` in `deployment/.env`
-und `deployment/.env.test` beide auf `build24` – bewusst gleich gehalten,
+**Aktueller Deploy-Stand (2026-08-19):** ThinkPad läuft Build 45
+(ffrattenberg-app:build33 als Image-Tag) auf ALLEN vier Instanzen
+(Produktion + test1/test2/generalprobe). BUILD_TAG in deployment/.env
+und deployment/.env.test beide auf build33 – bewusst gleich gehalten,
 da Test-Instanzen dasselbe Image nutzen wie Produktion. Beim nächsten Deploy
-beide hochzählen. Standby-Server ffrattenberg (.238) ist noch auf Build 18
-bzw. build12 – muss separat aktualisiert werden, falls er als Failover
-dienen soll.
+beide hochzählen. Standby-Server ffrattenberg (.238) ist offline (SSH
+Timeout, nicht im Netzwerk). ThinkPad-LAN-IP aktuell: 192.168.1.34
+(war .14, hat sich wieder geändert). Tailscale-IP: 100.119.59.86
+(funktioniert auch wenn sich die LAN-IP ändert – für SSH-Deploy
+empfohlen).
 
 **Wichtige Falle (2026-08-18 erlebt):** `docker-compose.ffrattenberg-test.yml`
 hat für die App-Services (`app-test1`/`app-test2`/`app-generalprobe`) **KEINEN
