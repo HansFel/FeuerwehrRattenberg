@@ -257,3 +257,4 @@ form.formular textarea { min-height: 4rem; }
 .moderator-rangliste th { text-align: left; padding: 0.5rem; border-bottom: 2px solid var(--rand); }
 .moderator-rangliste td { padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--hell); }
 .moderator-rangliste td.rang { font-weight: 700; text-align: center; width: 3rem; }
+.moderator-chef { font-size: 0.9rem; font-weight: 600; color: #333; margin-top: 0.2rem; }

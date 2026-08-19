@@ -29,10 +29,6 @@
   </div>
 </details>
 
-<section class="dash-karte" id="moderator-rangliste-bereich" style="margin-top:1rem">
-{% include "moderator/_rangliste.html" %}
-</section>
-
 <div class="moderator-grid">
   <section class="dash-karte moderator-info">
     <h2>📣 Informationen fürs Publikum</h2>
@@ -65,6 +61,10 @@
       </div>
     </div>
   {% else %}<p class="leer">Noch keine Nachrichten.</p>{% endfor %}
+</section>
+
+<section class="dash-karte" id="moderator-rangliste-bereich" style="margin-top:1rem">
+{% include "moderator/_rangliste.html" %}
 </section>
 
 {% if dashboard_zeigt('organisator') %}

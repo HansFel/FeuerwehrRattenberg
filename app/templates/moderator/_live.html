@@ -8,6 +8,8 @@
         <span>Bahn {{ sp.startnummer or loop.index }}</span>
         <strong>{{ sp.team.name }}</strong>
         {% if sp.team.wehr %}<small>{{ sp.team.wehr }}</small>{% endif %}
+        {% set chef = sp.team.mitglieder|selectattr('position', 'equalto', 1)|first if sp.team.mitglieder else none %}
+        {% if chef %}<div class="moderator-chef">👤 {{ chef.anzeige() }}</div>{% endif %}
         {% if sp.team.motto %}<div class="moderator-motto">💬 {{ sp.team.motto }}</div>{% endif %}
         {% if sp.team.lieblingslied %}<div class="moderator-lied">🎵 {{ sp.team.lieblingslied }}</div>{% endif %}
       </article>
