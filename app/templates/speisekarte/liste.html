@@ -8,6 +8,13 @@
     <a class="knopf grau" href="{{ url_for('speisekarte.tische') }}">🏷️ Tisch-QR-Codes drucken</a>
   </div>
 
+  <form method="post" action="{{ url_for('speisekarte.punkte_korrigieren') }}" style="margin-top:0.8rem">
+    <button class="knopf gefahr" type="submit"
+            onclick="return confirm('Punkte korrigieren? Setzt bei ALLEN Artikeln die Punkte passend zur Kategorie (0 bei Speisen, 1 bei Getränken) und berechnet bereits erfasste Bestellpositionen entsprechend neu. Der aktuelle Stand wird vorher automatisch gesichert.');">
+      🔧 Punkte korrigieren (Speisen=0, Getränke=1)
+    </button>
+  </form>
+
   {% if artikel %}
   <table>
     <thead>

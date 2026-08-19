@@ -4,6 +4,8 @@ ohne Netzverbindung nutzbar, damit vor Ort sichtbar bleibt, dass die
 Zeitmessung läuft, selbst wenn der Sync gerade nicht durchkommt."""
 from __future__ import annotations
 
+import time
+import uuid
 from datetime import datetime, timezone
 
 from PySide6.QtCore import QTimer, Signal
@@ -141,6 +143,20 @@ class Hauptfenster(QMainWindow):
         self.lauf_tabelle.horizontalHeader().setStretchLastSection(True)
         self.lauf_tabelle.setMaximumHeight(160)
         layout.addWidget(self.lauf_tabelle)
+
+        # Manuelle Stopptasten (Fallback wenn Hardware-Kontakt aussetzt)
+        stopp_box = QGroupBox("Manuelle Stopptaste (pro Bahn)")
+        stopp_layout = QHBoxLayout(stopp_box)
+        self.stopp_knoepfe: list[QPushButton] = []
+        for bahn in range(1, 5):
+            knopf = QPushButton(f"Bahn {bahn} STOPP")
+            knopf.setMinimumHeight(60)
+            knopf.setStyleSheet("font-size: 1.1rem; font-weight: bold;")
+            knopf.clicked.connect(lambda checked=False, b=bahn: self._manuelles_event(b))
+            self.stopp_knoepfe.append(knopf)
+            stopp_layout.addWidget(knopf)
+        stopp_layout.addStretch()
+        layout.addWidget(stopp_box)
 
         manuell_box = QGroupBox("Manueller Modus (offline, ohne Webapp-Verbindung)")
         manuell_layout = QVBoxLayout(manuell_box)
@@ -352,6 +368,24 @@ class Hauptfenster(QMainWindow):
             self.ereignis_tabelle.setItem(row, 0, QTableWidgetItem(str(zeile["bahn"])))
             self.ereignis_tabelle.setItem(row, 1, QTableWidgetItem(zeile["empfangen_um"]))
             self.ereignis_tabelle.setItem(row, 2, QTableWidgetItem(zeile["sync_status"]))
+
+    def _manuelles_event(self, bahn: int) -> None:
+        """Erzeugt ein manuelles Kontaktereignis fuer die angegebene Bahn -
+        aequivalent zu einem vom Arduino empfangenen EVENT, nur per Button-
+        Klick statt Hardware-Kontakt. Geht durch dieselbe Pipeline:
+        lokale SQLite -> lokale Zuordnung -> Sync zur Webapp."""
+        client_event_id = uuid.uuid4().hex
+        empfangen_um = datetime.now(timezone.utc).isoformat()
+        geraet_millis = int(time.time() * 1000) % 1_000_000
+        datenbank.ereignis_hinzufuegen(
+            self.db, bahn=bahn, geraet_millis=geraet_millis,
+            empfangen_um=empfangen_um, client_event_id=client_event_id,
+        )
+        from .lokale_zuordnung import zuordnung_pruefen
+        zuordnung_pruefen(self.db, bahn)
+        self._tabelle_neu_laden()
+        self._auf_ereignis({"neues_ereignis": {"bahn": bahn},
+                           "zustaende": [0, 0, 0, 0]})
 
     def closeEvent(self, event) -> None:
         for worker in (self._seriell_worker, self._sync_worker, self._sicherung_worker,

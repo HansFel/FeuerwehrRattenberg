@@ -20,9 +20,8 @@
     <input type="text" id="preis" name="preis"
            value="{{ '%.2f'|format(artikel.preis) if artikel else '0.00' }}">
 
-    <label for="punkte_pro_einheit">Punkte für das Team pro Einheit</label>
-    <input type="number" min="0" id="punkte_pro_einheit" name="punkte_pro_einheit"
-           value="{{ artikel.punkte_pro_einheit if artikel else 0 }}">
+    <p class="leer">Punkte fürs Team: automatisch <strong>1 Punkt pro Einheit bei Getränken</strong>,
+       <strong>0 Punkte bei Speisen</strong> – nicht einzeln einstellbar.</p>
 
     <label for="pfand_pro_einheit">Pfand pro Einheit (€) – z.B. Mehrweg-Becher/-Glas, 0 = kein Pfand</label>
     <input type="text" id="pfand_pro_einheit" name="pfand_pro_einheit"

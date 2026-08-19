@@ -5,6 +5,7 @@ from xml.sax.saxutils import escape
 import qrcode
 from flask import (Blueprint, Response, flash, redirect, render_template,
                    request, url_for)
+from flask_login import current_user
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -16,6 +17,7 @@ from reportlab.platypus import (Paragraph, SimpleDocTemplate, Spacer, Table,
 
 from ..models import db, Artikel, BestellPosition, KATEGORIEN, KATEGORIE_GETRAENK
 from ..auth import rolle_noetig
+from .. import sicherung as sicherung_dienst
 
 bp = Blueprint("speisekarte", __name__, url_prefix="/speisekarte")
 
@@ -27,6 +29,54 @@ def liste():
                                      Artikel.name).all()
     return render_template("speisekarte/liste.html", artikel=artikel,
                            KATEGORIEN=KATEGORIEN)
+
+
+@bp.route("/punkte-korrigieren", methods=["POST"])
+@rolle_noetig("organisator")
+def punkte_korrigieren():
+    try:
+        sicherung_dienst.erstellen(typ="vor-punkte-korrektur",
+                                   von=current_user.username)
+        ergebnis = _punkte_korrigieren()
+        flash(
+            f"Punkte korrigiert: {ergebnis['artikel']} Artikel angepasst, "
+            f"{ergebnis['positionen']} Bestellpositionen neu berechnet"
+            + (f", {ergebnis['uebersprungen']} Position(en) ohne "
+               "zugeordneten Artikel übersprungen" if ergebnis['uebersprungen']
+               else "") + ". Der vorherige Stand wurde automatisch gesichert.",
+            "ok")
+    except Exception as e:  # noqa: BLE001
+        flash(f"Punkte-Korrektur fehlgeschlagen: {e}", "error")
+    return redirect(url_for("speisekarte.liste"))
+
+
+def _punkte_korrigieren() -> dict:
+    """Setzt Artikel.punkte_pro_einheit passend zur Kategorie (0 bei Essen,
+    1 bei Getraenken) und rechnet bereits erfasste Bestellpositionen mit
+    dem korrigierten Wert neu - fuer Artikel/Positionen, bei denen das
+    schon vorher galt, aendert sich nichts."""
+    artikel_geaendert = 0
+    for a in Artikel.query.all():
+        neu = 1 if a.kategorie == KATEGORIE_GETRAENK else 0
+        if a.punkte_pro_einheit != neu:
+            a.punkte_pro_einheit = neu
+            artikel_geaendert += 1
+
+    positionen_geaendert = 0
+    positionen_uebersprungen = 0
+    for p in BestellPosition.query.all():
+        artikel = db.session.get(Artikel, p.artikel_id) if p.artikel_id else None
+        if artikel is None:
+            positionen_uebersprungen += 1
+            continue
+        neu = artikel.punkte_pro_einheit * p.menge
+        if p.punkte_gesamt != neu:
+            p.punkte_gesamt = neu
+            positionen_geaendert += 1
+
+    db.session.commit()
+    return {"artikel": artikel_geaendert, "positionen": positionen_geaendert,
+            "uebersprungen": positionen_uebersprungen}
 
 
 @bp.route("/neu", methods=["GET", "POST"])
@@ -83,10 +133,11 @@ def _aus_formular(a: Artikel) -> Artikel:
         a.preis = float(request.form.get("preis", "0").replace(",", "."))
     except ValueError:
         a.preis = 0.0
-    try:
-        a.punkte_pro_einheit = int(request.form.get("punkte_pro_einheit", "0") or 0)
-    except ValueError:
-        a.punkte_pro_einheit = 0
+    # Punkte sind fest an die Kategorie gebunden, nicht frei editierbar:
+    # nur Getraenke bringen dem Team Punkte, und zwar immer genau 1 pro
+    # Einheit - verhindert versehentliche Punkte bei Speisen oder falsche
+    # Punktzahlen bei Getraenken.
+    a.punkte_pro_einheit = 1 if a.kategorie == KATEGORIE_GETRAENK else 0
     try:
         a.pfand_pro_einheit = float(
             request.form.get("pfand_pro_einheit", "0").replace(",", "."))

@@ -5,7 +5,7 @@ import pytest
 from app import create_app
 from app.models import (db, Artikel, Bestellung, BestellPosition, Team,
                         Benutzer, BenutzerRolle, KATEGORIE_ESSEN,
-                        KATEGORIE_GETRAENK)
+                        KATEGORIE_GETRAENK, Sicherung)
 
 
 @pytest.fixture
@@ -276,6 +276,114 @@ def test_speisekarte_crud_nur_organisator(client, app):
     artikel = Artikel.query.filter_by(name="Limo").first()
     assert artikel is not None
     assert artikel.preis == 2.5
+
+
+def test_punkte_pro_einheit_nur_bei_getraenken_und_immer_1(client, app):
+    """Punkte sind nicht frei einstellbar: Speisen bekommen immer 0 Punkte,
+    Getraenke immer genau 1 - unabhaengig davon, was im Formular geschickt
+    wird (verhindert versehentliche/falsche Punktevergabe)."""
+    with app.app_context():
+        org = Benutzer(username="orga_punkte", aktiv=True)
+        org.set_password("pw")
+        org.rollen.append(BenutzerRolle(rolle="organisator"))
+        db.session.add(org)
+        db.session.commit()
+
+    _login(client, "orga_punkte", "pw")
+    # Speise mit absichtlich hoch angegebenen Punkten -> muss 0 werden
+    client.post("/speisekarte/neu", data={
+        "name": "Schnitzel", "kategorie": KATEGORIE_ESSEN, "preis": "9,00",
+        "punkte_pro_einheit": "5", "reihenfolge": "0", "aktiv": "on",
+    })
+    # Getraenk mit absichtlich falschen 2 Punkten -> muss auf 1 korrigiert werden
+    # (eigener Name "Radler", da die Fixture bereits einen Artikel "Bier" anlegt)
+    client.post("/speisekarte/neu", data={
+        "name": "Radler", "kategorie": KATEGORIE_GETRAENK, "preis": "4,00",
+        "punkte_pro_einheit": "2", "reihenfolge": "0", "aktiv": "on",
+    })
+
+    with app.app_context():
+        schnitzel = Artikel.query.filter_by(name="Schnitzel").first()
+        radler = Artikel.query.filter_by(name="Radler").first()
+        assert schnitzel.punkte_pro_einheit == 0
+        assert radler.punkte_pro_einheit == 1
+
+        # Aendern der Speise auf Getraenk -> bekommt automatisch 1 Punkt
+        bearbeiten_url = f"/speisekarte/{schnitzel.id}/bearbeiten"
+
+    client.post(bearbeiten_url, data={
+        "name": "Schnitzel", "kategorie": KATEGORIE_GETRAENK, "preis": "9,00",
+        "punkte_pro_einheit": "0", "reihenfolge": "0", "aktiv": "on",
+    })
+    with app.app_context():
+        schnitzel = Artikel.query.filter_by(name="Schnitzel").first()
+        assert schnitzel.punkte_pro_einheit == 1
+
+
+def test_punkte_korrigieren_fixt_bestehende_artikel_und_positionen(tmp_path):
+    """Einmalige Korrektur: bestehende falsche Artikel-Punkte UND bereits
+    erfasste Bestellpositionen (Schnappschuss) werden neu berechnet.
+    Positionen ohne zugeordneten Artikel (geloescht) werden uebersprungen,
+    nicht zum Absturz gebracht. Eigene dateibasierte DB-Fixture (nicht
+    :memory:), da die automatische Sicherung eine echte SQLite-Datei
+    braucht."""
+    dbdatei = tmp_path / "wettbewerb.sqlite"
+    app = create_app({
+        "TESTING": True,
+        "SQLALCHEMY_DATABASE_URI": f"sqlite:///{dbdatei}",
+        "ADMIN_STARTPASSWORT": "admin",
+    })
+    app.instance_path = str(tmp_path)
+    with app.app_context():
+        db.create_all()
+        org = Benutzer(username="orga_korrektur", aktiv=True)
+        org.set_password("pw")
+        org.rollen.append(BenutzerRolle(rolle="organisator"))
+        db.session.add(org)
+
+        bier = Artikel(name="Bier", kategorie=KATEGORIE_GETRAENK, preis=3.5,
+                       punkte_pro_einheit=2, aktiv=True)   # falsch, muss 1 werden
+        pommes = Artikel(name="Pommes", kategorie=KATEGORIE_ESSEN, preis=4.0,
+                         punkte_pro_einheit=3, aktiv=True)  # falsch, muss 0 werden
+        db.session.add_all([bier, pommes])
+        db.session.flush()
+
+        bestellung = Bestellung(tisch_nummer=9)
+        # Alte, mit dem falschen Wert (2) eingefrorene Position
+        bestellung.positionen.append(BestellPosition(
+            artikel_id=bier.id, artikel_name="Bier", einzelpreis=3.5,
+            menge=3, punkte_gesamt=6))
+        # Position eines inzwischen geloeschten Artikels (artikel_id=None)
+        bestellung.positionen.append(BestellPosition(
+            artikel_id=None, artikel_name="Alter Artikel", einzelpreis=1.0,
+            menge=2, punkte_gesamt=99))
+        db.session.add(bestellung)
+        db.session.commit()
+        bier_id = bier.id
+        pommes_id = pommes.id
+
+    client = app.test_client()
+    _login(client, "orga_korrektur", "pw")
+    r = client.post("/speisekarte/punkte-korrigieren", follow_redirects=True)
+    assert r.status_code == 200
+    assert "korrigiert".encode() in r.data
+    assert "übersprungen".encode() in r.data
+
+    with app.app_context():
+        bier = db.session.get(Artikel, bier_id)
+        pommes = db.session.get(Artikel, pommes_id)
+        assert bier.punkte_pro_einheit == 1
+        assert pommes.punkte_pro_einheit == 0
+
+        bier_position = BestellPosition.query.filter_by(artikel_id=bier_id).first()
+        assert bier_position.punkte_gesamt == 3   # 1 Punkt * Menge 3
+
+        verwaiste_position = BestellPosition.query.filter_by(
+            artikel_name="Alter Artikel").first()
+        assert verwaiste_position.punkte_gesamt == 99   # unveraendert
+
+        # Automatische Sicherung wurde vorher angelegt
+        assert Sicherung.query.filter_by(typ="vor-punkte-korrektur").count() == 1
 
 
 def test_qrcode_pdf_organisator(client, app):
