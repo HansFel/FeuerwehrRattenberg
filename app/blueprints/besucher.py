@@ -4,21 +4,23 @@ keine Aktionen/Formulare (Wertung und Zeitplan selbst sind zwar auch schon
 ueber /wertung/ und /zeitplan/ ohne Login erreichbar, dort aber eingebettet
 in die vollstaendige Organisator-Navigation - diese Seite ist bewusst
 reduziert fuer Gaeste am Handy)."""
-from flask import Blueprint, render_template
+from flask import Blueprint, jsonify, render_template
 
 from ..models import Team, Disziplin, Startplatz, Strafe
-from ..wertung import gesamtwertung_vollstaendig
+from ..wertung import gesamtwertung_vollstaendig, team_challenge
 from .zeitplan import _startplaetze_numerisch_sortieren
 
 bp = Blueprint("besucher", __name__, url_prefix="/besucher")
 
 
-@bp.route("/")
-def index():
+def _besucher_daten() -> dict:
+    """Daten fuer die live aktualisierten Bereiche der Besucheransicht
+    (Gesamtwertung, Team Challenge, Zeitplan)."""
     disziplinen = Disziplin.query.order_by(Disziplin.reihenfolge,
                                             Disziplin.name).all()
     teams = Team.query.all()
     tabelle = gesamtwertung_vollstaendig(teams, disziplinen)
+    challenge_tabelle = team_challenge(teams)
 
     # Strafsekunden je Team - auch je einzelnem Lauf (Vorrunde,
     # Platzierungslauf, Halbfinale, Finale) mit angezeigt, nicht nur in der
@@ -35,5 +37,22 @@ def index():
         if startplaetze:
             zeitplan.append({"disziplin": d, "startplaetze": startplaetze})
 
-    return render_template("besucher/index.html", tabelle=tabelle,
-                           zeitplan=zeitplan, strafsekunden=strafsekunden)
+    return dict(tabelle=tabelle, team_challenge_tabelle=challenge_tabelle,
+               zeitplan=zeitplan, strafsekunden=strafsekunden)
+
+
+@bp.route("/")
+def index():
+    return render_template("besucher/index.html", **_besucher_daten())
+
+
+@bp.route("/live-fragment")
+def live_fragment():
+    """Liefert Gesamtwertung/Team-Challenge und Zeitplan als HTML-Fragmente
+    (per JS-Polling eingebettet, kein Login noetig) - fuer Dauerbetrieb auf
+    Anzeige-Screens ohne sichtbaren Seiten-Reload alle paar Sekunden."""
+    daten = _besucher_daten()
+    return jsonify(
+        wertung_html=render_template("besucher/_wertung.html", **daten),
+        zeitplan_html=render_template("besucher/_zeitplan.html", **daten),
+    )

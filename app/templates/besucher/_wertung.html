@@ -1,0 +1,55 @@
+<h2>🏁 Siloplanen-Race – Gesamtwertung</h2>
+{% if tabelle %}
+<table>
+  <thead>
+    <tr>
+      <th class="rang">Rang</th>
+      <th>Mannschaft</th>
+      <th>⏱ Rennzeit</th>
+      <th>📋 Strafsekunden</th>
+      <th>⏱ Gesamtzeit inkl. Strafen</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for zeile in tabelle %}
+    <tr>
+      <td class="rang">{{ zeile.rang }}{% if zeile.finaler_platz is none %} <small>(vorläufig)</small>{% endif %}</td>
+      <td>{{ zeile.team.name }}</td>
+      <td>{{ zeile.gemessene_zeit|zeit }}</td>
+      <td>{{ zeile.strafsekunden|round(0) }}</td>
+      <td>{{ zeile.gesamtzeit|zeit }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="leer">Noch keine Mannschaften vorhanden.</p>
+{% endif %}
+
+<h2 style="margin-top:2rem">🏆 Team Challenge</h2>
+{% if team_challenge_tabelle %}
+<table>
+  <thead>
+    <tr>
+      <th class="rang">Rang</th>
+      <th>Mannschaft</th>
+      <th>🥤 Getränkepunkte</th>
+      <th>🎉 Fanpunkte</th>
+      <th>🏆 Gesamt</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in team_challenge_tabelle %}
+    <tr>
+      <td class="rang">{{ e.rang }}</td>
+      <td>{{ e.team.name }}</td>
+      <td>{{ e.getraenkepunkte }}</td>
+      <td>{{ e.fanpunkte }}</td>
+      <td><strong>{{ e.gesamt }}</strong></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="leer">Noch keine Mannschaften vorhanden.</p>
+{% endif %}

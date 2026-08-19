@@ -114,6 +114,62 @@ def test_besucheransicht_zeigt_keine_wehr_und_keine_personennamen(client, app):
     assert "Musterperson" not in text
 
 
+def test_besucheransicht_zeigt_team_challenge(client, app):
+    """Getraenkepunkte + Fanpunkte sollen auch in der oeffentlichen
+    Besucheransicht als eigene Wertung neben der Siloplanen-Race-
+    Gesamtwertung erscheinen, fuer den Dauerbetrieb auf Anzeige-Screens."""
+    with app.app_context():
+        team = Team(name="Challenge-Team", fanpunkte=7)
+        db.session.add(team)
+        db.session.commit()
+
+    r = client.get("/besucher/")
+    text = r.data.decode("utf-8")
+    assert "Team Challenge" in text
+    assert "Challenge-Team" in text
+    assert "Fanpunkte" in text
+
+
+def test_besucher_live_fragment_ohne_login_und_ohne_personendaten(client, app):
+    """Der /besucher/live-fragment-Endpoint (per JS-Polling auf Anzeige-
+    Screens eingebettet) funktioniert ohne Login und liefert frische Zeiten
+    ohne Seiten-Reload - unter denselben Datenschutz-Regeln wie die
+    Hauptseite (keine Wehr/Personennamen)."""
+    with app.app_context():
+        d = Disziplin(name="Siloplanen-Race")
+        team = Team(name="Screen-Team", wehr="Geheimort", fanpunkte=3)
+        team.mitglieder.append(Mitglied(vorname="Maximilian",
+                                        nachname="Musterperson", position=1))
+        db.session.add_all([d, team])
+        db.session.commit()
+        db.session.add(Startplatz(team_id=team.id, disziplin_id=d.id,
+                                  startnummer=1, heat="Vorrunde 1"))
+        db.session.commit()
+        team_id = team.id
+
+    r = client.get("/besucher/live-fragment")
+    assert r.status_code == 200
+    daten = r.get_json()
+    assert "Screen-Team" in daten["wertung_html"]
+    assert "Geheimort" not in daten["wertung_html"]
+    assert "Maximilian" not in daten["wertung_html"]
+    assert "Screen-Team" in daten["zeitplan_html"]
+    assert "Geheimort" not in daten["zeitplan_html"]
+
+    # Zeit wird erfasst - ohne dass die Hauptseite neu geladen werden muss
+    with app.app_context():
+        Startplatz.query.filter_by(team_id=team_id).update({"ergebnis_sekunden": 33.5})
+        db.session.commit()
+
+    r = client.get("/besucher/live-fragment")
+    daten = r.get_json()
+    assert "33,50 s" in daten["wertung_html"]
+    assert "33,50 s" in daten["zeitplan_html"]
+
+    hauptseite = client.get("/besucher/")
+    assert "/besucher/live-fragment".encode() in hauptseite.data
+
+
 def test_zeitplan_zeigt_strafsekunden_und_gesamtzeit_pro_lauf(client, app):
     """Strafsekunden/Gesamtzeit sollen auch in der Zeitplan-Tabelle je Lauf
     stehen (gilt fuer alle Laufarten: Vorrunde, Platzierungslauf,

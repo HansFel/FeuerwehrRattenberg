@@ -2,73 +2,30 @@
 {% block titel %}Besucheransicht{% endblock %}
 {% block inhalt %}
   <h1>🏆 Aktueller Stand</h1>
-  <p class="leer">Diese Seite lädt sich automatisch alle 15 Sekunden neu.</p>
 
-  <h2>Gesamtwertung</h2>
-  {% if tabelle %}
-  <table>
-    <thead>
-      <tr>
-        <th class="rang">Rang</th>
-        <th>Mannschaft</th>
-        <th>⏱ Rennzeit</th>
-        <th>📋 Strafsekunden</th>
-        <th>⏱ Gesamtzeit inkl. Strafen</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for zeile in tabelle %}
-      <tr>
-        <td class="rang">{{ zeile.rang }}{% if zeile.finaler_platz is none %} <small>(vorläufig)</small>{% endif %}</td>
-        <td>{{ zeile.team.name }}</td>
-        <td>{{ zeile.gemessene_zeit|zeit }}</td>
-        <td>{{ zeile.strafsekunden|round(0) }}</td>
-        <td>{{ zeile.gesamtzeit|zeit }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p class="leer">Noch keine Mannschaften vorhanden.</p>
-  {% endif %}
+  <div id="besucher-wertung-bereich">
+{% include "besucher/_wertung.html" %}
+  </div>
 
   <h2 style="margin-top:2rem">Zeitplan</h2>
-  {% if zeitplan %}
-  {% for eintrag in zeitplan %}
-  <h3>{{ eintrag.disziplin.name }}</h3>
-  <table style="margin-bottom:1.5rem">
-    <thead>
-      <tr><th>Heat/Durchgang</th><th>Bahn</th><th>Mannschaft</th><th>Startzeit</th>
-        <th>Rennzeit</th><th>📋 Strafsekunden</th><th>Gesamtzeit</th></tr>
-    </thead>
-    <tbody>
-      {% set ns = namespace(letzter_heat=none) %}
-      {% for sp in eintrag.startplaetze %}
-      {% if sp.heat != ns.letzter_heat %}
-        {% set ns.letzter_heat = sp.heat %}
-      <tr><td colspan="7" style="background:var(--hell); font-weight:600;">
-        {{ sp.heat or "(ohne Heat/Durchgang)" }}
-      </td></tr>
-      {% endif %}
-      {% set strafe = strafsekunden.get(sp.team_id, 0.0) %}
-      <tr>
-        <td></td>
-        <td>{{ sp.startnummer if sp.startnummer is not none else "–" }}</td>
-        <td>{{ sp.team.name }}</td>
-        <td>{{ sp.startzeit or "–" }}</td>
-        <td>{{ sp.ergebnis_sekunden|zeit if sp.ergebnis_sekunden is not none else "–" }}</td>
-        <td>{{ strafe|round(0) }}</td>
-        <td>{{ (sp.ergebnis_sekunden + strafe)|zeit if sp.ergebnis_sekunden is not none else "–" }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% endfor %}
-  {% else %}
-  <p class="leer">Noch kein Zeitplan vorhanden.</p>
-  {% endif %}
+  <div id="besucher-zeitplan-bereich">
+{% include "besucher/_zeitplan.html" %}
+  </div>
 
   <script>
-    setTimeout(() => location.reload(), 15000);
+  (function () {
+    var wertungBereich = document.getElementById('besucher-wertung-bereich');
+    var zeitplanBereich = document.getElementById('besucher-zeitplan-bereich');
+    function aktualisieren() {
+      fetch("{{ url_for('besucher.live_fragment') }}")
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+        .then(function (daten) {
+          if (wertungBereich) wertungBereich.innerHTML = daten.wertung_html;
+          if (zeitplanBereich) zeitplanBereich.innerHTML = daten.zeitplan_html;
+        })
+        .catch(function () { /* naechster Versuch beim naechsten Intervall */ });
+    }
+    window.setInterval(aktualisieren, 5000);
+  })();
   </script>
 {% endblock %}

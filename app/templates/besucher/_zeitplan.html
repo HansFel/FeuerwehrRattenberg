@@ -1,0 +1,34 @@
+{% if zeitplan %}
+{% for eintrag in zeitplan %}
+<h3>{{ eintrag.disziplin.name }}</h3>
+<table style="margin-bottom:1.5rem">
+  <thead>
+    <tr><th>Heat/Durchgang</th><th>Bahn</th><th>Mannschaft</th><th>Startzeit</th>
+      <th>Rennzeit</th><th>📋 Strafsekunden</th><th>Gesamtzeit</th></tr>
+  </thead>
+  <tbody>
+    {% set ns = namespace(letzter_heat=none) %}
+    {% for sp in eintrag.startplaetze %}
+    {% if sp.heat != ns.letzter_heat %}
+      {% set ns.letzter_heat = sp.heat %}
+    <tr><td colspan="7" style="background:var(--hell); font-weight:600;">
+      {{ sp.heat or "(ohne Heat/Durchgang)" }}
+    </td></tr>
+    {% endif %}
+    {% set strafe = strafsekunden.get(sp.team_id, 0.0) %}
+    <tr>
+      <td></td>
+      <td>{{ sp.startnummer if sp.startnummer is not none else "–" }}</td>
+      <td>{{ sp.team.name }}</td>
+      <td>{{ sp.startzeit or "–" }}</td>
+      <td>{{ sp.ergebnis_sekunden|zeit if sp.ergebnis_sekunden is not none else "–" }}</td>
+      <td>{{ strafe|round(0) }}</td>
+      <td>{{ (sp.ergebnis_sekunden + strafe)|zeit if sp.ergebnis_sekunden is not none else "–" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endfor %}
+{% else %}
+<p class="leer">Noch kein Zeitplan vorhanden.</p>
+{% endif %}
