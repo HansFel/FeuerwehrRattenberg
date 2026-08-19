@@ -74,16 +74,16 @@ def gesamt():
     teams = Team.query.all()
     disziplinen = Disziplin.query.order_by(Disziplin.reihenfolge).all()
     daten = [["Rang", "Mannschaft", "Wehr / Ort", "Rangpunkte",
-             "Getränkepunkte", "Strafsek.", "Gemessene Zeit", "Gesamtzeit"]]
+             "Strafsek.", "Gemessene Zeit", "Gesamtzeit"]]
     for z in gesamtwertung_vollstaendig(teams, disziplinen):
         rang = str(z["rang"]) + (" (vorl.)" if z["finaler_platz"] is None else "")
         daten.append([rang, z["team"].name, z["team"].wehr or "",
-                      str(z["punkte"]), str(z["getraenkepunkte"]),
+                      str(z["punkte"]),
                       str(round(z["strafsekunden"])),
                       format_zeit(z["gemessene_zeit"]),
                       format_zeit(z["gesamtzeit"])])
-    tabelle = _tabelle(daten, [20 * mm, 30 * mm, 26 * mm, 18 * mm,
-                               20 * mm, 16 * mm, 22 * mm, 22 * mm])
+    tabelle = _tabelle(daten, [20 * mm, 32 * mm, 28 * mm, 20 * mm,
+                               18 * mm, 24 * mm, 24 * mm])
     return _dokument("Gesamtwertung", [tabelle], "gesamtwertung.pdf")
 
 
