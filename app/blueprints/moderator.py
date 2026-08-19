@@ -5,7 +5,8 @@ from flask import Blueprint, flash, jsonify, redirect, render_template, request,
 from flask_login import current_user
 
 from ..auth import rolle_noetig
-from ..models import (db, Disziplin, ModeratorStatus, Nachricht, Startplatz, Team, Strafe, BestellPosition)
+from ..models import db, Disziplin, ModeratorStatus, Nachricht, Startplatz, Team
+from ..wertung import gesamtwertung_vollstaendig, team_challenge
 
 bp = Blueprint("moderator", __name__, url_prefix="/moderator")
 
@@ -54,13 +55,26 @@ def _laufende_teams(status: ModeratorStatus) -> list[Startplatz]:
 
 def _live_daten(status: ModeratorStatus) -> dict:
     """Daten fuer die live aktualisierten Dashboard-Bereiche (aktueller Lauf,
-    abgeschlossener Lauf mit Zeiten, naechster Lauf, Rangliste)."""
+    abgeschlossener Lauf mit Zeiten, naechster Lauf, Siloplanen-Race- und
+    Team-Challenge-Wertung).
+
+    Fuer beide Wertungen wird dieselbe Berechnung wie auf der offiziellen
+    Wertungsseite (/wertung/) verwendet, damit Moderator-Dashboard, Web-Ansicht
+    und PDF-Export garantiert uebereinstimmen. Solange noch Teams ohne
+    definitive Platzierung dabei sind, ist das die laufende Zwischenwertung;
+    sobald jedes Team einen Ziellauf absolviert hat, ist es zugleich die
+    (dann unveraenderliche) Gesamtwertung - keine gesonderte "Endstand"-Ansicht
+    noetig.
+    """
     letzter_lauf = _letzter_abgeschlossener_lauf(status)
     naechster = _naechster_lauf(status)
+    teams = Team.query.order_by(Team.startnummer, Team.name).all()
+    disziplinen = Disziplin.query.order_by(Disziplin.reihenfolge, Disziplin.name).all()
     return dict(
         status=status,
         laufende_teams=_laufende_teams(status),
-        rangliste=_rangliste_mit_strafen(),
+        siloplanen_tabelle=gesamtwertung_vollstaendig(teams, disziplinen),
+        team_challenge_tabelle=team_challenge(teams),
         letzter_lauf=letzter_lauf,
         letzter_lauf_teams=_teams_fuer_heat(letzter_lauf) if letzter_lauf else [],
         naechster=naechster,
@@ -218,59 +232,3 @@ def naechster_lauf_starten():
           f"Jetzt „Zeitmessung freigeben“ klicken zum Starten.", "ok")
     return redirect(url_for("moderator.dashboard"))
 
-def _rangliste_mit_strafen():
-    """Rangliste: je Team die Summe aller ergebnis_sekunden (Laufzeit)
-    plus Strafsekunden aus dem Strafenkatalog. Sortiert nach Gesamt."""
-    teams = Team.query.order_by(Team.startnummer, Team.name).all()
-
-    # Laufzeit je Team (Summe aller Startplatz.ergebnis_sekunden)
-    laufzeiten = {}
-    for sp in Startplatz.query.all():
-        if sp.ergebnis_sekunden is not None:
-            laufzeiten[sp.team_id] = laufzeiten.get(sp.team_id, 0.0) + sp.ergebnis_sekunden
-
-    # Strafsekunden je Team
-    strafen = {}
-    for s in Strafe.query.all():
-        strafen[s.team_id] = strafen.get(s.team_id, 0.0) + s.sekunden
-
-    # Getraenkepunkte je Team
-    punkte = {}
-    for pos in BestellPosition.query.all():
-        if pos.team_id and pos.punkte_gesamt:
-            punkte[pos.team_id] = punkte.get(pos.team_id, 0) + pos.punkte_gesamt
-
-    eintraege = []
-    for t in teams:
-        lz = laufzeiten.get(t.id, 0.0)
-        st = strafen.get(t.id, 0.0)
-        eintraege.append({
-            "team": t, "laufzeit": lz, "strafen": st,
-            "gesamt": lz + st,
-            "getraenkepunkte": punkte.get(t.id, 0),
-        })
-    # Sortiert nach Gesamt (niedrig = besser bei Zeit-Wertung)
-    eintraege.sort(key=lambda e: e["gesamt"])
-    for i, e in enumerate(eintraege, start=1):
-        e["rang"] = i
-    return eintraege
-
-def _team_challenge_berechnen():
-    """Team Challenge: Getraenkepunkte + Fanpunkte je Team, live gereiht."""
-    teams = Team.query.order_by(Team.startnummer, Team.name).all()
-    gp = {}
-    for pos in BestellPosition.query.all():
-        if pos.team_id and pos.punkte_gesamt:
-            gp[pos.team_id] = gp.get(pos.team_id, 0) + pos.punkte_gesamt
-    eintraege = []
-    for t in teams:
-        g = gp.get(t.id, 0)
-        f = t.fanpunkte or 0
-        eintraege.append({
-            "team": t, "getraenkepunkte": g,
-            "fanpunkte": f, "gesamt": g + f,
-        })
-    eintraege.sort(key=lambda e: e["gesamt"], reverse=True)
-    for i, e in enumerate(eintraege, start=1):
-        e["rang"] = i
-    return eintraege

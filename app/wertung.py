@@ -112,6 +112,29 @@ def finale_platzierung(team: Team,
     return None
 
 
+def team_challenge(teams: list[Team]) -> list[dict]:
+    """Team Challenge: Getraenkepunkte (aus dem Ausschank) + Fanpunkte (vom
+    Organisator) = Gesamt. Live gereiht, hoechste Punktzahl = bester. Von der
+    Siloplanen-Race-Gesamtwertung unabhaengige, eigene Wertung."""
+    gp: dict[int, int] = {}
+    for pos in BestellPosition.query.all():
+        if pos.team_id and pos.punkte_gesamt:
+            gp[pos.team_id] = gp.get(pos.team_id, 0) + pos.punkte_gesamt
+
+    eintraege = []
+    for t in teams:
+        getraenke = gp.get(t.id, 0)
+        fan = t.fanpunkte or 0
+        eintraege.append({
+            "team": t, "getraenkepunkte": getraenke,
+            "fanpunkte": fan, "gesamt": getraenke + fan,
+        })
+    eintraege.sort(key=lambda e: e["gesamt"], reverse=True)
+    for i, e in enumerate(eintraege, start=1):
+        e["rang"] = i
+    return eintraege
+
+
 def gesamtwertung_vollstaendig(teams: list[Team],
                                disziplinen: list[Disziplin]) -> list[dict]:
     """Vollstaendige Gesamtwertungs-Tabelle inkl. Getraenkepunkte,

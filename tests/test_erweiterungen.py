@@ -73,5 +73,7 @@ def test_pdf_gesamtwertung_enthaelt_gemessene_zeit_und_strafen(app):
     roh = match.group(1).strip().rstrip(b"~>")
     dekodiert = zlib.decompress(base64.a85decode(roh, adobe=False))
     text = dekodiert.decode("latin-1")
-    for stichwort in ("Get", "Strafsek", "Gemessene Zeit", "Gesamtzeit"):
+    # Getraenkepunkte sind seit Build 57 nur noch in der Team-Challenge-Wertung,
+    # nicht mehr in der Siloplanen-Race-Gesamtwertung.
+    for stichwort in ("Rangpunkte", "Strafsek", "Gemessene Zeit", "Gesamtzeit"):
         assert stichwort in text

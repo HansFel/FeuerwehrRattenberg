@@ -168,13 +168,49 @@ def test_live_fragment_zeigt_neue_zeiten_ohne_seiten_reload(client, app):
     daten = r.get_json()
     assert "42.50 s".encode() in daten["live_html"].encode()
     assert "39.10 s".encode() in daten["live_html"].encode()
-    assert "39.1".encode() in daten["rangliste_html"].encode()
+    # Siloplanen-Race-Zwischenwertung: noch kein Ziellauf -> "vorläufig"
+    assert "Siloplanen-Race".encode() in daten["rangliste_html"].encode()
+    assert "vorläufig".encode() in daten["rangliste_html"].encode()
+    assert "39,10 s".encode() in daten["rangliste_html"].encode()
+    # Team Challenge erscheint als eigene, unabhaengige Wertung daneben
+    assert "Team Challenge".encode() in daten["rangliste_html"].encode()
 
     # Die Hauptseite selbst zeigt beim ersten Laden dasselbe und bindet das
     # Polling auf den Fragment-Endpoint ein
     hauptseite = client.get("/moderator/")
     assert "42.50 s".encode() in hauptseite.data
     assert "/moderator/live-fragment".encode() in hauptseite.data
+
+
+def test_dashboard_zeigt_definitive_gesamtwertung_nach_ziellauf(client, app):
+    """Sobald ein Team einen Ziellauf (Platzierungslauf/Finale) absolviert
+    hat, zeigt das Moderator-Dashboard die endgueltige Platzierung ohne
+    "(vorläufig)" - dieselbe Berechnung wie auf /wertung/, damit am Ende
+    des Bewerbs dort automatisch die Gesamtwertung steht. Team Challenge
+    (Getraenke- + Fanpunkte) zeigt unabhaengig davon ihre eigene Wertung."""
+    with app.app_context():
+        disziplin = Disziplin.query.filter_by(name="Siloplanen-Race").one()
+        team1 = Team.query.filter_by(name="Team Rattenberg").one()
+        team2 = Team.query.filter_by(name="Team Brixlegg").one()
+        team1.fanpunkte = 5
+        Startplatz.query.filter_by(team_id=team1.id).delete()
+        Startplatz.query.filter_by(team_id=team2.id).delete()
+        db.session.add_all([
+            Startplatz(team_id=team1.id, disziplin_id=disziplin.id,
+                       startnummer=1, heat="1 Platzierungslauf Platz 1-2",
+                       ergebnis_sekunden=20.0),
+            Startplatz(team_id=team2.id, disziplin_id=disziplin.id,
+                       startnummer=2, heat="1 Platzierungslauf Platz 1-2",
+                       ergebnis_sekunden=25.0),
+        ])
+        db.session.commit()
+
+    _login(client, "orga")
+    r = client.get("/moderator/")
+    assert "Team Rattenberg".encode() in r.data
+    assert "vorläufig".encode() not in r.data
+    # Team Challenge: Fanpunkte fliessen ein, unabhaengig vom Ziellauf
+    assert "🏆 Team Challenge".encode() in r.data
 
 
 def test_moderator_sieht_keinen_freigabe_button_organisator_schon(client, app):

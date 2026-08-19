@@ -1,25 +1,51 @@
-<h2>🏆 Aktuelle Rangliste</h2>
-{% if rangliste %}
+<h2>🏁 Siloplanen-Race</h2>
+{% if siloplanen_tabelle %}
 <table class="moderator-rangliste">
   <thead>
     <tr>
       <th class="rang">Rang</th>
       <th>Mannschaft</th>
-      <th>Laufzeit</th>
-      <th>Strafen</th>
-      <th>Gesamt</th>
-      <th>🥤 Pkt.</th>
+      <th>📋 Strafsek.</th>
+      <th>⏱ Zeit gesamt</th>
+      <th>⏱ Gesamtzeit</th>
     </tr>
   </thead>
   <tbody>
-    {% for e in rangliste %}
+    {% for zeile in siloplanen_tabelle %}
+    <tr>
+      <td class="rang">{{ zeile.rang }}{% if zeile.finaler_platz is none %} <small>(vorläufig)</small>{% endif %}</td>
+      <td>{{ zeile.team.name }}</td>
+      <td>{{ zeile.strafsekunden|round(0) }}</td>
+      <td>{{ zeile.gemessene_zeit|zeit }}</td>
+      <td><strong>{{ zeile.gesamtzeit|zeit }}</strong></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+  <p class="leer">Noch keine Ergebnisse erfasst.</p>
+{% endif %}
+
+<h2 style="margin-top:1.5rem">🏆 Team Challenge</h2>
+{% if team_challenge_tabelle %}
+<table class="moderator-rangliste">
+  <thead>
+    <tr>
+      <th class="rang">Rang</th>
+      <th>Mannschaft</th>
+      <th>🥤 Getränkepkt.</th>
+      <th>🎉 Fanpunkte</th>
+      <th>🏆 Gesamt</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in team_challenge_tabelle %}
     <tr>
       <td class="rang">{{ e.rang }}</td>
       <td>{{ e.team.name }}</td>
-      <td>{{ "%.1f"|format(e.laufzeit) }} s</td>
-      <td>{{ "+%.0f"|format(e.strafen) if e.strafen > 0 else "–" }}</td>
-      <td><strong>{{ "%.1f"|format(e.gesamt) }} s</strong></td>
       <td>{{ e.getraenkepunkte }}</td>
+      <td>{{ e.fanpunkte }}</td>
+      <td><strong>{{ e.gesamt }}</strong></td>
     </tr>
     {% endfor %}
   </tbody>
