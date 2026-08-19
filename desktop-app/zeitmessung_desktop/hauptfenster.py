@@ -294,20 +294,57 @@ class Hauptfenster(QMainWindow):
             self.lauf_tabelle.setRowCount(0)
             return
         self.lauf_label.setText(f"Aktiver Lauf: {daten.get('bezeichnung') or daten['lauf_id']}")
+        aktiviert_um = daten.get("aktiviert_um")
         bahnen = daten.get("bahnen", [])
         self.lauf_tabelle.setRowCount(len(bahnen))
         for row, bahn in enumerate(bahnen):
+            bahn_nr = bahn["bahn_nr"]
+            # Server-Zeiten (komplett wenn alle 5 Events da)
+            server_zeiten = {l["nummer"]: l["zeit"] for l in bahn.get("laeufer", []) if l["zeit"] is not None}
+            # Lokale Zwischenzeiten aus Events seit Lauf-Start
+            lokale_zeiten = {}
+            kontakt_count = 0
+            if aktiviert_um:
+                lokale_zeiten, kontakt_count = self._partial_zeiten(bahn_nr, aktiviert_um)
             zeiten_text = "  ".join(
-                f"L{l['nummer']}: {l['zeit']:.3f}" if l["zeit"] is not None
-                else f"L{l['nummer']}: –"
+                (f"L{l['nummer']}: {lokale_zeiten.get(l['nummer'], l['zeit']):.3f}"
+                 if l["nummer"] in lokale_zeiten or l["zeit"] is not None
+                 else f"L{l['nummer']}: –")
                 for l in bahn.get("laeufer", [])
             )
             summe = bahn.get("gesamtzeit")
-            summe_text = f"{summe:.3f} s" if summe is not None else "–"
-            self.lauf_tabelle.setItem(row, 0, QTableWidgetItem(str(bahn["bahn_nr"])))
+            if summe is not None:
+                summe_text = f"{summe:.3f} s"
+            elif lokale_zeiten:
+                summe_text = f"{sum(lokale_zeiten.values()):.3f} s *"
+            else:
+                summe_text = "–"
+            # Kontakt-Zaehler anzeigen
+            kontakt_info = f"({kontakt_count}/5)" if kontakt_count > 0 else ""
+            self.lauf_tabelle.setItem(row, 0, QTableWidgetItem(f"Bahn {bahn_nr} {kontakt_info}"))
             self.lauf_tabelle.setItem(row, 1, QTableWidgetItem(bahn.get("team_name") or "–"))
             self.lauf_tabelle.setItem(row, 2, QTableWidgetItem(zeiten_text or "–"))
             self.lauf_tabelle.setItem(row, 3, QTableWidgetItem(summe_text))
+
+    def _partial_zeiten(self, bahn: int, aktiviert_um: str) -> tuple[dict, int]:
+        """Berechnet Zwischenzeiten aus lokalen Events seit Lauf-Start.
+        Liefert (zeiten_dict, kontakt_count). zeiten_dict = {laeufer_nr: sekunden}.
+        Nach 2 Events: L1 fertig; nach 3: L1+L2; nach 4: L1+L2+L3; nach 5: alle."""
+        from datetime import datetime
+        zeilen = self.db.execute(
+            "SELECT empfangen_um FROM ereignis WHERE bahn = ? AND empfangen_um >= ? "
+            "ORDER BY id ASC LIMIT 5",
+            (bahn, aktiviert_um),
+        ).fetchall()
+        n = len(zeilen)
+        if n < 2:
+            return {}, n
+        zeitstempel = [datetime.fromisoformat(z["empfangen_um"]) for z in zeilen]
+        zeiten = {}
+        for i in range(min(n - 1, 4)):
+            delta = (zeitstempel[i + 1] - zeitstempel[i]).total_seconds()
+            zeiten[i + 1] = delta
+        return zeiten, n
 
     def _lauf_status_anzeigen(self, status: dict) -> None:
         jetzt = datetime.now().strftime("%H:%M:%S")

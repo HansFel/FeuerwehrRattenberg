@@ -180,7 +180,8 @@ def api_aktiver_lauf():
             "laeufer": laeufer,
             "gesamtzeit": bahn.gesamtzeit,
         })
-    return jsonify(aktiv=True, lauf_id=lauf.id, bezeichnung=lauf.bezeichnung, bahnen=bahnen)
+    aktiviert_um = lauf.aktiviert_um.isoformat() if lauf.aktiviert_um else None
+    return jsonify(aktiv=True, lauf_id=lauf.id, bezeichnung=lauf.bezeichnung, aktiviert_um=aktiviert_um, bahnen=bahnen)
 
 
 @bp.route("/api/importieren", methods=["POST"])
