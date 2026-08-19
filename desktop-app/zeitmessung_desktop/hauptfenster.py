@@ -144,19 +144,45 @@ class Hauptfenster(QMainWindow):
         self.lauf_tabelle.setMaximumHeight(160)
         layout.addWidget(self.lauf_tabelle)
 
-        # Manuelle Stopptasten (Fallback wenn Hardware-Kontakt aussetzt)
-        stopp_box = QGroupBox("Manuelle Stopptaste (pro Bahn)")
-        stopp_layout = QHBoxLayout(stopp_box)
+        # Manuelle Tasten (Fallback wenn Hardware-Kontakt aussetzt)
+        manuell_tasten_box = QGroupBox("Manuelle Zeitnahme (pro Bahn)")
+        manuell_tasten_layout = QVBoxLayout(manuell_tasten_box)
+        start_zeile = QHBoxLayout()
+        stopp_zeile = QHBoxLayout()
+        start_label = QLabel("START (1. Kontakt)")
+        start_label.setStyleSheet("font-weight: bold; color: #1a7a1a;")
+        stopp_label = QLabel("STOPP (letzer Kontakt)")
+        stopp_label.setStyleSheet("font-weight: bold; color: #b30000;")
+        start_zeile.addWidget(start_label)
+        stopp_zeile.addWidget(stopp_label)
         self.stopp_knoepfe: list[QPushButton] = []
+        self.start_knoepfe: list[QPushButton] = []
         for bahn in range(1, 5):
-            knopf = QPushButton(f"Bahn {bahn} STOPP")
-            knopf.setMinimumHeight(60)
-            knopf.setStyleSheet("font-size: 1.1rem; font-weight: bold;")
-            knopf.clicked.connect(lambda checked=False, b=bahn: self._manuelles_event(b))
-            self.stopp_knoepfe.append(knopf)
-            stopp_layout.addWidget(knopf)
-        stopp_layout.addStretch()
-        layout.addWidget(stopp_box)
+            # START Button (gruen)
+            start_knopf = QPushButton(f"Bahn {bahn}\nSTART")
+            start_knopf.setMinimumHeight(50)
+            start_knopf.setStyleSheet(
+                "font-size: 1rem; font-weight: bold; "
+                "background-color: #4caf50; color: white;")
+            start_knopf.clicked.connect(
+                lambda checked=False, b=bahn: self._manuelles_event(b))
+            self.start_knoepfe.append(start_knopf)
+            start_zeile.addWidget(start_knopf)
+            # STOPP Button (rot)
+            stopp_knopf = QPushButton(f"Bahn {bahn}\nSTOPP")
+            stopp_knopf.setMinimumHeight(50)
+            stopp_knopf.setStyleSheet(
+                "font-size: 1rem; font-weight: bold; "
+                "background-color: #f44336; color: white;")
+            stopp_knopf.clicked.connect(
+                lambda checked=False, b=bahn: self._manuelles_event(b))
+            self.stopp_knoepfe.append(stopp_knopf)
+            stopp_zeile.addWidget(stopp_knopf)
+        start_zeile.addStretch()
+        stopp_zeile.addStretch()
+        manuell_tasten_layout.addLayout(start_zeile)
+        manuell_tasten_layout.addLayout(stopp_zeile)
+        layout.addWidget(manuell_tasten_box)
 
         manuell_box = QGroupBox("Manueller Modus (offline, ohne Webapp-Verbindung)")
         manuell_layout = QVBoxLayout(manuell_box)
