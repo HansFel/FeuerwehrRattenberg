@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block titel %}Passwort ändern{% endblock %}
+{% block inhalt %}
+  <div class="ausschank-dashboard" style="max-width:500px;">
+    <h1>🔑 Passwort ändern</h1>
+    <form method="post" class="formular">
+      <label for="alt">
+        <strong>Aktuelles Passwort</strong>
+        <input id="alt" name="alt" type="password" required autocomplete="current-password"
+               style="font-size:1.1rem; padding:0.8rem;">
+      </label>
+      <label for="neu">
+        <strong>Neues Passwort</strong>
+        <input id="neu" name="neu" type="password" required autocomplete="new-password"
+               minlength="4" style="font-size:1.1rem; padding:0.8rem;">
+        <small class="leer">Mindestens 4 Zeichen.</small>
+      </label>
+      <label for="bestaetigung">
+        <strong>Neues Passwort bestätigen</strong>
+        <input id="bestaetigung" name="bestaetigung" type="password" required autocomplete="new-password"
+               style="font-size:1.1rem; padding:0.8rem;">
+      </label>
+      <div class="werkzeugleiste" style="margin-top:1rem;">
+        <button class="knopf" type="submit">Passwort ändern</button>
+        <a class="knopf grau" href="{{ url_for('start.index') }}">Abbrechen</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

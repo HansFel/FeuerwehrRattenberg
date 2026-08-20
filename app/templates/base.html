@@ -58,6 +58,7 @@
         {% if current_user.rollen_namen | length > 1 %}
           <a class="nav-knopf" href="{{ url_for('auth.rolle_waehlen') }}" title="Aktive Rolle wechseln">🔁 Rolle</a>
         {% endif %}
+        <a class="nav-knopf" href="{{ url_for('benutzer.passwort_aendern') }}" title="Eigenes Passwort ändern">🔑 Passwort</a>
         <form class="inline" method="post" action="{{ url_for('auth.logout') }}">
           <button class="nav-knopf" type="submit">🔓 Abmelden</button>
         </form>

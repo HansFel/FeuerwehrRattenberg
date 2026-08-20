@@ -138,5 +138,29 @@ def rolle_entfernen(rolle_id: int):
     return redirect(url_for("benutzer.rollen"))
 
 
+@bp.route("/passwort", methods=["GET", "POST"])
+@rolle_noetig("administrator", "organisator", "startrichter", "punkterichter",
+              "kellner", "ausschank", "moderator", "dj")
+def passwort_aendern():
+    """Jede Person kann ihr eigenes Passwort aendern – altes Passwort
+    wird zur Verifikation verlangt."""
+    if request.method == "POST":
+        alt = request.form.get("alt", "")
+        neu = request.form.get("neu", "")
+        bestaetigung = request.form.get("bestaetigung", "")
+        if not current_user.check_password(alt):
+            flash("Das alte Passwort ist falsch.", "error")
+        elif len(neu) < 4:
+            flash("Das neue Passwort muss mindestens 4 Zeichen haben.", "error")
+        elif neu != bestaetigung:
+            flash("Die Bestätigung stimmt nicht mit dem neuen Passwort ueberein.", "error")
+        else:
+            current_user.set_password(neu)
+            db.session.commit()
+            flash("Passwort geaendert.", "ok")
+            return redirect(url_for("start.index"))
+    return render_template("benutzer/passwort.html")
+
+
 def _anzahl_aktive_admins() -> int:
     return sum(1 for b in Benutzer.query.all() if b.aktiv and b.ist_admin())
