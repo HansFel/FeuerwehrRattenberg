@@ -84,6 +84,30 @@ def test_team_mit_vier_personen(client):
         "Anna Huber", "Clara Gruber", "Dieter Bauer"]
 
 
+def test_teams_liste_zeigt_personen_nur_angemeldet(client, app):
+    """Die Mannschaftsliste /teams/ ist auch ohne Login erreichbar (ueber den
+    Nav-Link "Mannschaften" auch fuer Besucher). Namen der Teammitglieder
+    sind personenbezogene Daten und duerfen dort nur angemeldetem Personal
+    angezeigt werden, nicht anonymen Besuchern."""
+    with app.app_context():
+        team = Team(name="Sichtbares Team")
+        team.mitglieder.append(Mitglied(vorname="Maximilian",
+                                        nachname="Musterperson", position=1))
+        db.session.add(team)
+        db.session.commit()
+
+    ohne_login = client.get("/teams/")
+    assert ohne_login.status_code == 200
+    assert "Sichtbares Team".encode() in ohne_login.data
+    assert "Maximilian".encode() not in ohne_login.data
+    assert "Musterperson".encode() not in ohne_login.data
+    assert "Personen".encode() not in ohne_login.data
+
+    client.post("/anmelden", data={"username": "admin", "passwort": "admin"})
+    mit_login = client.get("/teams/")
+    assert "Maximilian Musterperson".encode() in mit_login.data
+
+
 def test_team_status_felder(client, app):
     client.post("/anmelden", data={"username": "admin", "passwort": "admin"})
     client.post("/teams/neu", data={

@@ -7,5 +7,5 @@ kein Auto-Timestamp beim Build, damit der angezeigte Wert eindeutig einem
 bekannten Quellcode-Stand entspricht.
 """
 
-BUILD_NUMMER = 63
-BUILD_ZEIT = "2026-08-19 22:06"
+BUILD_NUMMER = 64
+BUILD_ZEIT = "2026-08-20 00:10"

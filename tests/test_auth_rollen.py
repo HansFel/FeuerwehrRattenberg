@@ -192,7 +192,9 @@ def test_menueleiste_kellner_nur_bestellungen(client):
     und Speisekarten-Pflege sind für die Rolle überflüssig und sollen die
     Menüleiste nicht zumüllen."""
     _login(client, "kellner1", "pw")
-    nav = _nav(client.get("/"))
+    # Seit Build 62 leitet "/" die Rolle Kellner direkt aufs Kellner-Dashboard
+    # weiter (wie schon zuvor bei Ausschank) - Redirect folgen fuer die Navleiste.
+    nav = _nav(client.get("/", follow_redirects=True))
     assert ">Bestellungen<" in nav
     assert ">Mannschaften<" not in nav
     assert ">Disziplinen<" not in nav
