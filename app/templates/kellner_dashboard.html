@@ -2,32 +2,30 @@
 {% block titel %}Kellner{% endblock %}
 {% block inhalt %}
   <div class="ausschank-dashboard">
-    <h1>🍽️ Kellner-Kasse</h1>
+    <h1>🍽️ Kellner</h1>
 
     <form method="post" id="kellner-formular">
-      <div class="ausschank-gruppe" style="flex-direction:row; gap:1rem; align-items:end;">
-        <label for="tisch_nummer" style="flex:0 0 auto;">
-          <strong>Tischnummer</strong>
-          <input id="tisch_nummer" name="tisch_nummer" type="number" min="1" required
-                 style="font-size:1.15rem; padding:0.9rem; width:6rem; border:2px solid var(--rand); border-radius:8px;">
-        </label>
-        <label class="ausschank-gruppe" for="team_id" style="flex:1;">
-          <strong>Gruppe (optional – für Getränkepunkte)</strong>
-          <select id="team_id" name="team_id" onchange="kellnerAktualisieren()">
-            <option value="">– keine Gruppe –</option>
-            {% for team in teams %}
-              <option value="{{ team.id }}">{{ team.name }}</option>
-            {% endfor %}
-          </select>
-        </label>
-      </div>
+      <label class="ausschank-gruppe" for="tisch_nummer">
+        <strong>1. Tischnummer</strong>
+        <input id="tisch_nummer" name="tisch_nummer" type="number" min="1" required
+               onchange="kellnerAktualisieren()"
+               placeholder="Tisch-Nr." style="font-size:1.15rem;">
+      </label>
 
-      {% for kat_key, kat_name in KATEGORIEN.items() %}
-      {% set kat_artikel = nach_kategorie.get(kat_key, []) %}
-      {% if kat_artikel %}
-      <h2>{{ kat_name }}</h2>
+      <label class="ausschank-gruppe" for="team_id" style="margin-top:1rem;">
+        <strong>Gruppe (optional – für Getränkepunkte)</strong>
+        <select id="team_id" name="team_id" onchange="kellnerAktualisieren()">
+          <option value="">– keine Gruppe –</option>
+          {% for team in teams %}
+            <option value="{{ team.id }}">{{ team.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <h2>2. Artikel antippen</h2>
+      {% if artikel %}
       <div class="kasse-grid">
-        {% for a in kat_artikel %}
+        {% for a in artikel %}
         <div class="kasse-kachel {{ "kasse-getraenk" if a.kategorie == "getraenk" else "kasse-essen" }}">
           <button type="button" class="kasse-tipp"
                   data-preis="{{ a.preis }}"
@@ -43,16 +41,18 @@
             <button type="button" class="knopf klein grau"
                     onclick="kellnerMenge('menge_{{ a.id }}', -1)">−</button>
             <span id="anzeige_menge_{{ a.id }}" class="kasse-anzahl">0</span>
-            <input type="hidden" id="menge_{{ a.id }}" name="menge_{{ a.id }}" value="0">
+            <input type="hidden" id="menge_{{ a.id }}"
+                   name="menge_{{ a.id }}" value="0">
           </div>
         </div>
         {% endfor %}
       </div>
+      {% else %}
+        <p class="meldung error">Noch keine Artikel angelegt.</p>
       {% endif %}
-      {% endfor %}
 
-      <h2>Pfandrückgabe</h2>
-      <p class="leer">Zurückgegebene Behälter abziehen – 1,00 € pro Stück.</p>
+      <h2>3. Pfandrückgabe</h2>
+      <p class="leer">Zurückgegebene Behälter abziehen – 1,00 € pro Stück, nur für die Abrechnung.</p>
       <div class="kasse-grid">
         <div class="kasse-kachel kasse-pfand">
           <button type="button" class="kasse-tipp"
@@ -71,7 +71,7 @@
       </div>
 
       <section class="ausschank-rueckgeld">
-        <h2>Rückgeld berechnen</h2>
+        <h2>4. Rückgeld berechnen</h2>
         <div><span>Artikel</span><strong id="kellner-artikel-summe">0,00 €</strong></div>
         <div><span>Pfand (neu)</span><strong id="kellner-pfand-neu">0,00 €</strong></div>
         <div><span>Pfand zurück</span><strong id="kellner-pfand-zurueck">− 0,00 €</strong></div>
@@ -85,7 +85,7 @@
       <div class="ausschank-abschluss">
         <strong id="kellner-auswahl">Noch kein Artikel gewählt</strong>
         <button class="knopf gross" type="submit" id="kellner-absenden"
-                {% if not artikel or not teams %}disabled{% endif %}>
+                {% if not artikel %}disabled{% endif %}>
           Bestellung und Bezahlung
         </button>
       </div>
@@ -120,13 +120,23 @@
         pfandZurueck += menge * parseFloat(kachel.querySelector(".kasse-tipp").dataset.rueckgabepreis || "0");
       });
       var summe = artikelSumme + pfandNeu - pfandZurueck;
+
       var tischFeld = document.getElementById("tisch_nummer");
+      var tischGewaehlt = tischFeld && tischFeld.value !== "";
+
       var absenden = document.getElementById("kellner-absenden");
-      absenden.disabled = artikel === 0 || !tischFeld.value;
+      if (absenden) {
+        absenden.disabled = artikel === 0 || !tischGewaehlt;
+      }
+
       var status;
-      if (artikel === 0) { status = "Noch kein Artikel gewählt"; }
-      else if (!tischFeld.value) { status = artikel + " Artikel · bitte Tischnummer eingeben"; }
-      else { status = artikel + " Artikel · " + rueckgaben + " Pfand zurück · Tisch " + tischFeld.value; }
+      if (artikel === 0) {
+        status = "Noch kein Artikel gewählt";
+      } else if (!tischGewaehlt) {
+        status = artikel + " Artikel · bitte Tischnummer eingeben";
+      } else {
+        status = artikel + " Artikel · " + rueckgaben + " Pfand zurück · Tisch " + tischFeld.value;
+      }
       document.getElementById("kellner-auswahl").textContent = status;
       document.getElementById("kellner-artikel-summe").textContent = euro(artikelSumme);
       document.getElementById("kellner-pfand-neu").textContent = euro(pfandNeu);
@@ -140,7 +150,5 @@
     function euro(betrag) {
       return betrag.toLocaleString("de-AT", {minimumFractionDigits: 2, maximumFractionDigits: 2}) + " €";
     }
-
-    document.getElementById("tisch_nummer").addEventListener("input", kellnerAktualisieren);
   </script>
 {% endblock %}
