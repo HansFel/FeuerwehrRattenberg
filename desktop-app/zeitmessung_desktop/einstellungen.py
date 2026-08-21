@@ -17,6 +17,11 @@ KONFIG_DATEI = KONFIG_ORDNER / "einstellungen.json"
 class Einstellungen:
     com_port: str = ""
     baudrate: int = 115200
+    # Zweiter, unabhaengiger serieller Port fuer die Bahnbeleuchtung (DMX
+    # ueber Arduino Uno + MAX485, siehe ../DMX_Zeitmessung/README.md und
+    # bahnbeleuchtung.py). Leer = Beleuchtung deaktiviert, komplett
+    # optional - fehlt der Port, laeuft die Zeitmessung unbeeinflusst.
+    dmx_port: str = ""
     # Bewusst die direkte LAN-IP + Port 8000 (kein Traefik/TLS), NICHT die
     # öffentliche Domain: Der TCL-Router unterstützt kein zuverlässiges
     # NAT-Hairpin für alle Clients, und selbst mit dem AdGuard-Split-DNS-

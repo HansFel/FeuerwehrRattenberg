@@ -8,14 +8,16 @@ import time
 import uuid
 from datetime import datetime, timezone
 
+import serial.tools.list_ports
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import (
-    QDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-    QMainWindow, QMessageBox, QPushButton, QSpinBox, QTableWidget,
+    QComboBox, QDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
+    QLineEdit, QMainWindow, QMessageBox, QPushButton, QSpinBox, QTableWidget,
     QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
-from . import datenbank, einstellungen as einstellungen_modul
+from . import datenbank, einstellungen as einstellungen_modul, licht_zustand
+from .bahnbeleuchtung import Bahnbeleuchtung
 from .lauf_import_worker import LaufImportWorker
 from .lauf_worker import LaufWorker
 from .seriell_worker import SeriellWorker
@@ -27,12 +29,15 @@ class EinstellungenDialog(QDialog):
     def __init__(self, aktuelle: einstellungen_modul.Einstellungen, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Einstellungen")
-        self._felder: dict[str, QLineEdit | QSpinBox] = {}
+        self._felder: dict[str, QLineEdit | QSpinBox | QComboBox] = {}
 
         layout = QFormLayout(self)
-        self._feld_hinzufuegen(layout, "com_port", "COM-Port", aktuelle.com_port)
+        self._seriell_port_feld_hinzufuegen(layout, "com_port", "COM-Port (Mega)",
+                                            aktuelle.com_port)
         self._feld_hinzufuegen(layout, "baudrate", "Baudrate", aktuelle.baudrate,
                                bereich=(1200, 2_000_000))
+        self._seriell_port_feld_hinzufuegen(
+            layout, "dmx_port", "COM-Port Bahnbeleuchtung (leer = aus)", aktuelle.dmx_port)
         self._feld_hinzufuegen(layout, "webapp_url", "Webapp-URL", aktuelle.webapp_url)
         self._feld_hinzufuegen(layout, "api_key", "API-Key", aktuelle.api_key)
         self._feld_hinzufuegen(layout, "instance_name", "Instanzname", aktuelle.instance_name)
@@ -62,10 +67,57 @@ class EinstellungenDialog(QDialog):
         self._felder[name] = feld
         layout.addRow(beschriftung, feld)
 
+    def _seriell_port_feld_hinzufuegen(self, layout: QFormLayout, feld_name: str,
+                                       beschriftung: str, wert: str) -> None:
+        """Dropdown der aktuell erkannten seriellen Schnittstellen, statt
+        eines Freitextfelds - der COM-Port driftet bei USB-Neuerkennung
+        erfahrungsgemaess haeufig (siehe firmware/*/platformio.ini). Bleibt
+        trotzdem editierbar, falls das Geraet beim Oeffnen des Dialogs
+        gerade nicht angeschlossen ist. Wiederverwendet fuer Mega- UND
+        DMX-Port - zwei unabhaengige Geraete, siehe bahnbeleuchtung.py."""
+        feld = QComboBox()
+        feld.setEditable(True)
+        self._felder[feld_name] = feld
+        self._com_ports_aktualisieren(feld, wert)
+
+        aktualisieren_knopf = QPushButton("⟳")
+        aktualisieren_knopf.setToolTip("Schnittstellen neu einlesen")
+        aktualisieren_knopf.setFixedWidth(28)
+        aktualisieren_knopf.clicked.connect(
+            lambda: self._com_ports_aktualisieren(feld, feld.currentText()))
+
+        zeile = QHBoxLayout()
+        zeile.addWidget(feld, 1)
+        zeile.addWidget(aktualisieren_knopf)
+        layout.addRow(beschriftung, zeile)
+
+    @staticmethod
+    def _com_ports_aktualisieren(feld: QComboBox, aktueller_wert: str) -> None:
+        feld.clear()
+        # Auf Linux liefert comports() zusaetzlich alle 32 Legacy-UARTs
+        # /dev/ttyS0-31, die ohne echte Hardware immer "vorhanden" sind
+        # (hwid "n/a") - nur Ports mit echter USB-Hardware-ID (VID:PID)
+        # aufnehmen, damit die Liste nicht mit Phantom-Eintraegen zugemuellt
+        # wird und wirklich nur aktiv angeschlossene Geraete zeigt.
+        ports = [p.device for p in serial.tools.list_ports.comports()
+                 if p.hwid and p.hwid != "n/a"]
+        # Aktuell gespeicherten Port immer mit anbieten, auch wenn er gerade
+        # nicht erkannt wird (Geraet nicht eingesteckt) - sonst geht der
+        # gespeicherte Wert beim Oeffnen des Dialogs verloren.
+        if aktueller_wert and aktueller_wert not in ports:
+            ports.insert(0, aktueller_wert)
+        feld.addItems(ports)
+        feld.setCurrentText(aktueller_wert)
+
     def werte(self) -> dict:
         ergebnis = {}
         for name, feld in self._felder.items():
-            ergebnis[name] = feld.value() if isinstance(feld, QSpinBox) else feld.text()
+            if isinstance(feld, QSpinBox):
+                ergebnis[name] = feld.value()
+            elif isinstance(feld, QComboBox):
+                ergebnis[name] = feld.currentText()
+            else:
+                ergebnis[name] = feld.text()
         return ergebnis
 
 
@@ -95,6 +147,15 @@ class Hauptfenster(QMainWindow):
         self._sicherung_worker: SicherungWorker | None = None
         self._lauf_worker: LaufWorker | None = None
         self._lauf_import_worker: LaufImportWorker | None = None
+
+        # Bahnbeleuchtung (DMX) - optional, siehe bahnbeleuchtung.py und
+        # licht_zustand.py. self._letzter_server_lauf haelt die zuletzt von
+        # /notfall/api/aktiv gemeldeten Rohdaten, damit _beleuchtung_
+        # aktualisieren() sie mit dem lokalen Kontakt-Zaehler kombinieren
+        # kann, ohne dass lauf_worker.py selbst etwas ueber Licht wissen muss.
+        self.beleuchtung: Bahnbeleuchtung | None = None
+        self._letzter_server_lauf: dict | None = None
+        self._beleuchtung_starten()
 
         self._aufbauen()
         self.ereignis_empfangen.connect(self._auf_ereignis)
@@ -304,6 +365,59 @@ class Hauptfenster(QMainWindow):
                 **{**self.einstellungen.als_dict(), **werte})
             einstellungen_modul.speichern(self.einstellungen)
             self._worker_starten()
+            self._beleuchtung_starten()
+
+    def _beleuchtung_starten(self) -> None:
+        """(Neu-)Verbindet die Bahnbeleuchtung, falls ein Port eingetragen
+        ist - wird beim Start UND nach jeder Einstellungsaenderung
+        aufgerufen (der Port kann sich aendern). Fehlt der Port oder ist er
+        nicht erreichbar, bleibt self.beleuchtung nutzbar (verbunden=False),
+        alle Aufrufe werden dann folgenlos ignoriert - siehe
+        bahnbeleuchtung.py."""
+        if self.beleuchtung is not None:
+            self.beleuchtung.schliessen()
+            self.beleuchtung = None
+        if self.einstellungen.dmx_port:
+            self.beleuchtung = Bahnbeleuchtung(self.einstellungen.dmx_port)
+            self._beleuchtung_aktualisieren()
+
+    def _beleuchtung_aktualisieren(self) -> None:
+        """Leitet aus dem aktuellen Lauf-Zustand (lokal priorisiert, siehe
+        unten) den Beleuchtungs-Zustand ab und setzt ihn, falls er sich
+        geaendert hat. Wird nach jedem Server- ODER Lokal-Lauf-Update sowie
+        direkt nach jedem verarbeiteten Kontaktereignis aufgerufen, damit
+        der Uebergang zu "start" ohne spuerbare Verzoegerung kommt."""
+        if self.beleuchtung is None:
+            return
+        lokaler_lauf = datenbank.aktiver_lokaler_lauf(self.db)
+        if lokaler_lauf is not None:
+            # Lokaler Offline-Modus hat Vorrang: er existiert nur, wenn der
+            # Server gerade NICHT erreichbar ist (siehe README "Manueller
+            # Modus") - die Lichter sollen auch dann sinnvoll reagieren.
+            aktiviert_um = lokaler_lauf["aktiviert_um"]
+            zustand = licht_zustand.zustand_bestimmen(
+                lauf_aktiv=True, aktiviert=True,
+                hat_kontakt=self._hat_kontakt_seit(aktiviert_um))
+        elif self._letzter_server_lauf and self._letzter_server_lauf.get("aktiv"):
+            aktiviert_um = self._letzter_server_lauf.get("aktiviert_um")
+            zustand = licht_zustand.zustand_bestimmen(
+                lauf_aktiv=True, aktiviert=aktiviert_um is not None,
+                hat_kontakt=bool(aktiviert_um) and self._hat_kontakt_seit(aktiviert_um))
+        else:
+            zustand = licht_zustand.zustand_bestimmen(False, False, False)
+        if zustand != self.beleuchtung.zustand:
+            self.beleuchtung.zustand_setzen(zustand)
+
+    def _hat_kontakt_seit(self, aktiviert_um: str) -> bool:
+        """Nutzt denselben lokalen Ereignis-Puffer wie _partial_zeiten/
+        _start_fenster_pruefen - Ereignisse landen dort unabhaengig davon,
+        ob sie vom Mega, manuell oder ueber den gemeinsamen Start kommen,
+        daher keine separate Buchfuehrung noetig."""
+        zeile = self.db.execute(
+            "SELECT COUNT(*) AS n FROM ereignis WHERE empfangen_um >= ?",
+            (aktiviert_um,),
+        ).fetchone()
+        return zeile["n"] > 0
 
     def _auf_ereignis(self, status: dict) -> None:
         if "verbunden" in status:
@@ -325,6 +439,8 @@ class Hauptfenster(QMainWindow):
                 label.setStyleSheet("color: #1a7a1a;")
 
     def _lauf_anzeigen(self, daten: dict) -> None:
+        self._letzter_server_lauf = daten
+        self._beleuchtung_aktualisieren()
         if not daten.get("aktiv"):
             self.lauf_label.setText("Aktiver Lauf: –")
             self.lauf_tabelle.setRowCount(0)
@@ -459,6 +575,7 @@ class Hauptfenster(QMainWindow):
         ausstehend = datenbank.anzahl_ausstehend(self.db)
         self.sync_status_label.setText(f"Webapp: {ausstehend} ausstehend")
         self._lokalen_lauf_anzeigen()
+        self._beleuchtung_aktualisieren()
 
     def _tabelle_neu_laden(self) -> None:
         zeilen = datenbank.letzte_ereignisse(self.db, limit=50)
@@ -482,6 +599,9 @@ class Hauptfenster(QMainWindow):
         self._tabelle_neu_laden()
         self._auf_ereignis({"neues_ereignis": {"bahn": bahn},
                            "zustaende": [0, 0, 0, 0]})
+        if self.beleuchtung is not None:
+            self.beleuchtung.blitzen(bahn)
+        self._beleuchtung_aktualisieren()
 
     def _start_fenster_pruefen(self, empfangen_um: str) -> None:
         """Prueft ob das Start-Fenster gestartet werden muss (1. Kontakt
@@ -502,9 +622,13 @@ class Hauptfenster(QMainWindow):
 
     def _arduino_event_verarbeitet(self, bahn: int) -> None:
         """Callback vom SeriellWorker: Arduino hat bereits Event+Zuordnung
-        erledigt, wir muessen nur das Start-Fenster pruefen."""
+        erledigt, wir muessen nur das Start-Fenster pruefen und ggf. die
+        Bahnbeleuchtung blitzen lassen/aktualisieren."""
         empfangen_um = datetime.now(timezone.utc).isoformat()
         self._start_fenster_pruefen(empfangen_um)
+        if self.beleuchtung is not None:
+            self.beleuchtung.blitzen(bahn)
+        self._beleuchtung_aktualisieren()
 
     def _start_fenster_abgelaufen(self) -> None:
         """Wenn das Start-Fenster ablaeuft: alle Bahnen, die noch 0 Kontakte
@@ -529,10 +653,13 @@ class Hauptfenster(QMainWindow):
                     client_event_id=uuid.uuid4().hex,
                 )
                 zuordnung_pruefen(self.db, bahn)
+                if self.beleuchtung is not None:
+                    self.beleuchtung.blitzen(bahn)
         self._start_fenster_aktiv = False
         self._tabelle_neu_laden()
         self._auf_ereignis({"neues_ereignis": {"bahn": 0},
                            "zustaende": [0, 0, 0, 0]})
+        self._beleuchtung_aktualisieren()
 
     def _gemeinsamer_start(self) -> None:
         """Setzt den 1. Kontakt fuer ALLE 4 Bahnen gleichzeitig – der
@@ -558,9 +685,12 @@ class Hauptfenster(QMainWindow):
                 empfangen_um=empfangen_um, client_event_id=client_event_id,
             )
             zuordnung_pruefen(self.db, bahn)
+            if self.beleuchtung is not None:
+                self.beleuchtung.blitzen(bahn)
         self._tabelle_neu_laden()
         self._auf_ereignis({"neues_ereignis": {"bahn": 0},
                            "zustaende": [1, 1, 1, 1]})
+        self._beleuchtung_aktualisieren()
         QMessageBox.information(self, "Gemeinsamer Start",
                                 "Start fuer alle 4 Bahnen gesetzt!\n"
                                 "Jetzt 4 weitere Kontakte pro Bahn abwarten.")
@@ -596,6 +726,8 @@ class Hauptfenster(QMainWindow):
             pass  # Server nicht erreichbar - lokaler Abbruch reicht
 
         self._lokalen_lauf_anzeigen()
+        self._letzter_server_lauf = None
+        self._beleuchtung_aktualisieren()
         QMessageBox.information(self, "Lauf abgebrochen",
                                 "Der Lauf wurde abgebrochen.\n"
                                 "Teilzeiten sind erhalten geblieben.")
@@ -609,4 +741,6 @@ class Hauptfenster(QMainWindow):
                       self._lauf_worker, self._lauf_import_worker):
             if worker is not None:
                 worker.stoppen()
+        if self.beleuchtung is not None:
+            self.beleuchtung.schliessen()
         super().closeEvent(event)
