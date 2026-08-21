@@ -6,9 +6,9 @@
 
     <form method="post" id="ausschank-formular">
       <label class="ausschank-gruppe" for="team_id">
-        <strong>1. Gruppe auswählen</strong>
-        <select id="team_id" name="team_id" required onchange="ausschankAktualisieren()">
-          <option value="">– Gruppe wählen –</option>
+        <strong>1. Gruppe auswählen (optional)</strong>
+        <select id="team_id" name="team_id" onchange="ausschankAktualisieren()">
+          <option value="">– ohne Gruppe –</option>
           {% for team in teams %}
             <option value="{{ team.id }}">{{ team.name }}</option>
           {% endfor %}
@@ -78,7 +78,7 @@
       <div class="ausschank-abschluss">
         <strong id="ausschank-auswahl">Noch kein Getränk gewählt</strong>
         <button class="knopf gross" type="submit" id="ausschank-absenden"
-                {% if not getraenke or not teams %}disabled{% endif %}>
+                {% if not getraenke %}disabled{% endif %}>
           Bestellung und Bezahlung
         </button>
       </div>
@@ -120,14 +120,14 @@
 
       var absenden = document.getElementById('ausschank-absenden');
       if (absenden) {
-        absenden.disabled = getraenke === 0 || !teamGewaehlt;
+        absenden.disabled = getraenke === 0;
       }
 
       var status;
       if (getraenke === 0) {
         status = 'Noch kein Getränk gewählt';
       } else if (!teamGewaehlt) {
-        status = getraenke + ' Getränke · bitte Gruppe wählen';
+        status = getraenke + ' Getränke · ohne Gruppe (keine Getränkepunkte)';
       } else {
         status = getraenke + ' Getränke · ' + rueckgaben + ' Pfand zurück';
       }

@@ -6,8 +6,19 @@
   <p class="hinweis">🟢 Aktiv – eingehende Kontaktereignisse werden automatisch
      zugeordnet. Zeiten unten füllen sich von selbst, sobald 5 Auslösungen je
      Bahn vorliegen.</p>
-  <form method="post" action="{{ url_for('notfall.deaktivieren', lauf_id=lauf.id) }}" style="display:inline">
-    <button class="knopf klein grau" type="submit">Automatik deaktivieren</button>
+  <p class="hinweis" style="background:#e8f5e9; border-color:#4caf50;">
+     ⚠️ Die Zeitmessung läuft <strong>serverseitig</strong> weiter, auch wenn du
+     diese Seite verlässt! Du kannst ruhig andere Seiten öffnen (z.B. das
+     Moderator-Dashboard) – die Messung wird <strong>nicht gestoppt</strong>.
+     Nur der "Automatik deaktivieren"-Knopf stoppt sie.</p>
+  <div class="werkzeugleiste" style="margin-top:0.5rem">
+    <a class="knopf" href="{{ url_for('moderator.dashboard') }}">🎙️ Zum Moderator-Dashboard (Messung läuft weiter)</a>
+  </div>
+  <form method="post" action="{{ url_for('notfall.deaktivieren', lauf_id=lauf.id) }}" style="display:inline; margin-top:0.5rem">
+    <button class="knopf klein grau" type="submit"
+            onclick="return confirm('Wirklich deaktivieren? Die automatische Zeitmessung wird gestoppt! Nur bei Verletzung oder Abbruch verwenden.')">
+      ⏹️ Automatik deaktivieren (stoppt Messung!)
+    </button>
   </form>
   {% else %}
   <p class="leer">Nicht aktiv – Zeiten müssen unten von Hand eingetragen werden

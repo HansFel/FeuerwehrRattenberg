@@ -70,16 +70,29 @@ Rechenposten und verändert keine gespeicherten Pfandbestände.
 
 **Kellner-Dashboard (seit Build 68, 2026-08-21):** Identisches
 Layout wie Ausschank-Dashboard (gleiche CSS-Klassen, nummerierte Schritte):
-(1) Gruppe auswaehlen (Pflicht), (2) alle Artikel antippen (Essen orange +
+(1) Gruppe auswaehlen, (2) alle Artikel antippen (Essen orange +
 Getraenke blau), (3) generischer "Pfand zurueck" Button (1,00 EUR pro Stueck),
 (4) Rueckgeldberechnung. Bestellung wird sofort als bezahlt gebucht mit
 `tisch_nummer=0` (wie Ausschank, keine Tischnummer mehr noetig).
-Getraenkepunkte nur fuer Getraenke (KATEGORIE_GETRAENK), nicht fuer Speisen.
-Gruppe ist Pflicht (wie Ausschank). Route: `/kellner/`,
-`@rolle_noetig("kellner", "organisator")`, automatische Weiterleitung von
-Startseite bei aktiver Rolle "kellner". Dateien:
+Getraenkepunkte nur fuer Getraenke (KATEGORIE_GETRAENK), nicht fuer Speisen -
+unabhaengig von der Gruppe, entscheidet allein die Artikel-Kategorie.
+Route: `/kellner/`, `@rolle_noetig("kellner", "organisator")`, automatische
+Weiterleitung von Startseite bei aktiver Rolle "kellner". Dateien:
 `app/templates/kellner_dashboard.html`,
 `app/blueprints/bestellung.py: kellner_dashboard()`.
+
+**Gruppe ist OPTIONAL, nicht Pflicht (seit 2026-08-21, Kellner UND
+Ausschank):** Auf Wunsch des Users - auch spontane Einzelverkaeufe ohne
+Gruppenzuordnung muessen bezahlbar sein. Ohne Gruppe: `team_id=None` und
+0 Getraenkepunkte auf der/den betroffenen Position(en) (kein Team, dem man
+sie gutschreiben koennte) - die Bestellung selbst wird trotzdem normal als
+bezahlt gebucht. Weiterhin Pflicht: mindestens 1 Artikel/Getraenk. Kein
+`required` mehr auf dem `team_id`-Select, Absende-Button nur noch von
+"mindestens 1 Artikel gewaehlt" abhaengig, nicht mehr von der Gruppe.
+Tests: `tests/test_bestellung.py::
+test_kellner_dashboard_ohne_gruppe_keine_punkte`,
+`test_kellner_dashboard_mit_gruppe_zaehlen_nur_getraenke`,
+`test_ausschank_braucht_mindestens_ein_getraenk_aber_keine_gruppe`.
 
 **Ausschank-Dashboard seit Build 26 (2026-08-17) ueberarbeitet:** Die
 Getränke-Buttons zeigen den Pfand-Anteil separat neben dem Preis an (z.B.

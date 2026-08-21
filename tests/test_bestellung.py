@@ -190,22 +190,25 @@ def test_ausschank_verbucht_getraenke_sofort_bezahlt(client, app):
         assert bestellung.gesamtpunkte == 6
 
 
-def test_ausschank_braucht_gruppe_und_getraenk(client, app):
+def test_ausschank_braucht_mindestens_ein_getraenk_aber_keine_gruppe(client, app):
+    """Die Gruppe ist bewusst optional (z.B. spontane Einzelverkäufe) - ohne
+    Getränk darf trotzdem nicht bezahlt werden."""
     _login(client, "ausschank1", "pw")
     with app.app_context():
         bier = Artikel.query.filter_by(name="Bier").first()
-        team = Team.query.filter_by(name="Team A").first()
-        bier_id, team_id = bier.id, team.id
+        bier_id = bier.id
+
+    r = client.post("/ausschank/", data={}, follow_redirects=True)
+    assert "mindestens ein Getränk".encode() in r.data
+    assert Bestellung.query.count() == 0
 
     r = client.post("/ausschank/", data={f"menge_{bier_id}": "1"},
                     follow_redirects=True)
-    assert "Bitte zuerst eine Gruppe".encode() in r.data
-    assert Bestellung.query.count() == 0
-
-    r = client.post("/ausschank/", data={"team_id": str(team_id)},
-                    follow_redirects=True)
-    assert "mindestens ein Getränk".encode() in r.data
-    assert Bestellung.query.count() == 0
+    assert "Bestellung und Bezahlung bestätigt".encode() in r.data
+    with app.app_context():
+        bestellung = Bestellung.query.one()
+        assert bestellung.positionen[0].team_id is None
+        assert bestellung.gesamtpunkte == 0
 
 
 def test_ausschank_pfandrueckgabe_wird_nur_berechnet(client, app):
@@ -227,6 +230,61 @@ def test_ausschank_pfandrueckgabe_wird_nur_berechnet(client, app):
         position = BestellPosition.query.one()
         assert position.pfand_zurueckgegeben == 0
         assert position.team_id == team_id
+
+
+def test_kellner_dashboard_ohne_gruppe_keine_punkte(client, app):
+    """Gruppe ist im Kellner-Dashboard bewusst optional - Bezahlen muss auch
+    ohne Zuordnung moeglich sein, dann aber ohne Getraenkepunkte (kein Team,
+    dem man sie gutschreiben koennte)."""
+    _login(client, "kellner1", "pw")
+    with app.app_context():
+        bier = Artikel.query.filter_by(name="Bier").first()
+        bier_id = bier.id
+
+    r = client.post("/kellner/", data={f"menge_{bier_id}": "2"},
+                    follow_redirects=True)
+    assert "Bestellung und Bezahlung bestaetigt".encode() in r.data
+    with app.app_context():
+        bestellung = Bestellung.query.one()
+        assert bestellung.positionen[0].team_id is None
+        assert bestellung.gesamtpunkte == 0
+
+
+def test_kellner_dashboard_mit_gruppe_zaehlen_nur_getraenke(client, app):
+    """Essen zaehlt auch mit gewaehlter Gruppe NIE fuer Getraenkepunkte -
+    nur die Kategorie entscheidet, unabhaengig von punkte_pro_einheit."""
+    _login(client, "kellner1", "pw")
+    with app.app_context():
+        bier = Artikel.query.filter_by(name="Bier").first()
+        gulasch = Artikel.query.filter_by(name="Gulasch").first()
+        # Falls Gulasch (Essen) versehentlich Punkte haette, muessten sie
+        # trotzdem ignoriert werden - Kategorie entscheidet, nicht der Wert.
+        gulasch.punkte_pro_einheit = 5
+        team = Team.query.filter_by(name="Team A").first()
+        bier_id, gulasch_id, team_id = bier.id, gulasch.id, team.id
+        db.session.commit()
+
+    r = client.post("/kellner/", data={
+        "team_id": str(team_id),
+        f"menge_{bier_id}": "1",
+        f"menge_{gulasch_id}": "1",
+    }, follow_redirects=True)
+    assert "Bestellung und Bezahlung bestaetigt".encode() in r.data
+    with app.app_context():
+        bestellung = Bestellung.query.one()
+        assert bestellung.gesamtpunkte == 2   # nur Bier, Gulasch zaehlt nicht
+        positionen = {p.artikel_name: p for p in bestellung.positionen}
+        assert positionen["Bier"].team_id == team_id
+        assert positionen["Bier"].punkte_gesamt == 2
+        assert positionen["Gulasch"].team_id is None
+        assert positionen["Gulasch"].punkte_gesamt == 0
+
+
+def test_kellner_dashboard_braucht_mindestens_einen_artikel(client, app):
+    _login(client, "kellner1", "pw")
+    r = client.post("/kellner/", data={}, follow_redirects=True)
+    assert "mindestens einen Artikel".encode() in r.data
+    assert Bestellung.query.count() == 0
 
 
 def test_bezahlt_umschalten(client, app):

@@ -24,11 +24,12 @@ def ausschank_dashboard():
     teams = Team.query.order_by(Team.name).all()
 
     if request.method == "POST":
+        # Gruppe ist bewusst OPTIONAL: auch ohne Zuordnung muss bezahlt
+        # werden koennen (z.B. spontane Einzelverkaeufe). Ohne Gruppe gibt
+        # es dann folgerichtig auch keine Getraenkepunkte - die haengen an
+        # einem Team, das es in diesem Fall nicht gibt.
         team_id = request.form.get("team_id", type=int)
         team = db.session.get(Team, team_id) if team_id else None
-        if team is None:
-            flash("Bitte zuerst eine Gruppe auswählen.", "error")
-            return redirect(url_for("bestellung.ausschank_dashboard"))
 
         bestellung = Bestellung(
             tisch_nummer=0,
@@ -45,8 +46,8 @@ def ausschank_dashboard():
                 artikel_name=artikel.name,
                 einzelpreis=artikel.preis,
                 menge=menge,
-                team_id=team.id,
-                punkte_gesamt=(artikel.punkte_pro_einheit or 0) * menge,
+                team_id=team.id if team else None,
+                punkte_gesamt=(artikel.punkte_pro_einheit or 0) * menge if team else 0,
                 pfand_pro_einheit=artikel.pfand_pro_einheit or 0.0,
             ))
 
@@ -61,7 +62,7 @@ def ausschank_dashboard():
         db.session.commit()
         zahlbetrag = bestellung.gesamtbetrag - pfand_gutschrift
         flash(
-            f"Bestellung und Bezahlung bestätigt: {team.name}, "
+            f"Bestellung und Bezahlung bestätigt: {team.name if team else 'ohne Gruppe'}, "
             f"Zahlbetrag {zahlbetrag:.2f} €, "
             f"{bestellung.gesamtpunkte} Getränkepunkte.",
             "ok",
@@ -84,11 +85,12 @@ def kellner_dashboard():
     teams = Team.query.order_by(Team.name).all()
 
     if request.method == "POST":
+        # Gruppe ist bewusst OPTIONAL: auch ohne Zuordnung muss bezahlt
+        # werden koennen. Ohne Gruppe gibt es keine Getraenkepunkte (kein
+        # Team, dem man sie gutschreiben koennte) - die Essen/Getraenke-
+        # Trennung selbst (ist_getraenk) bleibt davon unberuehrt.
         team_id = request.form.get("team_id", type=int)
         team = db.session.get(Team, team_id) if team_id else None
-        if team is None:
-            flash("Bitte zuerst eine Gruppe auswaehlen.", "error")
-            return redirect(url_for("bestellung.kellner_dashboard"))
 
         bestellung = Bestellung(
             tisch_nummer=0,
@@ -101,11 +103,12 @@ def kellner_dashboard():
             if not menge or menge <= 0:
                 continue
             ist_getraenk = a.kategorie == KATEGORIE_GETRAENK
+            zaehlt_fuer_team = ist_getraenk and team is not None
             bestellung.positionen.append(BestellPosition(
                 artikel_id=a.id, artikel_name=a.name, einzelpreis=a.preis,
                 menge=menge,
-                team_id=team.id if ist_getraenk else None,
-                punkte_gesamt=(a.punkte_pro_einheit or 0) * menge if ist_getraenk else 0,
+                team_id=team.id if zaehlt_fuer_team else None,
+                punkte_gesamt=(a.punkte_pro_einheit or 0) * menge if zaehlt_fuer_team else 0,
                 pfand_pro_einheit=a.pfand_pro_einheit or 0.0,
             ))
 
@@ -120,7 +123,7 @@ def kellner_dashboard():
         db.session.commit()
         zahlbetrag = bestellung.gesamtbetrag - pfand_gutschrift
         flash(
-            f"Bestellung und Bezahlung bestaetigt: {team.name}, "
+            f"Bestellung und Bezahlung bestaetigt: {team.name if team else 'ohne Gruppe'}, "
             f"Zahlbetrag {zahlbetrag:.2f} EUR, "
             f"{bestellung.gesamtpunkte} Getraenkepunkte.",
             "ok",
