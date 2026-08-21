@@ -19,7 +19,6 @@ _log = logging.getLogger(__name__)
 ZUSTANDSFARBEN = {
     "aus":          (0, 0, 0),
     "vorbereitung": (255, 80, 0),   # Amber
-    "bereit":       (0, 0, 255),    # Blau
     "start":        (0, 255, 0),    # Grün
     "fertig":       (255, 0, 0),    # Rot – Lauf beendet, warten auf Freigabe des nächsten Laufs
 }

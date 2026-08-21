@@ -29,8 +29,6 @@ ein Eintrag mit Überschneidung zum eigenen Vorhaben, NICHT einfach
 weitermachen, sondern den User informieren und abstimmen, statt parallel
 an derselben Stelle zu arbeiten.
 
-- [Codex] 2026-08-21 – Offene Desktop-App-, Firmware-, Deployment- und Wartungsarbeiten abschließen; betroffene Dokumentation, Tests und Hilfsskripte
-
 ## Was ist das Projekt
 
 Flask-Web-App zur Organisation des **Jubiläums-Wettbewerbs "120 Jahre
@@ -672,19 +670,24 @@ danach `/mnt/usb-backups/ffrattenberg-backups`.
   unterscheidbar, wenn nur einer gerade angeschlossen ist** - vor jedem
   Einsatz beide Ports einzeln prüfen/zuordnen, bevor `com_port` und
   `dmx_port` gesetzt werden, sonst öffnet die App denselben Port zweimal).
+  Zustände (seit 2026-08-21, Desktop-App): `aus` / `vorbereitung` (Amber, Lauf vorhanden
+  aber nicht freigegeben) / `start` (GRÜN, sobald der Organisator die
+  Zeitmessung freigibt - nicht erst beim 1. Kontakt) / `fertig` (ROT, Lauf
+  vollständig). **Blau ("bereit") ist vorerst bewusst entfernt** (User:
+  "die Farbe Blau können wir uns zurzeit sparen").
   **ROT-bei-Laufende (seit 2026-08-21, Desktop-App + Web-App):** Sobald ein
   Lauf vollständig ist (alle Team-Bahnen haben alle 4 Läuferzeiten),
-  schalten die Lichter auf **ROT** (Zustand "fertig", Vorrang vor
-  bereit/start) und bleiben dort, bis der nächste Lauf freigegeben wird -
-  der fertige Lauf bleibt serverseitig `aktiv`, bis er durch
-  `aus_startliste_freigeben`/`aktivieren` eines neuen Laufs abgelöst wird,
-  deshalb persistiert ROT ohne extra "Sperre". Die Vollständigkeit meldet
-  `/notfall/api/aktiv` als `vollstaendig` (serverseitig berechnet: alle
-  Team-Bahnen haben `gesamtzeit`), die Desktop-App leitet sie in
-  `_beleuchtung_aktualisieren` an `licht_zustand.zustand_bestimmen` weiter
-  (für den lokalen Offline-Lauf lokal aus `lokale_bahn.zeit_laeufer1-4`
-  berechnet). Beim Freigeben des nächsten Laufs (neuer NotfallLauf aktiv,
-  nicht vollständig) geht es wieder Richtung bereit/start (blau/grün).
+  schalten die Lichter auf **ROT** (Zustand "fertig") und bleiben dort, bis
+  der nächste Lauf freigegeben wird - der fertige Lauf bleibt serverseitig
+  `aktiv`, bis er durch `aus_startliste_freigeben`/`aktivieren` eines neuen
+  Laufs abgelöst wird, deshalb persistiert ROT ohne extra "Sperre". Die
+  Vollständigkeit meldet `/notfall/api/aktiv` als `vollstaendig`
+  (serverseitig berechnet: alle Team-Bahnen haben `gesamtzeit`), die
+  Desktop-App leitet sie in `_beleuchtung_aktualisieren` an
+  `licht_zustand.zustand_bestimmen` weiter (für den lokalen Offline-Lauf
+  lokal aus `lokale_bahn.zeit_laeufer1-4` berechnet). Beim Freigeben des
+  nächsten Laufs (neuer NotfallLauf aktiv, nicht vollständig) schaltet das
+  Licht sofort wieder auf **GRÜN** ("start").
   **Auto-Weiterruptcken "Gerade im Bewerb" beim Laufende:** Sobald die
   letzte Bahn eines Heats fertig wird, schreibt
   `zeitmessung.py:_automatische_zuordnung_pruefen` das Ergebnis in
@@ -728,6 +731,12 @@ hängt an COM3.
 Für die neue Zeitmessung-Desktop-App (liest den Mega seriell aus, puffert
 lokal, synct mit der Webapp) immer zuerst `desktop-app/README.md` lesen
 (Architektur-Tabelle, Setup, End-to-End-Testnachweis vom 2026-08-16).
+
+**Autostart vorbereitet (2026-08-21):**
+`desktop-app/autostart-installieren.sh` richtet auf dem Linux-
+Zeitnehmungs-PC einen systemd-Benutzerdienst mit Auto-Restart ein. Die
+Installation auf `felferlinuxlab` selbst und der echte Kontakt-/Offline-
+End-to-End-Test bleiben Vor-Ort-Schritte; sie sind keine offenen Codepunkte.
 
 Für die DMX-Bahnbeleuchtung zusätzlich `DMX_Zeitmessung/README.md`
 (Hardware/Verkabelung/Protokoll) sowie den Abschnitt "DMX-Bahnbeleuchtung"

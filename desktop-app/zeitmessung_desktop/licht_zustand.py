@@ -5,7 +5,7 @@ für die Hardware-Seite). Bewusst getrennt von bahnbeleuchtung.py
 lokale_zuordnung.py für die Zeitmessung selbst."""
 from __future__ import annotations
 
-ZUSTAENDE = ("aus", "vorbereitung", "bereit", "start", "fertig")
+ZUSTAENDE = ("aus", "vorbereitung", "start", "fertig")
 
 
 def zustand_bestimmen(lauf_aktiv: bool, aktiviert: bool, hat_kontakt: bool,
@@ -14,20 +14,28 @@ def zustand_bestimmen(lauf_aktiv: bool, aktiviert: bool, hat_kontakt: bool,
     lauf_aktiv:   existiert gerade ein (Server- oder lokaler) Lauf?
     aktiviert:    wurde er freigegeben (aktiviert_um gesetzt)?
     hat_kontakt:  ist seit der Freigabe schon mindestens 1 Kontaktereignis
-                  für diesen Lauf eingetroffen?
+                  für diesen Lauf eingetroffen? (wird fuer die Zustands-
+                  ableitung nicht mehr herangezogen - siehe Hinweis unten -
+                  aber fuer das white-blitzen je Bahn in bahnbeleuchtung.py
+                  weiterhin ausgewertet; der Parameter bleibt aus Kompat-
+                 ibilitaet erhalten.)
     vollstaendig: sind alle Team-Bahnen dieses Laufs zu Ende gemessen
-                  (alle 4 Läuferzeiten gesetzt)? Dann -> "fertig" (ROT),
-                  unabhängig von hat_kontakt. Signalisiert den Teams/
-                  dem Publikum "Lauf beendet, warten auf Freigabe des
-                  nächsten Laufs" - das ROT bleibt bestehen, bis der
-                  nächste Lauf freigegeben wird (die App deaktiviert den
-                  fertigen Lauf erst dann, siehe notfall.py). Erst danach
-                  geht es wieder Richtung bereit/start (blau/grün).
+                  (alle 4 Läuferzeiten gesetzt)? Dann -> "fertig" (ROT).
 
-    Reihenfolge der Prüfungen ist bewusst so gewählt, dass ein
-    inkonsistenter Aufruf (z.B. hat_kontakt=True bei aktiviert=False) nie zu
-    "start" ohne "aktiviert" führen kann - die Zustände sind eine feste
-    Kette aus/vorbereitung/bereit/start/fertig.
+    Gewollte Farb-Automatik (auf Wunsch des Users, Build 80):
+      kein Lauf                    -> aus          (Licht aus)
+      Lauf vorhanden, NICHT freig. -> vorbereitung (Amber)
+      freigegeben, NICHT fertig    -> start        (GRUEN)  <- sobald der
+                                                            Lauf beginnt
+      fertig (alle Zeiten da)      -> fertig       (ROT)    <- bis der
+                                                            naechste Lauf
+                                                            freigegeben wird
+
+    "bereit" (Blau) wird vorerst bewusst NICHT verwendet (auf Wunsch des
+    Users "die Farbe Blau koennen wir uns zurzeit sparen", Build 80): schon
+    ab Freigabe GRUEN, nicht erst beim 1. Kontakt. Der Zustand ist aus
+    ZUSTAENDE/ZUSTANDSFARBEN entfernt; das DmxSimple-Protokoll/README kennt
+    ihn weiterhin, falls er spaeter wieder gebraucht wird.
     """
     if not lauf_aktiv:
         return "aus"
@@ -35,6 +43,4 @@ def zustand_bestimmen(lauf_aktiv: bool, aktiviert: bool, hat_kontakt: bool,
         return "vorbereitung"
     if vollstaendig:
         return "fertig"
-    if not hat_kontakt:
-        return "bereit"
     return "start"

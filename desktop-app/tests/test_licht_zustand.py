@@ -18,17 +18,21 @@ def test_lauf_ohne_freigabe_ergibt_vorbereitung():
     assert zustand_bestimmen(lauf_aktiv=True, aktiviert=False, hat_kontakt=False) == "vorbereitung"
 
 
-def test_freigegeben_ohne_kontakt_ergibt_bereit():
-    assert zustand_bestimmen(lauf_aktiv=True, aktiviert=True, hat_kontakt=False) == "bereit"
+def test_freigegeben_ohne_kontakt_ergibt_start_gruen():
+    """Sobald der Organisator die Zeitmessung freigibt (aktiviert, noch kein
+    Kontakt), schaltet das Licht auf GRUEN ("start") - nicht erst beim 1.
+    Kontakt. Genau das verlangt der User (Build 80). Das fruehere blaue
+    "bereit" entfaellt bewusst."""
+    assert zustand_bestimmen(lauf_aktiv=True, aktiviert=True, hat_kontakt=False) == "start"
 
 
-def test_freigegeben_mit_kontakt_ergibt_start():
+def test_freigegeben_mit_kontakt_bleibt_start():
     assert zustand_bestimmen(lauf_aktiv=True, aktiviert=True, hat_kontakt=True) == "start"
 
 
 @pytest.mark.parametrize("lauf_aktiv,aktiviert,hat_kontakt,erwartet", [
     (True, False, False, "vorbereitung"),
-    (True, True, False, "bereit"),
+    (True, True, False, "start"),
     (True, True, True, "start"),
     (False, False, False, "aus"),
 ])
@@ -65,6 +69,7 @@ def test_kein_lauf_mit_vollstaendig_bleibt_aus():
 
 def test_vollstaendig_default_false_laesst_alte_zustaende_unberuehrt():
     """vollstaendig ist optional - ohne es verhaelt sich die Funktion wie
-    bisher (kein Breaking Change fuer bestehende Aufrufer)."""
+    ein freigegebener Lauf: GRUEN ("start"), egal ob schon Kontakt da ist
+    (das fruehere blaue "bereit" entfaellt, siehe Build 80)."""
     assert zustand_bestimmen(True, True, True) == "start"
-    assert zustand_bestimmen(True, True, False) == "bereit"
+    assert zustand_bestimmen(True, True, False) == "start"
