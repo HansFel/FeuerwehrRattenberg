@@ -437,7 +437,12 @@ class Hauptfenster(QMainWindow):
         unten) den Beleuchtungs-Zustand ab und setzt ihn, falls er sich
         geaendert hat. Wird nach jedem Server- ODER Lokal-Lauf-Update sowie
         direkt nach jedem verarbeiteten Kontaktereignis aufgerufen, damit
-        der Uebergang zu "start" ohne spuerbare Verzoegerung kommt."""
+        der Uebergang zu "start" ohne spuerbare Verzoegerung kommt.
+
+        Seit dem fertig/ROT-Zustand: ist der Lauf vollstaendig (alle
+        Team-Bahnen zu Ende gemessen), schalten die Lichter auf ROT und
+        bleiben dort, bis der naechste Lauf freigegeben wird (der fertige
+        Lauf bleibt serverseitig aktiviert, bis er abgeloest wird)."""
         if self.beleuchtung is None:
             return
         lokaler_lauf = datenbank.aktiver_lokaler_lauf(self.db)
@@ -448,16 +453,30 @@ class Hauptfenster(QMainWindow):
             aktiviert_um = lokaler_lauf["aktiviert_um"]
             zustand = licht_zustand.zustand_bestimmen(
                 lauf_aktiv=True, aktiviert=True,
-                hat_kontakt=self._hat_kontakt_seit(aktiviert_um))
+                hat_kontakt=self._hat_kontakt_seit(aktiviert_um),
+                vollstaendig=self._lokaler_lauf_vollstaendig(lokaler_lauf["id"]))
         elif self._letzter_server_lauf and self._letzter_server_lauf.get("aktiv"):
             aktiviert_um = self._letzter_server_lauf.get("aktiviert_um")
             zustand = licht_zustand.zustand_bestimmen(
                 lauf_aktiv=True, aktiviert=aktiviert_um is not None,
-                hat_kontakt=bool(aktiviert_um) and self._hat_kontakt_seit(aktiviert_um))
+                hat_kontakt=bool(aktiviert_um) and self._hat_kontakt_seit(aktiviert_um),
+                vollstaendig=bool(self._letzter_server_lauf.get("vollstaendig")))
         else:
             zustand = licht_zustand.zustand_bestimmen(False, False, False)
         if zustand != self.beleuchtung.zustand:
             self.beleuchtung.zustand_setzen(zustand)
+
+    def _lokaler_lauf_vollstaendig(self, lauf_id: int) -> bool:
+        """True wenn alle Bahnen des lokalen Laufs MIT Team alle 4 Läuferzeiten
+        gesetzt haben (analog zu notfall.py api_aktiver_lauf.vollstaendig).
+        Bahnen ohne Team werden ignoriert (nie zu Ende messbar). Gibt es
+        keine Team-Bahn, gilt der Lauf als NICHT vollstaendig (wartet weiter)."""
+        bahnen = datenbank.lokale_bahnen(self.db, lauf_id)
+        team_bahnen = [b for b in bahnen if b["team_nummer"]]
+        if not team_bahnen:
+            return False
+        return all(b[f"zeit_laeufer{i}"] is not None
+                   for b in team_bahnen for i in range(1, 5))
 
     def _hat_kontakt_seit(self, aktiviert_um: str) -> bool:
         """Nutzt denselben lokalen Ereignis-Puffer wie _partial_zeiten/

@@ -193,6 +193,23 @@ def _automatische_zuordnung_pruefen(bahn: int) -> None:
         notfall_bahn.startplatz.ergebnis_sekunden = notfall_bahn.gesamtzeit
     db.session.commit()
 
+    # Sobald diese Bahn fertig ist, pruefen ob damit der aktuelle Heat
+    # komplett ist (alle Startplaetze haben ergebnis_sekunden) - dann den
+    # naechsten Lauf sofort als "Gerade im Bewerb" setzen, OHNE auf das
+    # naechste Dashboard-Polling zu warten (siehe moderator.py:
+    # _lauf_automatisch_weiterruecken). Bewusst nur fuer aus der Startliste
+    # freigegebene Laeufe (startplatz gesetzt) - manuelle Notfall-Lauefe
+    # ohne Startliste haben keinen Heat-Bezug. Idempotent: nachdem
+    # weiterruptckt wurde, ist der NEUE Heat unvollstaendig -> kein
+    # weiteres Weiterruptcken.
+    if notfall_bahn.startplatz is not None:
+        try:
+            from .moderator import _status as _moderator_status, \
+                _lauf_automatisch_weiterruecken
+            _lauf_automatisch_weiterruecken(_moderator_status())
+        except Exception as exc:   # nie die Zeitmessung daran hindern
+            _log.warning("Auto-Weiterruptcken 'Gerade im Bewerb' fehlgeschlagen: %s", exc)
+
 
 @bp.route("/zeitmessung/")
 @rolle_noetig("organisator", "startrichter")

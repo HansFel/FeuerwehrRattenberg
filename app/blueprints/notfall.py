@@ -180,8 +180,20 @@ def api_aktiver_lauf():
             "laeufer": laeufer,
             "gesamtzeit": bahn.gesamtzeit,
         })
+    # vollstaendig: alle Bahnen MIT Team haben alle 4 Läuferzeiten
+    # (gesamtzeit ist nur != None wenn alle 4 gesetzt, siehe NotfallBahn.
+    # gesamtzeit). Bahnen ohne Team werden ignoriert (nie zu Ende messbar).
+    # Signalisiert der Desktop-App, dass der Lauf beendet ist - die
+    # Bahnbeleuchtung schaltet dann auf ROT (fertig) und erst nach
+    # Freigabe des nächsten Laufs wieder auf Grün zurueck (siehe
+    # desktop-app/zeitmessung_desktop/licht_zustand.py + bahnbeleuchtung.py).
+    team_bahnen = [b for b in lauf.bahnen if b.team_id]
+    vollstaendig = bool(team_bahnen) and all(b.gesamtzeit is not None
+                                            for b in team_bahnen)
     aktiviert_um = lauf.aktiviert_um.isoformat() if lauf.aktiviert_um else None
-    return jsonify(aktiv=True, lauf_id=lauf.id, bezeichnung=lauf.bezeichnung, aktiviert_um=aktiviert_um, bahnen=bahnen)
+    return jsonify(aktiv=True, lauf_id=lauf.id, bezeichnung=lauf.bezeichnung,
+                   aktiviert_um=aktiviert_um, bahnen=bahnen,
+                   vollstaendig=vollstaendig)
 
 
 @bp.route("/api/abrechen", methods=["POST"])

@@ -656,7 +656,7 @@ danach `/mnt/usb-backups/ffrattenberg-backups`.
   Scheinwerfer pro Bahn) über eine zweite serielle Schnittstelle
   angesteuert (`desktop-app/zeitmessung_desktop/bahnbeleuchtung.py`,
   eigener `dmx_port` in den Einstellungen, leer = deaktiviert). Zustand
-  (aus/vorbereitung/bereit/start) wird aus dem Lauf-Status abgeleitet
+  (aus/vorbereitung/bereit/start/**fertig**) wird aus dem Lauf-Status abgeleitet
   (`licht_zustand.py`, reine Logik, testbar ohne Hardware) - lokaler
   Offline-Lauf hat Vorrang vor dem Server-Lauf, damit die Lichter auch bei
   Webapp-Ausfall sinnvoll reagieren. Jede Kontaktauslösung lässt die
@@ -668,6 +668,28 @@ danach `/mnt/usb-backups/ffrattenberg-backups`.
   unterscheidbar, wenn nur einer gerade angeschlossen ist** - vor jedem
   Einsatz beide Ports einzeln prüfen/zuordnen, bevor `com_port` und
   `dmx_port` gesetzt werden, sonst öffnet die App denselben Port zweimal).
+  **ROT-bei-Laufende (seit 2026-08-21, Desktop-App + Web-App):** Sobald ein
+  Lauf vollständig ist (alle Team-Bahnen haben alle 4 Läuferzeiten),
+  schalten die Lichter auf **ROT** (Zustand "fertig", Vorrang vor
+  bereit/start) und bleiben dort, bis der nächste Lauf freigegeben wird -
+  der fertige Lauf bleibt serverseitig `aktiv`, bis er durch
+  `aus_startliste_freigeben`/`aktivieren` eines neuen Laufs abgelöst wird,
+  deshalb persistiert ROT ohne extra "Sperre". Die Vollständigkeit meldet
+  `/notfall/api/aktiv` als `vollstaendig` (serverseitig berechnet: alle
+  Team-Bahnen haben `gesamtzeit`), die Desktop-App leitet sie in
+  `_beleuchtung_aktualisieren` an `licht_zustand.zustand_bestimmen` weiter
+  (für den lokalen Offline-Lauf lokal aus `lokale_bahn.zeit_laeufer1-4`
+  berechnet). Beim Freigeben des nächsten Laufs (neuer NotfallLauf aktiv,
+  nicht vollständig) geht es wieder Richtung bereit/start (blau/grün).
+  **Auto-Weiterruptcken "Gerade im Bewerb" beim Laufende:** Sobald die
+  letzte Bahn eines Heats fertig wird, schreibt
+  `zeitmessung.py:_automatische_zuordnung_pruefen` das Ergebnis in
+  `Startplatz.ergebnis_sekunden` zurück UND triggert sofort
+  `moderator._lauf_automatisch_weiltruecken` (vorher nur beim
+  Dashboard-Polling) - "Gerade im Bewerb" rückt also in dem Moment auf den
+  nächsten Heat, in dem die letzte Zeit gespeichert wird, ohne auf das
+  nächste Polling zu warten. Test:
+  `tests/test_notfall.py::test_laufabschluss_rueckt_gerade_im_bewerb_auf_naechsten_heat`.
   **Kollisionsschutz seit 2026-08-21 (Desktop-App):** Die beiden
   Port-Dropdowns im Einstellungsdialog sind jetzt gekoppelt
   (`hauptfenster.py:EinstellungenDialog._ports_synchronisieren`, reine

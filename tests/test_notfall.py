@@ -208,6 +208,48 @@ def test_api_aktiv_liefert_bahnen_und_laeuferzeiten(client, app):
     assert bahn2["laeufer"] == []
 
 
+def test_api_aktiv_vollstaendig_false_wenn_team_bahn_offen(client, app):
+    """Eine Team-Bahn ohne alle 4 Zeiten -> nicht vollstaendig (Licht bleibt
+    grün/start), Bahn ohne Team wird ignoriert."""
+    with app.app_context():
+        t1 = Team.query.filter_by(name="FF Rattenberg").first()
+        lauf = NotfallLauf(bezeichnung="V", aktiv=True)
+        lauf.bahnen.append(NotfallBahn(bahn_nr=1, team_id=t1.id,
+                                       zeit_laeufer1=1.0, zeit_laeufer2=2.0))
+        lauf.bahnen.append(NotfallBahn(bahn_nr=2))   # ohne Team - ignoriert
+        db.session.add(lauf)
+        db.session.commit()
+
+    r = client.get("/notfall/api/aktiv", headers={"X-API-Key": API_KEY})
+    assert r.get_json()["vollstaendig"] is False
+
+
+def test_api_aktiv_vollstaendig_true_wenn_alle_team_bahnen_fertig(client, app):
+    """Alle Team-Bahnen haben alle 4 Zeiten -> vollstaendig (Licht -> ROT)."""
+    with app.app_context():
+        t1 = Team.query.filter_by(name="FF Rattenberg").first()
+        t2 = Team.query.filter_by(name="FF Kobenz").first()
+        lauf = NotfallLauf(bezeichnung="F", aktiv=True)
+        lauf.bahnen.append(NotfallBahn(bahn_nr=1, team_id=t1.id,
+                                       zeit_laeufer1=1, zeit_laeufer2=2,
+                                       zeit_laeufer3=3, zeit_laeufer4=4))
+        lauf.bahnen.append(NotfallBahn(bahn_nr=2, team_id=t2.id,
+                                       zeit_laeufer1=5, zeit_laeufer2=6,
+                                       zeit_laeufer3=7, zeit_laeufer4=8))
+        db.session.add(lauf)
+        db.session.commit()
+
+    r = client.get("/notfall/api/aktiv", headers={"X-API-Key": API_KEY})
+    assert r.get_json()["vollstaendig"] is True
+
+
+def test_api_aktiv_ohne_aktiven_lauf_liefert_nur_aktiv_false(client):
+    """Der nicht-aktive Fall darf KEIN vollstaendig-Feld enthalten, sonst
+    bricht die strenge Gleichheitspruefung der Desktop-App/Tests."""
+    r = client.get("/notfall/api/aktiv", headers={"X-API-Key": API_KEY})
+    assert r.get_json() == {"aktiv": False}
+
+
 def test_api_importieren_ohne_api_key_abgelehnt(client):
     r = client.post("/notfall/api/importieren", json={"bahnen": [{"bahn_nr": 1}]})
     assert r.status_code == 401
@@ -359,3 +401,66 @@ def test_automatische_zuordnung_schreibt_ergebnis_in_startplatz_zurueck(client, 
         sp1 = db.session.get(Startplatz, sp1_id)
         assert sp1.ergebnis_sekunden is not None
         assert sp1.ergebnis_sekunden >= 0
+
+
+def _vier_bahnen_heat(app, disziplin_id, heat):
+    """4 Startplätze (Bahn 1-4) mit je einem Team für einen Heat."""
+    from datetime import datetime
+    sp_ids = []
+    with app.app_context():
+        for bahn in range(1, 5):
+            team = Team(name=f"Team {heat}/{bahn}", startnummer=bahn)
+            db.session.add(team)
+            db.session.flush()
+            sp = Startplatz(team_id=team.id, disziplin_id=disziplin_id,
+                            startnummer=bahn, heat=heat)
+            db.session.add(sp)
+            db.session.flush()
+            sp_ids.append(sp.id)
+        db.session.commit()
+    return sp_ids
+
+
+def test_laufabschluss_rueckt_gerade_im_bewerb_auf_naechsten_heat(client, app):
+    """Sobald alle 4 Bahnen des aktuellen Heats zu Ende gemessen sind,
+    rückt 'Gerade im Bewerb' serverseitig sofort auf den nächsten Heat -
+    ohne auf das Dashboard-Polling zu warten (siehe zeitmessung.py:
+    _automatische_zuordnung_pruefen -> moderator._lauf_automatisch_
+    weiterruecken). Der fertige Lauf bleibt aktiviert (Licht bleibt ROT),
+    bis der nächste freigegeben wird."""
+    from datetime import datetime
+    with app.app_context():
+        d = Disziplin(name="Siloplanen-Race", reihenfolge=1)
+        db.session.add(d)
+        db.session.flush()
+        disziplin_id = d.id
+        sp_heat1 = _vier_bahnen_heat(app, disziplin_id, "1")
+        _vier_bahnen_heat(app, disziplin_id, "2")           # der nächste Heat
+
+        db.session.add(ModeratorStatus(id=1, disziplin_id=disziplin_id, heat="1"))
+        db.session.commit()
+
+        lauf = NotfallLauf(bezeichnung="Heat 1", aktiv=True,
+                           aktiviert_um=datetime.utcnow())
+        for bahn_nr, sp_id in enumerate(sp_heat1, start=1):
+            sp = db.session.get(Startplatz, sp_id)
+            lauf.bahnen.append(NotfallBahn(bahn_nr=bahn_nr, team_id=sp.team_id,
+                                           startplatz_id=sp_id))
+        db.session.add(lauf)
+        db.session.commit()
+        lauf_id = lauf.id
+
+    for bahn in range(1, 5):
+        for _ in range(5):
+            r = client.post("/api/zeitmessung/event",
+                            json={"geraet_id": "mega", "bahn": bahn,
+                                  "kontakt": "kontakt"},
+                            headers={"X-API-Key": API_KEY})
+            assert r.status_code == 201
+
+    with app.app_context():
+        assert all(sp.ergebnis_sekunden is not None
+                   for sp in Startplatz.query
+                   .filter_by(disziplin_id=disziplin_id, heat="1").all())
+        assert db.session.get(ModeratorStatus, 1).heat == "2"
+        assert db.session.get(NotfallLauf, lauf_id).aktiv is True
