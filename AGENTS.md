@@ -29,6 +29,8 @@ ein Eintrag mit Überschneidung zum eigenen Vorhaben, NICHT einfach
 weitermachen, sondern den User informieren und abstimmen, statt parallel
 an derselben Stelle zu arbeiten.
 
+- [Codex] 2026-08-21 – Offene Desktop-App-, Firmware-, Deployment- und Wartungsarbeiten abschließen; betroffene Dokumentation, Tests und Hilfsskripte
+
 ## Was ist das Projekt
 
 Flask-Web-App zur Organisation des **Jubiläums-Wettbewerbs "120 Jahre
@@ -208,17 +210,19 @@ Auch `git push` (HTTPS nach GitHub) braucht dasselbe, da der
 Die Approval-Policy muss `ask` oder weaker sein, damit die Eskalation
 funktioniert (bei `never` wird sie automatisch abgelehnt).
 
-**Aktueller Deploy-Stand (2026-08-21):** ThinkPad läuft Build 78
-(ffrattenberg-app:build78 als Image-Tag) auf ALLEN vier Instanzen
+**Aktueller Deploy-Stand (2026-08-21):** ThinkPad läuft Build 79
+(ffrattenberg-app:build79 als Image-Tag) auf ALLEN vier Instanzen
 (Produktion + test1/test2/generalprobe), im Footer aller vier als
-"Build 78 · 2026-08-21 17:21" verifiziert. BUILD_TAG in deployment/.env
-und deployment/.env.test beide auf build78 – bewusst gleich gehalten,
+"Build 79 · 2026-08-21 17:55" verifiziert. BUILD_TAG in deployment/.env
+und deployment/.env.test beide auf build79 – bewusst gleich gehalten,
 da Test-Instanzen dasselbe Image nutzen wie Produktion. Beim nächsten Deploy
 beide hochzählen. Standby-Server ffrattenberg (.238) Status unbekannt
 (bei diesem Deploy nicht geprüft). ThinkPad-LAN-IP aktuell: 192.168.1.34
 (per SSH `hostname -I` verifiziert, 2026-08-21). Tailscale-IP: 100.119.59.86
 (funktioniert auch wenn sich die LAN-IP ändert – für SSH-Deploy
-empfohlen, beim Build-78-Deploy erfolgreich genutzt).
+empfohlen, beim Build-79-Deploy erfolgreich genutzt). Desktop-App auf
+`felferlinuxlab` ebenfalls auf Build 79-Stand gebracht (per scp, da dort
+kein git-Checkout, sondern Dateikopie) und neu gestartet.
 
 **Wichtige Falle (2026-08-18 erlebt):** `docker-compose.ffrattenberg-test.yml`
 hat für die App-Services (`app-test1`/`app-test2`/`app-generalprobe`) **KEINEN
