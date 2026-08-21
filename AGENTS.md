@@ -636,6 +636,24 @@ danach `/mnt/usb-backups/ffrattenberg-backups`.
     Läuferzeit sofort angezeigt (nicht erst warten bis alle 5 da sind),
     inkl. Kontakt-Zähler (x/5) pro Bahn
 
+**DMX-Bahnbeleuchtung (seit 2026-08-21, Desktop-App):** Zweiter, vom Mega
+  unabhängiger Arduino (Uno + MAX485 → DMX → 4x Eurolite PAR-56, je 1
+  Scheinwerfer pro Bahn) über eine zweite serielle Schnittstelle
+  angesteuert (`desktop-app/zeitmessung_desktop/bahnbeleuchtung.py`,
+  eigener `dmx_port` in den Einstellungen, leer = deaktiviert). Zustand
+  (aus/vorbereitung/bereit/start) wird aus dem Lauf-Status abgeleitet
+  (`licht_zustand.py`, reine Logik, testbar ohne Hardware) - lokaler
+  Offline-Lauf hat Vorrang vor dem Server-Lauf, damit die Lichter auch bei
+  Webapp-Ausfall sinnvoll reagieren. Jede Kontaktauslösung lässt die
+  jeweilige Bahn kurz weiß aufblitzen. Komplett optional/robust: fehlt der
+  Port, läuft die Zeitmessung unbeeinflusst weiter. Hardware-Referenz/
+  ursprünglicher Handoff: `DMX_Zeitmessung/README.md`. Auf echter Hardware
+  verifiziert (2026-08-21, `felferlinuxlab`, zweites CH340-Gerät - **Achtung:
+  Mega und DMX-Uno sind beide CH340 und daher an den Ports nicht
+  unterscheidbar, wenn nur einer gerade angeschlossen ist** - vor jedem
+  Einsatz beide Ports einzeln prüfen/zuordnen, bevor `com_port` und
+  `dmx_port` gesetzt werden, sonst öffnet die App denselben Port zweimal).
+
 ## Datenschutz/Rechtliches
 
 Impressum/Datenschutz-Seiten sind bewusst als **Entwurf mit Platzhaltern**
@@ -658,3 +676,7 @@ hängt an COM3.
 Für die neue Zeitmessung-Desktop-App (liest den Mega seriell aus, puffert
 lokal, synct mit der Webapp) immer zuerst `desktop-app/README.md` lesen
 (Architektur-Tabelle, Setup, End-to-End-Testnachweis vom 2026-08-16).
+
+Für die DMX-Bahnbeleuchtung zusätzlich `DMX_Zeitmessung/README.md`
+(Hardware/Verkabelung/Protokoll) sowie den Abschnitt "DMX-Bahnbeleuchtung"
+oben.
