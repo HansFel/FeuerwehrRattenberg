@@ -55,8 +55,7 @@ def _laufende_teams(status: ModeratorStatus) -> list[Startplatz]:
 
 def _live_daten(status: ModeratorStatus) -> dict:
     """Daten fuer die live aktualisierten Dashboard-Bereiche (aktueller Lauf,
-    abgeschlossener Lauf mit Zeiten, naechster Lauf, Siloplanen-Race- und
-    Team-Challenge-Wertung).
+    naechster Lauf, Siloplanen-Race- und Team-Challenge-Wertung).
 
     Fuer beide Wertungen wird dieselbe Berechnung wie auf der offiziellen
     Wertungsseite (/wertung/) verwendet, damit Moderator-Dashboard, Web-Ansicht
@@ -66,7 +65,6 @@ def _live_daten(status: ModeratorStatus) -> dict:
     (dann unveraenderliche) Gesamtwertung - keine gesonderte "Endstand"-Ansicht
     noetig.
     """
-    letzter_lauf = _letzter_abgeschlossener_lauf(status)
     naechster = _naechster_lauf(status)
     teams = Team.query.order_by(Team.startnummer, Team.name).all()
     disziplinen = Disziplin.query.order_by(Disziplin.reihenfolge, Disziplin.name).all()
@@ -75,8 +73,6 @@ def _live_daten(status: ModeratorStatus) -> dict:
         laufende_teams=_laufende_teams(status),
         siloplanen_tabelle=gesamtwertung_vollstaendig(teams, disziplinen),
         team_challenge_tabelle=team_challenge(teams),
-        letzter_lauf=letzter_lauf,
-        letzter_lauf_teams=_teams_fuer_heat(letzter_lauf) if letzter_lauf else [],
         naechster=naechster,
         naechster_teams=_teams_fuer_heat(naechster) if naechster else [],
     )
@@ -168,21 +164,6 @@ def _heats_numerisch(disziplin_id):
         return tuple(int(z) for z in zahlen) if zahlen else (0,)
     heats.sort(key=sort_key)
     return heats
-
-
-def _letzter_abgeschlossener_lauf(status):
-    """Letzter Heat mit allen ergebnis_sekunden gesetzt (fuer die Disziplin
-    des aktuellen ModeratorStatus). Liefert (heat_name, startplaetze) oder None."""
-    if not status.disziplin_id:
-        return None
-    heats = _heats_numerisch(status.disziplin_id)
-    for heat in reversed(heats):
-        sps = Startplatz.query.filter_by(
-            disziplin_id=status.disziplin_id, heat=heat
-        ).order_by(Startplatz.startnummer).all()
-        if sps and all(sp.ergebnis_sekunden is not None for sp in sps):
-            return (heat, sps)
-    return None
 
 
 def _naechster_lauf(status):

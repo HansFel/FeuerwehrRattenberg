@@ -139,8 +139,8 @@ def test_dashboard_zeigt_motto_und_lieblingslied(client, app):
 
 def test_live_fragment_zeigt_neue_zeiten_ohne_seiten_reload(client, app):
     """Der /moderator/live-fragment-Endpoint (per JS-Polling eingebettet)
-    liefert die aktuellen Zeiten aus dem abgeschlossenen Lauf, sobald sie
-    erfasst sind - ohne dass die Hauptseite neu geladen werden muss."""
+    liefert die aktuelle Rangliste, sobald neue Zeiten erfasst sind - ohne
+    dass die Hauptseite neu geladen werden muss."""
     with app.app_context():
         disziplin = Disziplin.query.filter_by(name="Siloplanen-Race").one()
         team1 = Team.query.filter_by(name="Team Rattenberg").one()
@@ -152,12 +152,6 @@ def test_live_fragment_zeigt_neue_zeiten_ohne_seiten_reload(client, app):
                                            "publikumsinfo": "",
                                            "sponsoren": ""})
 
-    # Vor der Zeitmessung: noch keine Zeiten im Fragment
-    r = client.get("/moderator/live-fragment")
-    assert r.status_code == 200
-    daten = r.get_json()
-    assert "Noch kein abgeschlossener Lauf".encode() in daten["live_html"].encode()
-
     # Zeiten werden erfasst (z.B. durch die Zeitmessung-Automatik)
     with app.app_context():
         Startplatz.query.filter_by(team_id=team1.id).update({"ergebnis_sekunden": 42.5})
@@ -165,9 +159,8 @@ def test_live_fragment_zeigt_neue_zeiten_ohne_seiten_reload(client, app):
         db.session.commit()
 
     r = client.get("/moderator/live-fragment")
+    assert r.status_code == 200
     daten = r.get_json()
-    assert "42.50 s".encode() in daten["live_html"].encode()
-    assert "39.10 s".encode() in daten["live_html"].encode()
     # Siloplanen-Race-Zwischenwertung: noch kein Ziellauf -> "vorläufig"
     assert "Siloplanen-Race".encode() in daten["rangliste_html"].encode()
     assert "vorläufig".encode() in daten["rangliste_html"].encode()
@@ -178,7 +171,6 @@ def test_live_fragment_zeigt_neue_zeiten_ohne_seiten_reload(client, app):
     # Die Hauptseite selbst zeigt beim ersten Laden dasselbe und bindet das
     # Polling auf den Fragment-Endpoint ein
     hauptseite = client.get("/moderator/")
-    assert "42.50 s".encode() in hauptseite.data
     assert "/moderator/live-fragment".encode() in hauptseite.data
 
 
@@ -240,3 +232,42 @@ def test_moderator_sieht_keinen_freigabe_button_organisator_schon(client, app):
     r = client.get("/moderator/")
     assert "Zeitmessung für diesen Lauf freigeben".encode() in r.data
     assert "Anzeige als Organisator steuern".encode() in r.data
+
+
+def test_moderator_sieht_naechsten_lauf_unter_aktuellem_lauf(client, app):
+    """Der Moderator soll den naechsten geplanten Lauf sehen (nicht nur der
+    Organisator) - als reine Info direkt unter 'GERADE IM BEWERB', ohne die
+    Aktions-Buttons dafuer (die bleiben Organisator vorbehalten)."""
+    with app.app_context():
+        disziplin = Disziplin.query.filter_by(name="Siloplanen-Race").one()
+        team1 = Team.query.filter_by(name="Team Rattenberg").one()
+        team2 = Team.query.filter_by(name="Team Brixlegg").one()
+        db.session.add_all([
+            Startplatz(team_id=team1.id, disziplin_id=disziplin.id,
+                       startnummer=1, heat="Vorrunde 2"),
+            Startplatz(team_id=team2.id, disziplin_id=disziplin.id,
+                       startnummer=2, heat="Vorrunde 2"),
+        ])
+        db.session.commit()
+        lauf = f"{disziplin.id}|Vorrunde 1"
+
+    _login(client, "orga")
+    client.post("/moderator/status", data={"lauf": lauf,
+                                           "publikumsinfo": "",
+                                           "sponsoren": ""})
+    client.post("/abmelden")
+
+    _login(client, "mod")
+    r = client.get("/moderator/")
+    assert "NÄCHSTER LAUF".encode() in r.data
+    assert "Vorrunde 2".encode() in r.data
+    assert "Als aktuellen Lauf setzen".encode() not in r.data
+    assert "⏱️ Zeitmessung freigeben".encode() not in r.data
+
+    client.post("/abmelden")
+    _login(client, "orga")
+    r = client.get("/moderator/")
+    assert "NÄCHSTER LAUF".encode() in r.data
+    assert "Vorrunde 2".encode() in r.data
+    assert "Als aktuellen Lauf setzen".encode() in r.data
+    assert "⏱️ Zeitmessung freigeben".encode() in r.data

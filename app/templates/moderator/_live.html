@@ -25,27 +25,6 @@
   {% endif %}
 </section>
 
-{% if dashboard_zeigt("organisator") %}
-<section class="moderator-live" style="margin-top:1rem; border-color: var(--rand);">
-  <div class="moderator-live-titel">ABGESCHLOSSENER LAUF</div>
-  {% if letzter_lauf %}
-    {% set ab_heat = letzter_lauf[0] %}
-    {% set ab_sps = letzter_lauf_teams %}
-    <h2>{{ status.disziplin.name }} · {{ ab_heat }}</h2>
-    <div class="moderator-bahnen">
-      {% for sp in ab_sps %}
-      <article class="moderator-bahn">
-        <span>Bahn {{ sp.startnummer or loop.index }}</span>
-        <strong>{{ sp.team.name }}</strong>
-        <div class="moderator-ergebnis">{{ "%.2f"|format(sp.ergebnis_sekunden) }} s</div>
-      </article>
-      {% endfor %}
-    </div>
-  {% else %}
-    <p class="leer" style="padding:1rem;">Noch kein abgeschlossener Lauf (mit Ergebnissen).</p>
-  {% endif %}
-</section>
-
 <section class="moderator-live" style="margin-top:1rem; border-color: #2e7d32;">
   <div class="moderator-live-titel" style="color:#2e7d32;">NÄCHSTER LAUF</div>
   {% if naechster %}
@@ -61,6 +40,7 @@
       </article>
       {% endfor %}
     </div>
+    {% if dashboard_zeigt("organisator") %}
     <div style="display:flex; gap:0.5rem; margin-top:0.75rem; flex-wrap:wrap;">
       <form method="post" action="{{ url_for('moderator.naechster_lauf_starten') }}">
         <button class="knopf" type="submit">▶️ Als aktuellen Lauf setzen</button>
@@ -70,8 +50,8 @@
                 onclick="return confirm('Zeitmessung für {{ nx_heat }} freigeben?')">⏱️ Zeitmessung freigeben</button>
       </form>
     </div>
+    {% endif %}
   {% else %}
     <p class="leer" style="padding:1rem;">Kein weiterer Lauf geplant.</p>
   {% endif %}
 </section>
-{% endif %}
