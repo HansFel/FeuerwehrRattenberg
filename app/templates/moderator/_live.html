@@ -11,7 +11,7 @@
         {% if sp.team.mitglieder %}
         <div class="moderator-mitglieder">
           {% for m in sp.team.mitglieder|sort(attribute='position') %}
-          <div class="moderator-mitglied">{{ m.position }}. {{ m.vorname }}</div>
+          <div class="moderator-mitglied">{{ m.position }}. {{ m.vorname }} {{ m.nachname }}</div>
           {% endfor %}
         </div>
         {% endif %}
