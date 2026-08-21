@@ -67,6 +67,20 @@ nicht in dieses Dashboard; die dort eingegebene Pfandrückgabe ist nur ein
 Rechenposten und verändert keine gespeicherten Pfandbestände.
 
 **Ausschank-Dashboard seit Build 26 (2026-08-17) überarbeitet:** Die
+
+**Kellner-Dashboard (seit Build 66, 2026-08-21):** Selbes Layout wie
+Ausschank-Dashboard (gleiche CSS-Klassen, nummerierte Schritte): (1) Tischnummer
+Pflichtfeld, (2) Gruppe optional (nur Getränke bekommen Punkte, nicht Essen),
+(3) alle Artikel als Kacheln (Essen orange + Getränke blau), (4) generischer
+"Pfand zurueck" Button (1,00 EUR pro Stueck), (5) Rueckgeldberechnung.
+Bestellung wird sofort als bezahlt gebucht mit der eingegebenen Tischnummer.
+Getraenkepunkte nur fuer Getraenke (KATEGORIE_GETRAENK), nicht fuer Speisen.
+Route: `/kellner/`, `@rolle_noetig("kellner", "organisator")`,
+automatische Weiterleitung von Startseite bei aktiver Rolle "kellner".
+Dateien: `app/templates/kellner_dashboard.html`,
+`app/blueprints/bestellung.py: kellner_dashboard()`.
+
+**Ausschank-Dashboard seit Build 26 (2026-08-17) ueberarbeitet:** Die
 Getränke-Buttons zeigen den Pfand-Anteil separat neben dem Preis an (z.B.
 "Bier 4,00 € + 1,00 € Pfand"). Statt einzelner Pfand-Buttons pro Getränk
 gibt es **einen einzigen generischen "Pfand zurück" Button** mit +/- Zähler,
@@ -596,12 +610,21 @@ danach `/mnt/usb-backups/ffrattenberg-backups`.
     Übersicht), zusätzlich der **Teamchef** (1. Mannschaftsmitglied,
     `Mitglied.position == 1`). Felder im Team-Bearbeiten-Formular.
 
-**Moderator-Dashboard Layout (seit Build 58-60):** Reihenfolge für die
-  aktive Rolle Moderator/DJ: (1) Gerade im Bewerb + Teamchef/Motto/Lied,
-  (2) Publikumsinfo + Sponsoren + Nachrichten, (3) Siloplanen-Race-Wertung
-  als eigene Karte, (4) Team-Challenge-Wertung als eigene Karte. Der
-  Organisator sieht zusätzlich: Abgeschlossener Lauf, Nächster Lauf mit
-  Start-Button, und die "Anzeige als Organisator steuern"-Steuerung.
+**Moderator-Dashboard Layout (seit Build 58-60, angepasst Build 67):**
+  Reihenfolge für die aktive Rolle Moderator/DJ: (1) Gerade im Bewerb +
+  Teamchef/Motto/Lied, (2) **Nächster Lauf** (nur Info: Disziplin/Heat +
+  Bahnen/Teams, OHNE Aktions-Buttons), (3) Publikumsinfo + Sponsoren +
+  Nachrichten, (4) Siloplanen-Race-Wertung als eigene Karte, (5)
+  Team-Challenge-Wertung als eigene Karte. Der Organisator sieht beim
+  Nächsten Lauf zusätzlich die Buttons "Als aktuellen Lauf setzen" und
+  "Zeitmessung freigeben" (`dashboard_zeigt('organisator')`, wie schon bei
+  der Lauffreigabe). **"Abgeschlossener Lauf" wurde komplett entfernt**
+  (Build 67, auf Wunsch des Users) - die zugehörige Backend-Funktion
+  `_letzter_abgeschlossener_lauf()` in `app/blueprints/moderator.py` gibt
+  es nicht mehr, ihre Ergebniszeiten stehen ohnehin schon in der
+  Siloplanen-Race-Wertung direkt darunter. Tests:
+  `tests/test_moderator.py::
+  test_moderator_sieht_naechsten_lauf_unter_aktuellem_lauf`.
 
 **Desktop-App Zeitnahme-Buttons (seit Build 51-54):**
   - **🏁 Gemeinsamer Start**: 1. Kontakt für alle 4 Bahnen gleichzeitig
