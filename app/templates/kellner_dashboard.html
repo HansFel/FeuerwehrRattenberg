@@ -5,17 +5,10 @@
     <h1>🍽️ Kellner</h1>
 
     <form method="post" id="kellner-formular">
-      <label class="ausschank-gruppe" for="tisch_nummer">
-        <strong>1. Tischnummer</strong>
-        <input id="tisch_nummer" name="tisch_nummer" type="number" min="1" required
-               onchange="kellnerAktualisieren()"
-               placeholder="Tisch-Nr." style="font-size:1.15rem;">
-      </label>
-
-      <label class="ausschank-gruppe" for="team_id" style="margin-top:1rem;">
-        <strong>Gruppe (optional – für Getränkepunkte)</strong>
-        <select id="team_id" name="team_id" onchange="kellnerAktualisieren()">
-          <option value="">– keine Gruppe –</option>
+      <label class="ausschank-gruppe" for="team_id">
+        <strong>1. Gruppe auswählen</strong>
+        <select id="team_id" name="team_id" required onchange="kellnerAktualisieren()">
+          <option value="">– Gruppe wählen –</option>
           {% for team in teams %}
             <option value="{{ team.id }}">{{ team.name }}</option>
           {% endfor %}
@@ -85,7 +78,7 @@
       <div class="ausschank-abschluss">
         <strong id="kellner-auswahl">Noch kein Artikel gewählt</strong>
         <button class="knopf gross" type="submit" id="kellner-absenden"
-                {% if not artikel %}disabled{% endif %}>
+                {% if not artikel or not teams %}disabled{% endif %}>
           Bestellung und Bezahlung
         </button>
       </div>
@@ -95,9 +88,9 @@
   <script>
     function kellnerMenge(feldId, delta) {
       var feld = document.getElementById(feldId);
-      var menge = Math.max(0, parseInt(feld.value || "0", 10) + delta);
+      var menge = Math.max(0, parseInt(feld.value || '0', 10) + delta);
       feld.value = menge;
-      document.getElementById("anzeige_" + feldId).textContent = menge;
+      document.getElementById('anzeige_' + feldId).textContent = menge;
       kellnerAktualisieren();
     }
 
@@ -121,21 +114,21 @@
       });
       var summe = artikelSumme + pfandNeu - pfandZurueck;
 
-      var tischFeld = document.getElementById("tisch_nummer");
-      var tischGewaehlt = tischFeld && tischFeld.value !== "";
+      var teamFeld = document.getElementById("team_id");
+      var teamGewaehlt = teamFeld && teamFeld.value !== "";
 
       var absenden = document.getElementById("kellner-absenden");
       if (absenden) {
-        absenden.disabled = artikel === 0 || !tischGewaehlt;
+        absenden.disabled = artikel === 0 || !teamGewaehlt;
       }
 
       var status;
       if (artikel === 0) {
         status = "Noch kein Artikel gewählt";
-      } else if (!tischGewaehlt) {
-        status = artikel + " Artikel · bitte Tischnummer eingeben";
+      } else if (!teamGewaehlt) {
+        status = artikel + " Artikel · bitte Gruppe wählen";
       } else {
-        status = artikel + " Artikel · " + rueckgaben + " Pfand zurück · Tisch " + tischFeld.value;
+        status = artikel + " Artikel · " + rueckgaben + " Pfand zurück";
       }
       document.getElementById("kellner-auswahl").textContent = status;
       document.getElementById("kellner-artikel-summe").textContent = euro(artikelSumme);
