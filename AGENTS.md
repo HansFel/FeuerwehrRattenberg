@@ -68,16 +68,17 @@ Rechenposten und verändert keine gespeicherten Pfandbestände.
 
 **Ausschank-Dashboard seit Build 26 (2026-08-17) überarbeitet:** Die
 
-**Kellner-Dashboard (seit Build 66, 2026-08-21):** Selbes Layout wie
-Ausschank-Dashboard (gleiche CSS-Klassen, nummerierte Schritte): (1) Tischnummer
-Pflichtfeld, (2) Gruppe optional (nur Getränke bekommen Punkte, nicht Essen),
-(3) alle Artikel als Kacheln (Essen orange + Getränke blau), (4) generischer
-"Pfand zurueck" Button (1,00 EUR pro Stueck), (5) Rueckgeldberechnung.
-Bestellung wird sofort als bezahlt gebucht mit der eingegebenen Tischnummer.
+**Kellner-Dashboard (seit Build 68, 2026-08-21):** Identisches
+Layout wie Ausschank-Dashboard (gleiche CSS-Klassen, nummerierte Schritte):
+(1) Gruppe auswaehlen (Pflicht), (2) alle Artikel antippen (Essen orange +
+Getraenke blau), (3) generischer "Pfand zurueck" Button (1,00 EUR pro Stueck),
+(4) Rueckgeldberechnung. Bestellung wird sofort als bezahlt gebucht mit
+`tisch_nummer=0` (wie Ausschank, keine Tischnummer mehr noetig).
 Getraenkepunkte nur fuer Getraenke (KATEGORIE_GETRAENK), nicht fuer Speisen.
-Route: `/kellner/`, `@rolle_noetig("kellner", "organisator")`,
-automatische Weiterleitung von Startseite bei aktiver Rolle "kellner".
-Dateien: `app/templates/kellner_dashboard.html`,
+Gruppe ist Pflicht (wie Ausschank). Route: `/kellner/`,
+`@rolle_noetig("kellner", "organisator")`, automatische Weiterleitung von
+Startseite bei aktiver Rolle "kellner". Dateien:
+`app/templates/kellner_dashboard.html`,
 `app/blueprints/bestellung.py: kellner_dashboard()`.
 
 **Ausschank-Dashboard seit Build 26 (2026-08-17) ueberarbeitet:** Die
