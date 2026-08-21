@@ -53,6 +53,35 @@ def _laufende_teams(status: ModeratorStatus) -> list[Startplatz]:
     return query.order_by(Startplatz.startnummer, Startplatz.id).all()
 
 
+def _aktueller_lauf_abgeschlossen(status: ModeratorStatus) -> bool:
+    """True wenn der aktuelle Heat vollstaendig ist (alle Bahnen haben
+    ergebnis_sekunden gesetzt). Dann sollte automatisch der naechste Lauf
+    als 'Gerade im Bewerb' gesetzt werden, damit der Organisator nicht
+    vergisst weiterzuschalten."""
+    if not status.disziplin_id or not status.heat:
+        return False
+    sps = Startplatz.query.filter_by(
+        disziplin_id=status.disziplin_id, heat=status.heat
+    ).all()
+    if not sps:
+        return False
+    return all(sp.ergebnis_sekunden is not None for sp in sps)
+
+
+def _lauf_automatisch_weiterruecken(status: ModeratorStatus) -> bool:
+    """Wenn der aktuelle Lauf abgeschlossen ist, automatisch den naechsten
+    Lauf als aktuellen setzen. Gibt True zurueck wenn gewechselt wurde."""
+    if not _aktueller_lauf_abgeschlossen(status):
+        return False
+    naechster = _naechster_lauf(status)
+    if naechster is None:
+        return False
+    heat, _sps = naechster
+    status.heat = heat
+    db.session.commit()
+    return True
+
+
 def _live_daten(status: ModeratorStatus) -> dict:
     """Daten fuer die live aktualisierten Dashboard-Bereiche (aktueller Lauf,
     naechster Lauf, Siloplanen-Race- und Team-Challenge-Wertung).
@@ -65,6 +94,8 @@ def _live_daten(status: ModeratorStatus) -> dict:
     (dann unveraenderliche) Gesamtwertung - keine gesonderte "Endstand"-Ansicht
     noetig.
     """
+    # Automatisch zum naechsten Lauf wechseln wenn aktueller fertig
+    _lauf_automatisch_weiterruecken(status)
     naechster = _naechster_lauf(status)
     teams = Team.query.order_by(Team.startnummer, Team.name).all()
     disziplinen = Disziplin.query.order_by(Disziplin.reihenfolge, Disziplin.name).all()
@@ -212,4 +243,3 @@ def naechster_lauf_starten():
     flash(f"Lauf „{heat}“ als aktuell gesetzt. "
           f"Jetzt „Zeitmessung freigeben“ klicken zum Starten.", "ok")
     return redirect(url_for("moderator.dashboard"))
-
