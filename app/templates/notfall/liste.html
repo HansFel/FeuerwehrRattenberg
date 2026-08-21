@@ -26,7 +26,10 @@
         <td>{{ l.bahnen | selectattr('team_id') | list | length }}/4</td>
         <td>{{ l.bahnen | selectattr('gesamtzeit') | list | length }}/4</td>
         <td>{% if l.aktiv %}🟢 aktiv{% else %}<span class="leer">–</span>{% endif %}</td>
-        <td><a class="knopf klein grau" href="{{ url_for('notfall.lauf', lauf_id=l.id) }}">Öffnen</a></td>
+        <td>
+        {% if l.aktiv %}<span class="hinweis" style="padding:0.2rem 0.5rem; font-size:0.8rem;">🟢 aktiv</span>{% endif %}
+        <a class="knopf klein grau" href="{{ url_for('notfall.lauf', lauf_id=l.id) }}">Öffnen</a>
+      </td>
       </tr>
       {% endfor %}
     </tbody>
