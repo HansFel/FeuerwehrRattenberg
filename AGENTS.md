@@ -667,6 +667,17 @@ danach `/mnt/usb-backups/ffrattenberg-backups`.
   unterscheidbar, wenn nur einer gerade angeschlossen ist** - vor jedem
   Einsatz beide Ports einzeln prüfen/zuordnen, bevor `com_port` und
   `dmx_port` gesetzt werden, sonst öffnet die App denselben Port zweimal).
+  **Kollisionsschutz seit 2026-08-21 (Desktop-App):** Die beiden
+  Port-Dropdowns im Einstellungsdialog sind jetzt gekoppelt
+  (`hauptfenster.py:EinstellungenDialog._ports_synchronisieren`, reine
+  Logik Qt-frei in `seriell_ports.py`, getestet in
+  `tests/test_seriell_ports.py`): der in einem Dropdown gewählte Port
+  wird im anderen ausgeblendet, und eine bestehende Kollision (gleicher
+  Port für beide) wird beim Öffnen des Dialogs automatisch aufgelöst - der
+  Mega (Zeitmessung, Pflicht) hat Vorrang, der DMX-Port geht auf "leer"
+  (aus). Verhindert das versehentliche zweifache Öffnen desselben
+  Arduino. Bleibt trotzdem editierbar (Geraet gerade nicht angesteckt),
+  und der jeweils eigene gespeicherte Wert wird nie weggefiltert.
 
 ## Datenschutz/Rechtliches
 

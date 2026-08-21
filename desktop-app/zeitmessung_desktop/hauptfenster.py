@@ -8,7 +8,6 @@ import time
 import uuid
 from datetime import datetime, timezone
 
-import serial.tools.list_ports
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import (
     QComboBox, QDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
@@ -18,6 +17,7 @@ from PySide6.QtWidgets import (
 
 from . import datenbank, einstellungen as einstellungen_modul, licht_zustand
 from .bahnbeleuchtung import Bahnbeleuchtung
+from .seriell_ports import kollision_aufloesen, port_auswahl
 from .lauf_import_worker import LaufImportWorker
 from .lauf_worker import LaufWorker
 from .seriell_worker import SeriellWorker
@@ -32,12 +32,20 @@ class EinstellungenDialog(QDialog):
         self._felder: dict[str, QLineEdit | QSpinBox | QComboBox] = {}
 
         layout = QFormLayout(self)
-        self._seriell_port_feld_hinzufuegen(layout, "com_port", "COM-Port (Mega)",
+        self._seriell_port_feld_hinzufuegen(layout, "com_port",
+                                            "COM-Port Mega (Zeitmessung)",
                                             aktuelle.com_port)
         self._feld_hinzufuegen(layout, "baudrate", "Baudrate", aktuelle.baudrate,
                                bereich=(1200, 2_000_000))
         self._seriell_port_feld_hinzufuegen(
-            layout, "dmx_port", "COM-Port Bahnbeleuchtung (leer = aus)", aktuelle.dmx_port)
+            layout, "dmx_port",
+            "COM-Port 2. Arduino (DMX-Bahnbeleuchtung, leer = aus)",
+            aktuelle.dmx_port, leer_option=True)
+        # Beide Port-Dropdowns gegenseitig synchronisieren - siehe
+        # _ports_synchronisieren. Muss NACH dem Anlegen beider Felder
+        # einmal laufen, damit eine in der gespeicherten Konfiguration
+        # bereits vorhandene Kollision sofort aufgeloest wird.
+        self._ports_synchronisieren()
         self._feld_hinzufuegen(layout, "webapp_url", "Webapp-URL", aktuelle.webapp_url)
         self._feld_hinzufuegen(layout, "api_key", "API-Key", aktuelle.api_key)
         self._feld_hinzufuegen(layout, "instance_name", "Instanzname", aktuelle.instance_name)
@@ -68,46 +76,89 @@ class EinstellungenDialog(QDialog):
         layout.addRow(beschriftung, feld)
 
     def _seriell_port_feld_hinzufuegen(self, layout: QFormLayout, feld_name: str,
-                                       beschriftung: str, wert: str) -> None:
+                                       beschriftung: str, wert: str,
+                                       leer_option: bool = False) -> None:
         """Dropdown der aktuell erkannten seriellen Schnittstellen, statt
         eines Freitextfelds - der COM-Port driftet bei USB-Neuerkennung
         erfahrungsgemaess haeufig (siehe firmware/*/platformio.ini). Bleibt
         trotzdem editierbar, falls das Geraet beim Oeffnen des Dialogs
-        gerade nicht angeschlossen ist. Wiederverwendet fuer Mega- UND
-        DMX-Port - zwei unabhaengige Geraete, siehe bahnbeleuchtung.py."""
+        gerade nicht angeschlossen ist. Wiederverendet fuer Mega- UND
+        DMX-Port - zwei unabhaengige Geraete, siehe bahnbeleuchtung.py.
+
+        `leer_option` (nur fuer das DMX-Feld) fuegt einen auswaehlbaren
+        leeren Eintrag ("aus/deaktiviert") hinzu. Beide Port-Dropdowns sind
+        ueber _ports_synchronisieren gekoppelt: der in einem gewaehlte Port
+        wird im anderen ausgeblendet, damit derselbe Arduino nicht beiden
+        Geraeten zugeordnet wird (Mega + DMX-Uno sind beides CH340 und an
+        den Ports nicht unterscheidbar - siehe AGENTS.md "DMX-Bahnbeleuchtung").
+        """
         feld = QComboBox()
         feld.setEditable(True)
         self._felder[feld_name] = feld
-        self._com_ports_aktualisieren(feld, wert)
+        self._com_ports_aktualisieren(feld, wert, leer_option=leer_option)
 
         aktualisieren_knopf = QPushButton("⟳")
         aktualisieren_knopf.setToolTip("Schnittstellen neu einlesen")
         aktualisieren_knopf.setFixedWidth(28)
-        aktualisieren_knopf.clicked.connect(
-            lambda: self._com_ports_aktualisieren(feld, feld.currentText()))
+        # Gemeinsame Aktualisierung BEIDER Port-Dropdowns (siehe
+        # _ports_synchronisieren) - neu eingelesene Ports und der
+        # Kollisionsschutz greifen dann fuer beide gleichzeitig.
+        aktualisieren_knopf.clicked.connect(self._ports_synchronisieren)
+        # Bei jeder Aenderung den jeweils ANDEREN Port-Dropdown neu
+        # aufbauen, damit derselbe Port nicht beiden Arduino-Geraeten
+        # zugeordnet werden kann.
+        feld.currentTextChanged.connect(self._ports_synchronisieren)
 
         zeile = QHBoxLayout()
         zeile.addWidget(feld, 1)
         zeile.addWidget(aktualisieren_knopf)
         layout.addRow(beschriftung, zeile)
 
-    @staticmethod
-    def _com_ports_aktualisieren(feld: QComboBox, aktueller_wert: str) -> None:
+    def _ports_synchronisieren(self) -> None:
+        """Baut BEIDE Port-Dropdowns neu auf und blendet jeweils den im
+        ANDEREN gewaehlten Port aus - verhindert, dass derselbe Arduino
+        (Mega und DMX-Uno sind beides CH340, an den Ports nicht
+        unterscheidbar) versehentlich beiden Geraeten zugeordnet und damit
+        zweimal geoeffnet wird (Kollision, siehe AGENTS.md
+        "DMX-Bahnbeleuchtung").
+
+        Kollisionsaufloesung: derselbe Port darf nicht beiden Geraeten
+        gehoeren. Der Mega (Zeitmessung) hat Vorrang - der DMX-Port wird
+        in diesem Fall auf "" (aus) zurueckgesetzt. Bewusst nicht
+        umgekehrt: die Zeitmessung ist pflicht, die Beleuchtung optional.
+        """
+        com_feld = self._felder.get("com_port")
+        dmx_feld = self._felder.get("dmx_port")
+        if com_feld is None or dmx_feld is None:
+            return
+        com_wert = com_feld.currentText().strip()
+        dmx_wert = dmx_feld.currentText().strip()
+        dmx_wert = kollision_aufloesen(com_wert, dmx_wert)
+        if dmx_wert != dmx_feld.currentText().strip():
+            dmx_feld.blockSignals(True)
+            dmx_feld.setCurrentText(dmx_wert)
+            dmx_feld.blockSignals(False)
+        # Mega-Dropdown: DMX-Port ausblenden (ausser er ist gerade Megas
+        # eigener Wert); DMX-Dropdown: Mega-Port ausblenden (ausser er ist
+        # DMXs eigener Wert).
+        self._com_ports_aktualisieren(com_feld, com_wert,
+                                      gesperrt=({dmx_wert} - {com_wert}))
+        self._com_ports_aktualisieren(dmx_feld, dmx_wert, leer_option=True,
+                                      gesperrt=({com_wert} - {dmx_wert}))
+
+    def _com_ports_aktualisieren(self, feld: QComboBox, aktueller_wert: str,
+                                 *, leer_option: bool = False,
+                                 gesperrt: set[str] | None = None) -> None:
+        """Füllt das Dropdown neu. Die eigentliche Eintrags-Logik liegt
+        Qt-frei in seriell_ports.port_auswahl (dort getestet); hier nur
+        noch das Anwenden auf die ComboBox - blockSignals verhindert
+        Rekursion ueber currentTextChanged → _ports_synchronisieren."""
+        feld.blockSignals(True)
         feld.clear()
-        # Auf Linux liefert comports() zusaetzlich alle 32 Legacy-UARTs
-        # /dev/ttyS0-31, die ohne echte Hardware immer "vorhanden" sind
-        # (hwid "n/a") - nur Ports mit echter USB-Hardware-ID (VID:PID)
-        # aufnehmen, damit die Liste nicht mit Phantom-Eintraegen zugemuellt
-        # wird und wirklich nur aktiv angeschlossene Geraete zeigt.
-        ports = [p.device for p in serial.tools.list_ports.comports()
-                 if p.hwid and p.hwid != "n/a"]
-        # Aktuell gespeicherten Port immer mit anbieten, auch wenn er gerade
-        # nicht erkannt wird (Geraet nicht eingesteckt) - sonst geht der
-        # gespeicherte Wert beim Oeffnen des Dialogs verloren.
-        if aktueller_wert and aktueller_wert not in ports:
-            ports.insert(0, aktueller_wert)
-        feld.addItems(ports)
+        feld.addItems(port_auswahl(aktueller_wert, leer_option=leer_option,
+                                   gesperrt=gesperrt))
         feld.setCurrentText(aktueller_wert)
+        feld.blockSignals(False)
 
     def werte(self) -> dict:
         ergebnis = {}
