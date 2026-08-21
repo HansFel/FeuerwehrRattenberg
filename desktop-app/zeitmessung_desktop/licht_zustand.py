@@ -8,6 +8,16 @@ from __future__ import annotations
 ZUSTAENDE = ("aus", "vorbereitung", "start", "fertig")
 
 
+def laufquelle_bestimmen(server_lauf_aktiv: bool,
+                         lokaler_lauf_vorhanden: bool) -> str | None:
+    """Ein aktiver Serverlauf hat Vorrang vor alten Offline-Läufen."""
+    if server_lauf_aktiv:
+        return "server"
+    if lokaler_lauf_vorhanden:
+        return "lokal"
+    return None
+
+
 def zustand_bestimmen(lauf_aktiv: bool, aktiviert: bool, hat_kontakt: bool,
                       vollstaendig: bool = False) -> str:
     """

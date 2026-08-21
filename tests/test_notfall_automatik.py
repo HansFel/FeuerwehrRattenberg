@@ -70,7 +70,7 @@ def test_aktivieren_erfordert_rolle(client, app):
     r = client.post(f"/notfall/{lauf_id}/aktivieren", follow_redirects=True)
     assert "rolle".encode() in r.data.lower() or "anmelden".encode() in r.data.lower()
     with app.app_context():
-        assert not NotfallLauf.query.get(lauf_id).aktiv
+        assert not db.session.get(NotfallLauf, lauf_id).aktiv
 
 
 def test_fuenf_events_fuellen_zeiten_automatisch_aus(client, app):
@@ -80,7 +80,7 @@ def test_fuenf_events_fuellen_zeiten_automatisch_aus(client, app):
     r = client.post(f"/notfall/{lauf_id}/aktivieren", follow_redirects=True)
     assert r.status_code == 200
     with app.app_context():
-        assert NotfallLauf.query.get(lauf_id).aktiv
+        assert db.session.get(NotfallLauf, lauf_id).aktiv
 
     for _ in range(5):
         r = _kontakt_senden(client)
@@ -144,8 +144,8 @@ def test_nur_ein_lauf_gleichzeitig_aktiv(client, app):
     client.post(f"/notfall/{lauf2_id}/aktivieren")
 
     with app.app_context():
-        assert not NotfallLauf.query.get(lauf1_id).aktiv
-        assert NotfallLauf.query.get(lauf2_id).aktiv
+        assert not db.session.get(NotfallLauf, lauf1_id).aktiv
+        assert db.session.get(NotfallLauf, lauf2_id).aktiv
 
 
 def test_deaktivieren_stoppt_automatische_zuordnung(client, app):

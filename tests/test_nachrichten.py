@@ -102,7 +102,7 @@ def test_gelesen_markieren(client, app):
     assert "Neue Nachrichten".encode() not in r2.data
 
     with app.app_context():
-        n = Nachricht.query.get(nid)
+        n = db.session.get(Nachricht, nid)
         peter = Benutzer.query.filter_by(username="punkt").first()
         assert n.ist_gelesen_von(peter.id)
 

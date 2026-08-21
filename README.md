@@ -2,8 +2,10 @@
 
 Lokale Web-App zur Organisation des Jubiläums-Wettbewerbs der Feuerwehr
 Rattenberg. Verwaltet **Mannschaften**, **Disziplinen/Stationen**,
-**Zeiten & Wertung** sowie **Zeitplan/Startlisten**. Läuft komplett lokal
-(Flask + SQLite), keine Cloud, mehrere Geräte können im selben WLAN zugreifen.
+**Zeiten & Wertung** sowie **Zeitplan/Startlisten**. Die Produktion läuft lokal
+im Veranstaltungsnetz mit Flask und PostgreSQL in Docker; mehrere Geräte
+können gleichzeitig zugreifen. SQLite bleibt für isolierte Entwicklung und
+Tests unterstützt.
 
 ## Funktionen
 
@@ -39,9 +41,10 @@ pip install -r requirements.txt
 
 ## Datenbank
 
-Standard ist eine lokale **SQLite**-Datei (`instance/wettbewerb.sqlite`).
-Für den Produktionsbetrieb (wie die MGRSoftware-Instanz `mgr-test1`) wird
-**PostgreSQL 17** über die Umgebungsvariable `DATABASE_URL` verwendet:
+Die produktionsnahe lokale Entwicklung und der Produktionsbetrieb verwenden
+**PostgreSQL 17** über Docker Compose und die Umgebungsvariable `DATABASE_URL`.
+Ohne `DATABASE_URL` fällt die App für kleine isolierte Entwicklungsläufe auf
+eine lokale **SQLite**-Datei (`instance/wettbewerb.sqlite`) zurück:
 
 ```powershell
 $env:DATABASE_URL = "postgresql://user:passwort@host:5432/feuerwehr"

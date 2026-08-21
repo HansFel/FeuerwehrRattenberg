@@ -221,12 +221,12 @@ def test_testdaten_loeschen_behaelt_stammdaten(client, app):
         assert Ergebnis.query.count() == 0
 
         # Startplatz (Zeitplan) bleibt, nur das Ergebnis wird zurückgesetzt
-        sp = Startplatz.query.get(startplatz_id)
+        sp = db.session.get(Startplatz, startplatz_id)
         assert sp is not None
         assert sp.ergebnis_sekunden is None
 
         # Stammdaten unverändert
-        team = Team.query.get(team_id)
+        team = db.session.get(Team, team_id)
         assert team is not None
         assert team.name == "Team Test"
         assert len(team.mitglieder) == 1

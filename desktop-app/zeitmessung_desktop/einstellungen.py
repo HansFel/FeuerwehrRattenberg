@@ -17,6 +17,9 @@ KONFIG_DATEI = KONFIG_ORDNER / "einstellungen.json"
 class Einstellungen:
     com_port: str = ""
     baudrate: int = 115200
+    # Zusätzliche Software-Sperre je Bahn gegen versehentliche Doppelimpulse.
+    # 0 deaktiviert sie; die kurze elektrische Entprellung im Mega bleibt.
+    buzzer_sperrzeit_s: int = 1
     # Zweiter, unabhaengiger serieller Port fuer die Bahnbeleuchtung (DMX
     # ueber Arduino Uno + MAX485, siehe ../DMX_Zeitmessung/README.md und
     # bahnbeleuchtung.py). Leer = Beleuchtung deaktiviert, komplett
@@ -50,6 +53,9 @@ def laden() -> Einstellungen:
         rohdaten = json.loads(KONFIG_DATEI.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return Einstellungen()
+    if "buzzer_sperrzeit_s" not in rohdaten and "buzzer_sperrzeit_ms" in rohdaten:
+        millisekunden = max(0, int(rohdaten.pop("buzzer_sperrzeit_ms")))
+        rohdaten["buzzer_sperrzeit_s"] = min(60, (millisekunden + 999) // 1000)
     gueltige_felder = {f for f in Einstellungen.__dataclass_fields__}
     gefiltert = {k: v for k, v in rohdaten.items() if k in gueltige_felder}
     return Einstellungen(**gefiltert)

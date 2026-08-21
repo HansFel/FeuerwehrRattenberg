@@ -37,6 +37,9 @@ class EinstellungenDialog(QDialog):
                                             aktuelle.com_port)
         self._feld_hinzufuegen(layout, "baudrate", "Baudrate", aktuelle.baudrate,
                                bereich=(1200, 2_000_000))
+        self._feld_hinzufuegen(
+            layout, "buzzer_sperrzeit_s", "Buzzer-Sperrzeit je Bahn (Sekunden)",
+            aktuelle.buzzer_sperrzeit_s, bereich=(0, 60))
         self._seriell_port_feld_hinzufuegen(
             layout, "dmx_port",
             "COM-Port 2. Arduino (DMX-Bahnbeleuchtung, leer = aus)",
@@ -268,18 +271,6 @@ class Hauptfenster(QMainWindow):
         self.lauf_tabelle.setMaximumHeight(160)
         layout.addWidget(self.lauf_tabelle)
 
-        # Gemeinsamer Start: 1. Kontakt fuer alle 4 Bahnen gleichzeitig
-        start_box = QGroupBox("Gemeinsamer Start (Startrichter-Startkommando)")
-        start_layout = QHBoxLayout(start_box)
-        self.gemeinsamer_start_knopf = QPushButton("🏁 GEMEINSAMER START\n(1. Kontakt fuer alle 4 Bahnen)")
-        self.gemeinsamer_start_knopf.setMinimumHeight(55)
-        self.gemeinsamer_start_knopf.setStyleSheet(
-            "font-size: 1.1rem; font-weight: bold; "
-            "background-color: #2e7d32; color: white; border: 2px solid #1b5e20;")
-        self.gemeinsamer_start_knopf.clicked.connect(self._gemeinsamer_start)
-        start_layout.addWidget(self.gemeinsamer_start_knopf)
-        layout.addWidget(start_box)
-
         # Manuelle Tasten (Fallback wenn Hardware-Kontakt aussetzt)
         manuell_tasten_box = QGroupBox("Manuelle Zeitnahme (pro Bahn)")
         manuell_tasten_layout = QVBoxLayout(manuell_tasten_box)
@@ -374,6 +365,7 @@ class Hauptfenster(QMainWindow):
 
         self._seriell_worker = SeriellWorker(
             self.db, self.einstellungen.com_port, self.einstellungen.baudrate,
+            buzzer_sperrzeit_s=self.einstellungen.buzzer_sperrzeit_s,
             auf_status_geaendert=lambda status: self.ereignis_empfangen.emit(status),
             auf_event_verarbeitet=lambda bahn: self._arduino_event_verarbeitet(bahn),
         )
@@ -433,7 +425,7 @@ class Hauptfenster(QMainWindow):
             self._beleuchtung_aktualisieren()
 
     def _beleuchtung_aktualisieren(self) -> None:
-        """Leitet aus dem aktuellen Lauf-Zustand (lokal priorisiert, siehe
+        """Leitet aus dem aktuellen Lauf-Zustand (Serverlauf priorisiert)
         unten) den Beleuchtungs-Zustand ab und setzt ihn, falls er sich
         geaendert hat. Wird nach jedem Server- ODER Lokal-Lauf-Update sowie
         direkt nach jedem verarbeiteten Kontaktereignis aufgerufen, damit
@@ -446,21 +438,25 @@ class Hauptfenster(QMainWindow):
         if self.beleuchtung is None:
             return
         lokaler_lauf = datenbank.aktiver_lokaler_lauf(self.db)
-        if lokaler_lauf is not None:
-            # Lokaler Offline-Modus hat Vorrang: er existiert nur, wenn der
-            # Server gerade NICHT erreichbar ist (siehe README "Manueller
-            # Modus") - die Lichter sollen auch dann sinnvoll reagieren.
-            aktiviert_um = lokaler_lauf["aktiviert_um"]
-            zustand = licht_zustand.zustand_bestimmen(
-                lauf_aktiv=True, aktiviert=True,
-                hat_kontakt=self._hat_kontakt_seit(aktiviert_um),
-                vollstaendig=self._lokaler_lauf_vollstaendig(lokaler_lauf["id"]))
-        elif self._letzter_server_lauf and self._letzter_server_lauf.get("aktiv"):
+        server_lauf_aktiv = bool(
+            self._letzter_server_lauf
+            and self._letzter_server_lauf.get("aktiv"))
+        laufquelle = licht_zustand.laufquelle_bestimmen(
+            server_lauf_aktiv, lokaler_lauf is not None)
+        if laufquelle == "server":
             aktiviert_um = self._letzter_server_lauf.get("aktiviert_um")
             zustand = licht_zustand.zustand_bestimmen(
                 lauf_aktiv=True, aktiviert=aktiviert_um is not None,
                 hat_kontakt=bool(aktiviert_um) and self._hat_kontakt_seit(aktiviert_um),
                 vollstaendig=bool(self._letzter_server_lauf.get("vollstaendig")))
+        elif laufquelle == "lokal":
+            # Der Offline-Lauf übernimmt nur, wenn kein aktiver Serverlauf
+            # gemeldet ist. Eine neue Freigabe wird dadurch sofort GRUEN.
+            aktiviert_um = lokaler_lauf["aktiviert_um"]
+            zustand = licht_zustand.zustand_bestimmen(
+                lauf_aktiv=True, aktiviert=True,
+                hat_kontakt=self._hat_kontakt_seit(aktiviert_um),
+                vollstaendig=self._lokaler_lauf_vollstaendig(lokaler_lauf["id"]))
         else:
             zustand = licht_zustand.zustand_bestimmen(False, False, False)
         if zustand != self.beleuchtung.zustand:
@@ -481,7 +477,7 @@ class Hauptfenster(QMainWindow):
     def _hat_kontakt_seit(self, aktiviert_um: str) -> bool:
         """Nutzt denselben lokalen Ereignis-Puffer wie _partial_zeiten/
         _start_fenster_pruefen - Ereignisse landen dort unabhaengig davon,
-        ob sie vom Mega, manuell oder ueber den gemeinsamen Start kommen,
+        ob sie vom Mega oder manuell kommen,
         daher keine separate Buchfuehrung noetig."""
         zeile = self.db.execute(
             "SELECT COUNT(*) AS n FROM ereignis WHERE empfangen_um >= ?",
@@ -730,40 +726,6 @@ class Hauptfenster(QMainWindow):
         self._auf_ereignis({"neues_ereignis": {"bahn": 0},
                            "zustaende": [0, 0, 0, 0]})
         self._beleuchtung_aktualisieren()
-
-    def _gemeinsamer_start(self) -> None:
-        """Setzt den 1. Kontakt fuer ALLE 4 Bahnen gleichzeitig – der
-        offizielle Startzeitpunkt. Danach braucht es nur noch 4 physische
-        Kontakte pro Bahn (statt 5). Verhindert, dass ein Team durch
-        Nicht-Ausloesen des 1. Kontakts taktisch Vorteile erlangt."""
-        antwort = QMessageBox.question(
-            self, "Gemeinsamer Start",
-            "Gemeinsamen Start fuer alle 4 Bahnen ausloesen?\n"
-            "Dies setzt den 1. Kontakt (Startzeitpunkt) fuer alle Bahnen.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if antwort != QMessageBox.StandardButton.Yes:
-            return
-        from .lokale_zuordnung import zuordnung_pruefen
-        empfangen_um = datetime.now(timezone.utc).isoformat()
-        geraet_millis = int(time.time() * 1000) % 1_000_000
-        for bahn in range(1, 5):
-            client_event_id = uuid.uuid4().hex
-            datenbank.ereignis_hinzufuegen(
-                self.db, bahn=bahn, geraet_millis=geraet_millis,
-                empfangen_um=empfangen_um, client_event_id=client_event_id,
-            )
-            zuordnung_pruefen(self.db, bahn)
-            if self.beleuchtung is not None:
-                self.beleuchtung.blitzen(bahn)
-        self._tabelle_neu_laden()
-        self._auf_ereignis({"neues_ereignis": {"bahn": 0},
-                           "zustaende": [1, 1, 1, 1]})
-        self._beleuchtung_aktualisieren()
-        QMessageBox.information(self, "Gemeinsamer Start",
-                                "Start fuer alle 4 Bahnen gesetzt!\n"
-                                "Jetzt 4 weitere Kontakte pro Bahn abwarten.")
 
     def _lauf_abbrechen(self) -> None:
         """Bricht den aktiven Lauf ab - serverseitig (online) und lokal

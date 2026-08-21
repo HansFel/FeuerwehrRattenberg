@@ -81,14 +81,14 @@ def test_blitzen_schreibt_weiss_und_stellt_danach_zustand_wieder_her(monkeypatch
     hier wäre also gar nicht messbar)."""
     monkeypatch.setattr(modul.serial, "Serial", GefaelschterPort)
     b = Bahnbeleuchtung("/dev/ttyUSB0")
-    b.zustand_setzen("bereit")
+    b.zustand_setzen("start")
     b._ser.geschrieben.clear()
 
     b.blitzen(2)
     assert b._ser.geschrieben == [b"2 255 255 255\n"]
 
     b._wiederherstellen(2)
-    assert b._ser.geschrieben[-1] == f"2 {' '.join(map(str, modul.ZUSTANDSFARBEN['bereit']))}\n".encode()
+    assert b._ser.geschrieben[-1] == f"2 {' '.join(map(str, modul.ZUSTANDSFARBEN['start']))}\n".encode()
 
 
 def test_schreibfehler_markiert_als_getrennt(monkeypatch):

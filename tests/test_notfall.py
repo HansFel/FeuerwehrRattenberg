@@ -405,7 +405,7 @@ def test_automatische_zuordnung_schreibt_ergebnis_in_startplatz_zurueck(client, 
 
 def _vier_bahnen_heat(app, disziplin_id, heat):
     """4 Startplätze (Bahn 1-4) mit je einem Team für einen Heat."""
-    from datetime import datetime
+    from datetime import datetime, timezone
     sp_ids = []
     with app.app_context():
         for bahn in range(1, 5):
@@ -428,7 +428,7 @@ def test_laufabschluss_rueckt_gerade_im_bewerb_auf_naechsten_heat(client, app):
     _automatische_zuordnung_pruefen -> moderator._lauf_automatisch_
     weiterruecken). Der fertige Lauf bleibt aktiviert (Licht bleibt ROT),
     bis der nächste freigegeben wird."""
-    from datetime import datetime
+    from datetime import datetime, timezone
     with app.app_context():
         d = Disziplin(name="Siloplanen-Race", reihenfolge=1)
         db.session.add(d)
@@ -441,7 +441,7 @@ def test_laufabschluss_rueckt_gerade_im_bewerb_auf_naechsten_heat(client, app):
         db.session.commit()
 
         lauf = NotfallLauf(bezeichnung="Heat 1", aktiv=True,
-                           aktiviert_um=datetime.utcnow())
+                           aktiviert_um=datetime.now(timezone.utc))
         for bahn_nr, sp_id in enumerate(sp_heat1, start=1):
             sp = db.session.get(Startplatz, sp_id)
             lauf.bahnen.append(NotfallBahn(bahn_nr=bahn_nr, team_id=sp.team_id,

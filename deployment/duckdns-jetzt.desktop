@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=DuckDNS aktualisieren
+Comment=Traegt die aktuelle oeffentliche IP sofort bei DuckDNS ein
+Exec=/home/hans/duckdns_jetzt.sh
+Icon=network-server
+Terminal=false
+Categories=Network;Utility;

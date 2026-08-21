@@ -66,7 +66,7 @@ def test_erledigt_und_loeschen(client, app):
         aid = a.id
     client.post(f"/anforderungen/{aid}/erledigt")
     with app.app_context():
-        assert Anforderung.query.get(aid).erledigt is True
+        assert db.session.get(Anforderung, aid).erledigt is True
     client.post(f"/anforderungen/{aid}/loeschen")
     with app.app_context():
-        assert Anforderung.query.get(aid) is None
+        assert db.session.get(Anforderung, aid) is None

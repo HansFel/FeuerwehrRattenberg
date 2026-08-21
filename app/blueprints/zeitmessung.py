@@ -4,7 +4,7 @@ import json
 import logging
 import threading
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.error import URLError
 
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
@@ -30,6 +30,11 @@ GUELTIGE_KONTAKTE = {KONTAKT_START, KONTAKT_ZIEL, KONTAKT_KONTAKT}
 # keinen Speicher teilen). Jeder Abonnent meldet sich selbst regelmäßig neu
 # an (siehe app/__init__.py:_bei_quelle_anmelden).
 ABONNEMENT_GUELTIGKEIT_S = 180
+
+
+def _utc_jetzt() -> datetime:
+    """UTC-Zeit ohne veraltetes ``datetime.utcnow()`` erzeugen."""
+    return datetime.now(timezone.utc)
 
 
 @bp.route("/api/zeitmessung/event", methods=["POST"])
@@ -119,7 +124,7 @@ def abonnieren():
     if not ziel_api_key:
         return jsonify(fehler="api_key fehlt."), 400
 
-    ablauf = datetime.utcnow() + timedelta(seconds=ABONNEMENT_GUELTIGKEIT_S)
+    ablauf = _utc_jetzt() + timedelta(seconds=ABONNEMENT_GUELTIGKEIT_S)
     abonnent = ZeitmessungAbonnent.query.filter_by(ziel_url=ziel_url).first()
     if abonnent:
         abonnent.api_key = ziel_api_key
@@ -131,7 +136,7 @@ def abonnieren():
 
 
 def _aktive_abonnenten() -> list[tuple[str, str]]:
-    aktive = ZeitmessungAbonnent.query.filter(ZeitmessungAbonnent.ablauf > datetime.utcnow()).all()
+    aktive = ZeitmessungAbonnent.query.filter(ZeitmessungAbonnent.ablauf > _utc_jetzt()).all()
     return [(a.ziel_url, a.api_key) for a in aktive]
 
 

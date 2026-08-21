@@ -265,7 +265,7 @@ def test_naechste_runde_automatisch_erzeugt_platzierung_und_halbfinale(client, a
         platzierung = [n for n in heats if "Platzierungslauf" in n]
         assert len(platzierung) == 1
         assert "Platz 9-12" in platzierung[0]
-        teams_platzierung = {Team.query.get(sp.team_id).startnummer
+        teams_platzierung = {db.session.get(Team, sp.team_id).startnummer
                              for sp in heats[platzierung[0]]}
         assert teams_platzierung == {9, 10, 11, 12}
 
@@ -275,7 +275,7 @@ def test_naechste_runde_automatisch_erzeugt_platzierung_und_halbfinale(client, a
         for name in halbfinale_namen:
             eintraege = heats[name]
             assert len(eintraege) == 4
-            teams_halbfinale.update(Team.query.get(sp.team_id).startnummer
+            teams_halbfinale.update(db.session.get(Team, sp.team_id).startnummer
                                     for sp in eintraege)
         assert teams_halbfinale == {1, 2, 3, 4, 5, 6, 7, 8}
 
@@ -352,8 +352,8 @@ def test_finale_erzeugt_kleines_und_grosses_finale(client, app):
         kleines = Startplatz.query.filter(
             Startplatz.disziplin_id == d_id,
             Startplatz.heat.contains("Kleines Finale")).all()
-        assert {Team.query.get(sp.team_id).startnummer for sp in grosses} == {1, 2, 3, 4}
-        assert {Team.query.get(sp.team_id).startnummer for sp in kleines} == {5, 6, 7, 8}
+        assert {db.session.get(Team, sp.team_id).startnummer for sp in grosses} == {1, 2, 3, 4}
+        assert {db.session.get(Team, sp.team_id).startnummer for sp in kleines} == {5, 6, 7, 8}
 
         import re
         kleines_nr = int(re.match(r"\d+", kleines[0].heat).group())

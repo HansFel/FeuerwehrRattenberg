@@ -4,7 +4,7 @@ app/blueprints/zeitmessung.py eingehende Kontaktereignisse (ESP32 oder
 Desktop-App/Arduino-Mega) automatisch zu und füllt die Läuferzeiten selbst
 aus. Ohne Aktivierung (oder falls die Automatik ausfällt) bleibt die
 Handeingabe hier der Fallback."""
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user
@@ -16,6 +16,11 @@ from .moderator import _status as _moderator_status, _laufende_teams
 bp = Blueprint("notfall", __name__, url_prefix="/notfall")
 
 ANZAHL_BAHNEN = 4
+
+
+def _utc_jetzt() -> datetime:
+    """UTC-Zeit ohne veraltetes ``datetime.utcnow()`` erzeugen."""
+    return datetime.now(timezone.utc)
 
 
 @bp.route("/")
@@ -77,7 +82,7 @@ def aktivieren(lauf_id: int):
     l = db.get_or_404(NotfallLauf, lauf_id)
     NotfallLauf.query.filter(NotfallLauf.id != lauf_id).update({"aktiv": False})
     l.aktiv = True
-    l.aktiviert_um = datetime.utcnow()
+    l.aktiviert_um = _utc_jetzt()
     db.session.commit()
     flash(f"Lauf „{l.bezeichnung or l.id}“ ist jetzt aktiv - neue Kontaktereignisse "
           f"werden automatisch zugeordnet.", "ok")
@@ -141,7 +146,7 @@ def aus_startliste_freigeben():
 
     NotfallLauf.query.filter(NotfallLauf.aktiv.is_(True)).update({"aktiv": False})
     lauf.aktiv = True
-    lauf.aktiviert_um = datetime.utcnow()
+    lauf.aktiviert_um = _utc_jetzt()
     db.session.add(lauf)
     db.session.commit()
     flash(f"Zeitmessung für „{bezeichnung}“ freigegeben.", "ok")

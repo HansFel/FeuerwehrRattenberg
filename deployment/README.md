@@ -19,6 +19,12 @@ auf diesem Server gemeinsam genutzt (externes Docker-Netzwerk `traefik`).
 Ein systemd-Timer auf dem Server aktualisiert die DuckDNS-IP periodisch
 (nötig, da der Server ggf. die Netzwerk-/Provider-Umgebung wechselt).
 
+Die Hilfsskripte `duckdns-update.sh` und `duckdns-jetzt.sh` erwarten den
+Geheimwert ausschließlich in der Prozessumgebung `DUCKDNS_TOKEN`. Der Token
+darf weder in die Skripte noch in Git oder Protokolldateien geschrieben
+werden. Die Cron-/systemd-Konfiguration des jeweiligen Rechners muss die
+Variable über dessen geschützte Secret-Verwaltung bereitstellen.
+
 ---
 
 # Deployment auf dem NAS (UGOS / Docker, hinter Traefik)

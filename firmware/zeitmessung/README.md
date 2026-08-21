@@ -190,7 +190,7 @@ durchgespielt und funktionsfähig. Bekannte Stolperfallen dabei:
   äußert sich als Boot-Schleife ("No bootable app partitions") - ein
   vollständiger, nicht unterbrochener Neu-Flash behebt das.
 
-## Offene Punkte
+## Optionale Konfiguration der nicht mehr produktiv eingesetzten Firmware
 
 - Bei mehreren ESP32-Geräten (z.B. eines pro Bahn statt eines für alle 4)
   `GERAETE_ID` in `include/config.h` je Gerät eindeutig setzen.

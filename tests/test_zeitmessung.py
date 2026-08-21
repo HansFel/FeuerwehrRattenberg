@@ -122,7 +122,7 @@ def test_liste_zeigt_laufende_nummer_je_bahn(client, app):
 
 
 def test_liste_zeigt_abstand_zur_vorherigen_ausloesung(client, app):
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     from app.models import Benutzer, BenutzerRolle
 
     with app.app_context():
@@ -319,12 +319,12 @@ def test_event_ohne_abonnenten_keine_weiterleitung(client, monkeypatch):
 
 
 def test_abgelaufenes_abonnement_wird_nicht_mehr_beliefert(client, app, monkeypatch):
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     monkeypatch.setattr(zeitmessung.threading, "Thread", _SofortigerThread)
     with app.app_context():
         db.session.add(ZeitmessungAbonnent(
             ziel_url="http://abgelaufen:8000/api/zeitmessung/event", api_key="x",
-            ablauf=datetime.utcnow() - timedelta(seconds=1)))
+            ablauf=datetime.now(timezone.utc) - timedelta(seconds=1)))
         db.session.commit()
 
     def urlopen_darf_nicht_aufgerufen_werden(*a, **kw):

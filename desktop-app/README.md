@@ -48,6 +48,30 @@ Einstellungen (COM-Port, Webapp-URL, API-Key, Instanzname, Sync-/
 Backup-Intervall) über den Knopf "Einstellungen…" im Hauptfenster - werden
 unter `~/.zeitmessung_desktop/einstellungen.json` gespeichert.
 
+**Buzzer-Sperrzeit:** In den Einstellungen begrenzt „Buzzer-Sperrzeit je
+Bahn (Sekunden)“ versehentliche Doppelimpulse desselben physischen Kontakts.
+Der Standardwert ist 1 Sekunde, einstellbar von 0 bis 60 Sekunden; 0 deaktiviert nur
+diese zusätzliche Software-Sperre. Die Sperrzeit gilt getrennt pro Bahn und
+greift vor lokaler Speicherung, Zuordnung und Web-App-Synchronisierung.
+Manuelle START-/STOPP-Tasten bleiben als bewusster Fallback ungesperrt.
+Auf `felferlinuxlab` sind aktuell **20 Sekunden** gespeichert (verifiziert
+2026-08-21 nach dem produktiven Neustart).
+
+### Autostart auf dem Zeitnehmungs-PC
+
+Nach dem einmaligen Setup kann die App als systemd-Benutzerdienst eingerichtet
+werden:
+
+```bash
+chmod +x autostart-installieren.sh
+./autostart-installieren.sh
+systemctl --user status zeitmessung-desktop.service
+```
+
+Der Installer verwendet immer die `.venv` dieses Ordners, aktiviert den Dienst
+sofort und startet ihn nach künftigen grafischen Anmeldungen automatisch neu.
+Logs zeigt `journalctl --user -u zeitmessung-desktop.service -f`.
+
 ## Manueller Modus (offline, ohne Webapp-Verbindung)
 
 Falls die LAN-Verbindung zur Webapp während des Wettkampfs ausfällt, lässt
@@ -70,9 +94,9 @@ automatisch im Hintergrund alle noch offenen lokalen Läufe nach
 .venv/Scripts/python -m pytest
 ```
 
-38 Tests für Protokoll-Parsing, lokale Datenbank, lokale Zuordnung, Sicherung,
-Sync- und Import-Payload-Aufbau (GUI selbst nicht mit pytest getestet, siehe
-"Getestet" unten für den manuellen End-to-End-Nachweis).
+83 Tests für Protokoll-Parsing, lokale Datenbank, lokale Zuordnung, Sicherung,
+Sync, Import, DMX-Beleuchtung und Licht-Zustandslogik (GUI selbst nicht mit
+pytest getestet, siehe "Getestet" unten für den manuellen End-to-End-Nachweis).
 
 ## Architektur
 
@@ -107,12 +131,32 @@ Tabellen: Team korrekt über `team_nummer`↔`Team.startnummer` verknüpft,
 Zeiten korrekt übernommen, lokaler Lauf danach korrekt als `gesendet`
 markiert.
 
-## Offene Punkte
+**2026-08-21, produktiver Linux-PC und DMX-Lichtlogik:**
+
+- Zeitnehmungs-PC: `felferlinuxlab`, Tailscale `100.78.51.89`, SSH-Benutzer
+  `hans`. Installation: `/home/hans/zeitmessung-desktop`, Start über
+  `./start.sh` in der X11-Sitzung mit `DISPLAY=:0`.
+- Aktualisierung über Tailscale-SSH verifiziert; die Desktop-Tests direkt auf
+  `felferlinuxlab` bestanden. Vor dem Update wurde die vorherige Installation
+  unter `/home/hans/zeitmessung-desktop-backup-20260821-185020` gesichert.
+- Der frühere Button **„Gemeinsamer Start“** wurde vollständig aus Oberfläche
+  und Handler-Code entfernt. Die einzelnen Bahn-START-/STOPP-Tasten bleiben
+  als manueller Hardware-Fallback erhalten.
+- Lichtfolge: aktiver, vom Organisator freigegebener Serverlauf = **GRÜN**;
+  vollständig gemessener Lauf = **ROT**, bis der nächste Lauf freigegeben
+  wird. Ein aktiver Serverlauf hat immer Vorrang vor einem alten lokalen
+  Offline-Lauf. Dadurch kann ein vollständig gemessener Offline-Lauf den
+  nächsten Serverlauf nicht mehr fälschlich auf Rot halten.
+- Praxisprüfung nach dem Update: `/notfall/api/aktiv` lieferte einen aktiven,
+  freigegebenen und nicht vollständigen Lauf; beide seriellen Geräte waren
+  gleichzeitig geöffnet (`/dev/ttyUSB0` und `/dev/ttyUSB1`) und die
+  Beleuchtung schaltete wie vorgesehen. Vom User anschließend als
+  funktionierend bestätigt.
+
+## Vor-Ort-Prüfungen
 
 - Manueller Offline-Modus noch nicht mit echten Mega-Kontaktauslösungen vor
   Ort getestet (nur simulierte Ereignisse, siehe oben).
-- Autostart-Einrichtung auf `felferlinuxlab` (Linux) noch offen - aktuell
-  manueller Start per SSH/`DISPLAY=:0`.
 - Mega-USB-Erkennung auf dem Windows-Entwicklungsrechner zeitweise
   ausgefallen (kein COM-Port, kein "Unbekanntes Gerät" trotz Kabel/LED) -
   Ursache noch nicht abschließend geklärt.

@@ -172,9 +172,12 @@ python3 lane_lights.py /dev/ttyUSB0
 
 ---
 
-## 8. Aufgabe für das integrierende Modell
+## 8. Integration in die Desktop-App (umgesetzt)
 
-Ziel: `lane_lights.py` in die bestehende Python-Zeitmess-Software einhängen.
+Die ursprüngliche Referenz `lane_lights.py` ist inzwischen in die produktive
+Desktop-App integriert. Die robuste Implementierung liegt in
+`desktop-app/zeitmessung_desktop/bahnbeleuchtung.py`; Zustandslogik und
+Port-Kollisionsschutz liegen in `licht_zustand.py` und `seriell_ports.py`.
 
 1. **Import & Instanz** einmalig beim Programmstart:
    ```python
@@ -188,10 +191,8 @@ Ziel: `lane_lights.py` in die bestehende Python-Zeitmess-Software einhängen.
    lights.set_state("bereit")         # Lauf bereit
    lights.set_state("start")          # Lauf startet / im Gange
    ```
-   > TODO: Die **echten Statusmeldungen/Events der Software** auf diese
-   > drei Zustände mappen. Wenn Status als Enum/String/Code vorliegt,
-   > ein Dict `status -> state_name` anlegen und `set_state(mapping[status])`
-   > aufrufen.
+   Die Zuordnung erfolgt zentral über `zustand_bestimmen()` und umfasst auch
+   den Zustand `fertig` (rot), sobald alle belegten Bahnen vollständig sind.
 3. **Buzzer-Druck → `buzzer(lane)`**: An der Stelle, wo die Software
    einen Buzzer-Druck einer Bahn erkennt:
    ```python
@@ -200,6 +201,10 @@ Ziel: `lane_lights.py` in die bestehende Python-Zeitmess-Software einhängen.
    > Die Buzzer-Erkennung liefert die Software selbst (Teil der
    > Zeitmessung). Das Modul erzeugt keine Buzzer, es reagiert nur.
 4. **Beim Beenden** `lights.close()` aufrufen (z. B. in `finally`/Shutdown-Hook).
+
+Diese Punkte sind in `hauptfenster.py` umgesetzt und durch die Tests
+`test_bahnbeleuchtung.py`, `test_licht_zustand.py` und
+`test_seriell_ports.py` abgedeckt.
 
 ### Zuordnung Bahn ↔ PAR
 Bahn 1 = `lights.buzzer(1)` = PAR an Adresse 1, usw. bis Bahn 4 = Adresse 16.

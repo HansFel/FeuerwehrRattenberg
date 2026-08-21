@@ -1,6 +1,18 @@
 import pytest
 
-from zeitmessung_desktop.licht_zustand import zustand_bestimmen
+from zeitmessung_desktop.licht_zustand import laufquelle_bestimmen, zustand_bestimmen
+
+
+def test_aktiver_serverlauf_hat_vorrang_vor_altem_lokalen_lauf():
+    assert laufquelle_bestimmen(True, True) == "server"
+
+
+def test_lokaler_lauf_uebernimmt_nur_ohne_aktiven_serverlauf():
+    assert laufquelle_bestimmen(False, True) == "lokal"
+
+
+def test_ohne_lauf_gibt_es_keine_lichtquelle():
+    assert laufquelle_bestimmen(False, False) is None
 
 
 def test_kein_lauf_ergibt_aus():

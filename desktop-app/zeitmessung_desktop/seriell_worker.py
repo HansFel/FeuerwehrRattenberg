@@ -13,6 +13,7 @@ from typing import Callable
 import serial
 
 from . import datenbank
+from .buzzer_sperre import BuzzerSperre
 from .lokale_zuordnung import zuordnung_pruefen
 from .seriell_protokoll import zeile_parsen
 
@@ -28,12 +29,14 @@ VERBINDUNG_TIMEOUT_S = 8
 
 class SeriellWorker(threading.Thread):
     def __init__(self, db_verbindung, com_port: str, baudrate: int,
+                 buzzer_sperrzeit_s: int = 1,
                  auf_status_geaendert: Callable[[dict], None] | None = None,
                  auf_event_verarbeitet: Callable[[int], None] | None = None):
         super().__init__(daemon=True)
         self._db = db_verbindung
         self._com_port = com_port
         self._baudrate = baudrate
+        self._buzzer_sperre = BuzzerSperre(buzzer_sperrzeit_s)
         self._auf_status_geaendert = auf_status_geaendert or (lambda status: None)
         self._auf_event_verarbeitet = auf_event_verarbeitet or (lambda bahn: None)
         self._stop_angefordert = threading.Event()
@@ -78,6 +81,9 @@ class SeriellWorker(threading.Thread):
         self.letzter_kontakt = time.monotonic()
 
         if geparst["typ"] == "event":
+            if not self._buzzer_sperre.darf_ausloesen(
+                    geparst["bahn"], time.monotonic()):
+                return
             client_event_id = uuid.uuid4().hex
             empfangen_um = datetime.now(timezone.utc).isoformat()
             datenbank.ereignis_hinzufuegen(

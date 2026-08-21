@@ -561,10 +561,9 @@ danach `/mnt/usb-backups/ffrattenberg-backups`.
   Je Server unabhängig (Standby-Instanzen melden sich nur bei der
   Produktion DES EIGENEN Servers an, keine serverübergreifende
   Weiterleitung).
-- **Startfreigabe / Gemeinsamer Start (seit Build 58, Desktop-App):** Der
-  "Gemeinsamer Start"-Button in der Desktop-App setzt den 1. Kontakt für
-  alle 4 Bahnen gleichzeitig (bewusste Aktion des Startrichters). ZUSÄTZLICH
-  gibt es ein **5-Sekunden Start-Fenster** (seit 2026-08-19): nach der
+- **Startfreigabe / Start-Fenster (Desktop-App):** Der frühere Button
+  "Gemeinsamer Start" wurde vollständig entfernt. Es gibt weiterhin ein
+  **5-Sekunden Start-Fenster** (seit 2026-08-19): nach der
   ersten Kontaktauslösung (egal welche Bahn/Quelle) haben andere Bahnen 5
   Sekunden Zeit für ihren eigenen 1. Kontakt. Danach bekommen Bahnen mit
   0 Kontakten automatisch den 1. Kontakt gesetzt (mit dem Zeitpunkt des
@@ -644,7 +643,6 @@ danach `/mnt/usb-backups/ffrattenberg-backups`.
   test_moderator_sieht_naechsten_lauf_unter_aktuellem_lauf`.
 
 **Desktop-App Zeitnahme-Buttons (seit Build 51-54):**
-  - **🏁 Gemeinsamer Start**: 1. Kontakt für alle 4 Bahnen gleichzeitig
   - **Bahn X START** (grün): manueller 1. Kontakt für einzelne Bahn (Fallback)
   - **Bahn X STOPP** (rot): manueller Kontakt für einzelne Bahn (Fallback)
   - **🚨 Lauf abbrechen**: Notfall-Stopp bei Verletzung (deaktiviert aktiven
@@ -658,10 +656,13 @@ danach `/mnt/usb-backups/ffrattenberg-backups`.
   Scheinwerfer pro Bahn) über eine zweite serielle Schnittstelle
   angesteuert (`desktop-app/zeitmessung_desktop/bahnbeleuchtung.py`,
   eigener `dmx_port` in den Einstellungen, leer = deaktiviert). Zustand
-  (aus/vorbereitung/bereit/start/**fertig**) wird aus dem Lauf-Status abgeleitet
+  (aus/vorbereitung/start/**fertig**) wird aus dem Lauf-Status abgeleitet
   (`licht_zustand.py`, reine Logik, testbar ohne Hardware) - lokaler
-  Offline-Lauf hat Vorrang vor dem Server-Lauf, damit die Lichter auch bei
-  Webapp-Ausfall sinnvoll reagieren. Jede Kontaktauslösung lässt die
+  Offline-Lauf übernimmt nur, wenn kein aktiver Server-Lauf gemeldet ist.
+  Ein vom Organisator neu freigegebener Server-Lauf hat immer Vorrang, damit
+  ein alter vollständiger Offline-Lauf die Lichter nicht auf ROT festhält.
+  Bei Webapp-Ausfall funktioniert der lokale Lauf weiterhin. Jede
+  Kontaktauslösung lässt die
   jeweilige Bahn kurz weiß aufblitzen. Komplett optional/robust: fehlt der
   Port, läuft die Zeitmessung unbeeinflusst weiter. Hardware-Referenz/
   ursprünglicher Handoff: `DMX_Zeitmessung/README.md`. Auf echter Hardware
@@ -737,6 +738,35 @@ lokal, synct mit der Webapp) immer zuerst `desktop-app/README.md` lesen
 Zeitnehmungs-PC einen systemd-Benutzerdienst mit Auto-Restart ein. Die
 Installation auf `felferlinuxlab` selbst und der echte Kontakt-/Offline-
 End-to-End-Test bleiben Vor-Ort-Schritte; sie sind keine offenen Codepunkte.
+
+**Produktiver Desktop-App-Stand auf `felferlinuxlab` (2026-08-21):**
+Zugriff bei nicht erreichbarer LAN-IP per Tailscale unter `100.78.51.89`
+(`hans`, dedizierter SSH-Schlüssel `codex_felferlinuxlab`). Installation unter
+`/home/hans/zeitmessung-desktop`, manueller GUI-Start über `start.sh` mit
+`DISPLAY=:0`; Konfiguration und Messdaten liegen separat unter
+`/home/hans/.zeitmessung_desktop` und dürfen bei Updates nicht überschrieben
+werden. Der Stand ohne „Gemeinsamer Start“-Button und mit Serverlauf-Vorrang
+vor alten Offline-Läufen wurde dorthin kopiert, remote mit **83 bestandenen
+Tests** geprüft und vom User im echten Betrieb bestätigt. Vorheriger Stand:
+`/home/hans/zeitmessung-desktop-backup-20260821-185020`. Beide Geräte waren
+nach dem Neustart geöffnet: Mega `/dev/ttyUSB0`, DMX-Uno `/dev/ttyUSB1`.
+Der systemd-Autostart ist weiterhin nur vorbereitet, nicht installiert.
+
+**Buzzer-Sperrzeit (seit 2026-08-21):** Die Desktop-App filtert physische
+Mega-`EVENT`s zusätzlich zur kurzen Firmware-Entprellung softwareseitig pro
+Bahn. Einstellung `buzzer_sperrzeit_s` im GUI-Feld „Buzzer-Sperrzeit je Bahn
+(Sekunden)“, Standard 1 s, Bereich 0–60 s (0 = zusätzliche Sperre aus).
+Innerhalb der Sperrzeit wird ein erneutes Ereignis derselben Bahn vor
+SQLite-Speicherung, Läufer-Zuordnung, Lichtblitz und Server-Sync verworfen;
+andere Bahnen bleiben unabhängig. Manuelle START-/STOPP-Tasten umgehen die
+Sperre bewusst. Implementierung: `desktop-app/zeitmessung_desktop/
+buzzer_sperre.py` + `seriell_worker.py`; Tests in `test_buzzer_sperre.py`.
+Der Stand wurde auf `felferlinuxlab` ausgerollt und dort mit 1 s Default
+gestartet; unmittelbar vorher angelegtes Backup:
+`/home/hans/zeitmessung-desktop-backup-20260821-190107`.
+Der User hat anschließend produktiv **20 Sekunden** eingestellt; dieser Wert
+steht in `/home/hans/.zeitmessung_desktop/einstellungen.json` und wurde nach
+dem Neustart remote über `laden().buzzer_sperrzeit_s == 20` verifiziert.
 
 Für die DMX-Bahnbeleuchtung zusätzlich `DMX_Zeitmessung/README.md`
 (Hardware/Verkabelung/Protokoll) sowie den Abschnitt "DMX-Bahnbeleuchtung"

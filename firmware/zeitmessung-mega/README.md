@@ -55,18 +55,18 @@ Server-Empfangszeitstempel (siehe `app/blueprints/zeitmessung.py`).
 
 ```bash
 pio run                    # kompilieren
-pio run -t upload          # auf COM5 flashen (siehe platformio.ini)
+pio run -t upload          # auf konfigurierten COM-Port flashen
 pio device monitor         # Serial-Ausgabe (115200 Baud)
 ```
 
 `upload_port`/`monitor_port` in `platformio.ini` ggf. anpassen, falls der
 Mega an einem anderen COM-Port hängt (Windows vergibt bei USB-Neuerkennung
-gelegentlich eine neue Nummer - war zuerst COM3, dann COM5). Aktuellen Port
+gelegentlich eine neue Nummer - war zuerst COM3, dann COM5 und COM6). Aktuellen Port
 ermitteln: PowerShell `[System.IO.Ports.SerialPort]::getportnames()`.
 Getestet 2026-08-16: kompiliert (RAM 3,4%, Flash 1,3% ausgelastet) und
 liefert nach dem Flashen zuverlässig `HEARTBEAT`-Zeilen alle 2s.
 
-## Offene Punkte
+## Vor-Ort-Prüfungen
 
 - Kontakte real anschließen und `EVENT`-Zeilen end-to-end bis in die
   Desktop-App und die Zeitereignis-Tabelle der Webapp testen (nur
