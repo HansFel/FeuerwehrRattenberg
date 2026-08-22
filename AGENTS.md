@@ -809,3 +809,25 @@ aktiven ThinkPad `.34`; das genaue Verfahren, Prüfkommandos, Umschaltung auf
 `.34` und Rückkehr sind verbindlich in `deployment/FAILOVER.md` dokumentiert.
 Nie beide Server gleichzeitig mit `.34` betreiben. Nextcloud auf Port 81 ist
 ein eigener Dienst und nicht Teil dieser automatischen Datenspiegelung.
+
+## Server-Monitoring und Traefik-Metriken (seit 2026-08-22)
+
+Auf dem aktiven ThinkPad `.34` läuft Netdata 1.43.2 als systemd-Dienst
+(`enabled`, `active`). Das Dashboard ist aus Sicherheitsgründen nur lokal am
+Server auf `http://127.0.0.1:19999/` gebunden und wird dort im Browser
+angezeigt. Netdata nimmt Traefik-StatsD-Metriken ausschließlich auf Loopback
+und dem internen Traefik-Docker-Gateway an:
+`udp/tcp:127.0.0.1:8125` und `udp/tcp:172.18.0.1:8125`; Port 8125 ist weder im
+LAN noch öffentlich gebunden.
+
+Traefik sendet alle zehn Sekunden StatsD-Metriken direkt an
+`172.18.0.1:8125`, inklusive EntryPoint-, Router- und Service-Labels. Die
+aktive Konfiguration liegt unter `~/apps/traefik/docker-compose.yml`, die
+Sicherung vor Aktivierung unter
+`~/apps/traefik/docker-compose.vor-monitoring-20260822.yml`. Netdata gruppiert
+`traefik.*` über `/etc/netdata/statsd.d/traefik.conf`. Im Dashboard erscheinen
+die Diagramme unter dem StatsD-/Traefik-Bereich (Requests, Antwortzeiten,
+Statuscodes, Bytes und offene Verbindungen). Ein kontrolliertes Traefik-
+Recreate unterbricht nur Domainzugriffe kurz; beim Einrichten wurden etwa
+1,8 bis 2,5 Sekunden gemessen. Direkte App-Ports und Datenbanken bleiben
+dabei aktiv.
