@@ -38,6 +38,33 @@ def test_sicherung_nur_admin(client):
     assert "anmelden".encode() in r.data.lower()
 
 
+def test_anwendung_neuladen_nur_admin(client):
+    r = client.post("/sicherung/anwendung-neuladen", follow_redirects=True)
+    assert "anmelden".encode() in r.data.lower()
+
+
+def test_admin_kann_anwendung_neuladen(client, monkeypatch):
+    from app.blueprints import sicherung as blueprint
+
+    aufrufe = []
+    monkeypatch.setattr(blueprint, "_gunicorn_neuladen",
+                        lambda: aufrufe.append(True))
+    _login(client)
+    r = client.post("/sicherung/anwendung-neuladen", follow_redirects=True)
+
+    assert r.status_code == 200
+    assert aufrufe == [True]
+    assert "kontrolliert neu geladen".encode() in r.data
+
+
+def test_neuladen_ausserhalb_gunicorn_wird_verweigert(monkeypatch):
+    from app.blueprints import sicherung as blueprint
+
+    monkeypatch.delenv("SERVER_SOFTWARE", raising=False)
+    with pytest.raises(RuntimeError, match="Gunicorn"):
+        blueprint._gunicorn_neuladen()
+
+
 def test_sicherung_erstellen_erzeugt_datei(client, app):
     _login(client)
     client.post("/sicherung/erstellen")

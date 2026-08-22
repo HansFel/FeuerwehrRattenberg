@@ -16,6 +16,16 @@
     </form>
   </div>
 
+  <h2 style="margin-top:1.5rem">Anwendung neu laden</h2>
+  <p>Ersetzt die Web-Worker und baut dadurch alle Datenbankverbindungen neu
+     auf. Datenbank, Docker, Traefik und die übrigen Serverdienste werden
+     nicht neu gestartet. Die Anwendung kann dabei wenige Sekunden kurz
+     nicht erreichbar sein.</p>
+  <form class="inline" method="post" action="{{ url_for('sicherung.anwendung_neuladen') }}"
+        onsubmit="return confirm('Anwendung jetzt neu laden? Laufende Seitenaufrufe können wenige Sekunden unterbrochen werden.');">
+    <button class="knopf grau" type="submit">⟳ Anwendung neu laden</button>
+  </form>
+
   <h2 style="margin-top:1.5rem">Testdaten löschen</h2>
   <p>Löscht Zeitmessdaten, Bestellungen/Sympathiepunkte, Strafen und
      Ergebnisse aus Testläufen. <strong>Teams, Mitglieder und die

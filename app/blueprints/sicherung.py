@@ -1,8 +1,10 @@
 """Datensicherung – Übersicht, Erstellen, Herunterladen, Hochladen,
 Wiederherstellen, Löschen (nur Administrator)."""
 import os
+import signal
+import threading
 
-from flask import (Blueprint, flash, redirect, render_template, request,
+from flask import (Blueprint, current_app, flash, redirect, render_template, request,
                    send_file, url_for)
 from flask_login import current_user
 
@@ -10,6 +12,28 @@ from .. import sicherung as dienst
 from ..auth import rolle_noetig
 
 bp = Blueprint("sicherung", __name__, url_prefix="/sicherung")
+
+
+def _gunicorn_neuladen(verzoegerung_s: float = 2.0) -> None:
+    """Ersetzt alle Gunicorn-Worker kontrolliert, ohne den Container zu stoppen.
+
+    Die kurze Verzögerung lässt die HTTP-Antwort dieses Requests noch zum
+    Browser zurückkehren. Unter dem Flask-Entwicklungsserver wird bewusst kein
+    fremder Elternprozess signalisiert.
+    """
+    if not os.environ.get("SERVER_SOFTWARE", "").lower().startswith("gunicorn"):
+        raise RuntimeError("Neuladen ist nur im Gunicorn-Produktionsbetrieb verfügbar.")
+    if not hasattr(signal, "SIGHUP"):
+        raise RuntimeError("Neuladen wird auf diesem Betriebssystem nicht unterstützt.")
+
+    master_pid = os.getppid()
+
+    def _signal_senden() -> None:
+        os.kill(master_pid, signal.SIGHUP)
+
+    timer = threading.Timer(verzoegerung_s, _signal_senden)
+    timer.daemon = True
+    timer.start()
 
 
 @bp.route("/")
@@ -62,6 +86,21 @@ def wiederherstellen(sicherung_id: int):
               "automatisch gesichert.", "ok")
     except Exception as e:  # noqa: BLE001
         flash(f"Wiederherstellung fehlgeschlagen: {e}", "error")
+    return redirect(url_for("sicherung.index"))
+
+
+@bp.route("/anwendung-neuladen", methods=["POST"])
+@rolle_noetig("administrator")
+def anwendung_neuladen():
+    try:
+        _gunicorn_neuladen()
+        current_app.logger.info(
+            "Gunicorn-Neuladen durch Administrator %s angefordert.",
+            current_user.username)
+        flash("Anwendung wird kontrolliert neu geladen. Das dauert nur wenige "
+              "Sekunden; Datenbank und übrige Serverdienste laufen weiter.", "ok")
+    except Exception as e:  # noqa: BLE001 – Fehler dem Admin zeigen
+        flash(f"Neuladen fehlgeschlagen: {e}", "error")
     return redirect(url_for("sicherung.index"))
 
 

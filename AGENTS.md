@@ -107,6 +107,18 @@ Pfand zurück / Zu bezahlen. Dateien: `app/templates/ausschank_dashboard.html`,
 
 ## Produktions-Deployment
 
+**Manuelles Neuladen der Web-Worker (seit Build 81):** Im nur für
+Administratoren zugänglichen Bereich **Datensicherung** gibt es den Button
+„Anwendung neu laden“. Er sendet nach kurzer Verzögerung ein `SIGHUP` an den
+Gunicorn-Master und ersetzt damit alle Web-Worker samt Datenbankverbindungen
+kontrolliert. PostgreSQL, Docker, Traefik und andere Dienste werden nicht neu
+gestartet. Die App kann dabei wenige Sekunden kurz nicht erreichbar sein. Der
+Button funktioniert absichtlich nur unter Gunicorn, damit im lokalen
+Entwicklungsbetrieb kein fremder Elternprozess signalisiert wird. Route:
+`POST /sicherung/anwendung-neuladen`, Implementierung:
+`app/blueprints/sicherung.py`, Oberfläche:
+`app/templates/sicherung/index.html`.
+
 Eigener Ubuntu-Server "ffrattenberg" (Docker, Traefik-Reverse-Proxy,
 DuckDNS: `ffrattenberg.duckdns.org`). Deploy-Ablauf: auf dem Server
 `git pull`, `BUILD_TAG` in `deployment/.env` erhöhen (Image-Tag MUSS bei
