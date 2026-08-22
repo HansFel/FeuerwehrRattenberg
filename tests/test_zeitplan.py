@@ -90,6 +90,35 @@ def test_auslosen_erzeugt_zwei_laeufe_je_team(client, app):
             bahnen = [e.startnummer for e in eintraege]
             assert len(bahnen) == len(set(bahnen))
 
+        # Zwischen den beiden Einsaetzen jedes Teams liegt mindestens ein
+        # vollstaendiger anderer Lauf.
+        lauf_nr_je_team = {}
+        for sp in alle:
+            lauf_nr_je_team.setdefault(sp.team_id, []).append(
+                int(sp.heat.rsplit(" ", 1)[1]))
+        assert all(abs(nrn[1] - nrn[0]) >= 2
+                   for nrn in lauf_nr_je_team.values())
+
+
+def test_unmoegliche_pause_belaesst_bestehende_startliste(client, app):
+    with app.app_context():
+        d = Disziplin.query.first()
+        d_id = d.id
+        # Mit nur zwei Teams und vier Bahnen gibt es pro Runde nur einen
+        # Lauf; zwischen Runde 1 und 2 kann daher kein Pausenlauf liegen.
+        Team.query.filter(Team.startnummer > 2).delete()
+        team = Team.query.order_by(Team.startnummer).first()
+        db.session.add(Startplatz(team_id=team.id, disziplin_id=d_id,
+                                  startnummer=1, heat="Bestehend"))
+        db.session.commit()
+
+    _login(client, "richter", "pw")
+    r = client.post(f"/zeitplan/disziplin/{d_id}", data={"aktion": "auslosen"},
+                    follow_redirects=True)
+    assert "nicht möglich".encode() in r.data
+    with app.app_context():
+        assert Startplatz.query.filter_by(heat="Bestehend").count() == 1
+
 
 def test_auslosen_ersetzt_vorhandene_startliste(client, app):
     with app.app_context():
@@ -234,13 +263,14 @@ def _zwoelf_teams_mit_vollstaendiger_vorrunde(app, d_id):
         for i in range(9, 13):
             db.session.add(Team(name=f"Team {i}", startnummer=i))
         db.session.commit()
-        for t in Team.query.order_by(Team.startnummer).all():
-            db.session.add(Startplatz(team_id=t.id, disziplin_id=d_id,
-                                      heat="Vorrunde 1",
-                                      ergebnis_sekunden=t.startnummer * 10.0))
-            db.session.add(Startplatz(team_id=t.id, disziplin_id=d_id,
-                                      heat="Vorrunde 2",
-                                      ergebnis_sekunden=t.startnummer * 10.0))
+        teams = Team.query.order_by(Team.startnummer).all()
+        for runde in range(2):
+            for index, t in enumerate(teams):
+                heat_nr = runde * 3 + index // 4 + 1
+                db.session.add(Startplatz(
+                    team_id=t.id, disziplin_id=d_id,
+                    heat=f"Vorrunde {heat_nr}", startnummer=index % 4 + 1,
+                    ergebnis_sekunden=t.startnummer * 10.0))
         db.session.commit()
 
 
@@ -279,12 +309,23 @@ def test_naechste_runde_automatisch_erzeugt_platzierung_und_halbfinale(client, a
                                     for sp in eintraege)
         assert teams_halbfinale == {1, 2, 3, 4, 5, 6, 7, 8}
 
-        # Reihenfolge: Platzierungslauf (Plaetze 9+) muss VOR dem Halbfinale
-        # laufen (niedrigere fortlaufende Nummer im Heat-Namen)
-        import re
-        platz_nr = int(re.match(r"\d+", platzierung[0]).group())
-        halbfinale_nrn = [int(re.match(r"\d+", n).group()) for n in halbfinale_namen]
-        assert platz_nr < min(halbfinale_nrn)
+        # Auch am Uebergang von der Vorrunde zur naechsten Runde darf kein
+        # Team direkt im folgenden Lauf wieder antreten.
+        letzter_vorrunden_heat = "Vorrunde 6"
+        erste_neue_nr = min(int(n.split(" ", 1)[0]) for n in heats)
+        erster_neuer_heat = next(n for n in heats
+                                 if int(n.split(" ", 1)[0]) == erste_neue_nr)
+        vorher = {sp.team_id for sp in alle if sp.heat == letzter_vorrunden_heat}
+        nachher = {sp.team_id for sp in heats[erster_neuer_heat]}
+        assert vorher.isdisjoint(nachher)
+
+        # Innerhalb der erzeugten Runde tritt jedes Team genau einmal an;
+        # damit sind auch dort direkte Doppeleinsaetze ausgeschlossen.
+        neue_nach_nummer = sorted(
+            heats, key=lambda n: int(n.split(" ", 1)[0]))
+        for erster, zweiter in zip(neue_nach_nummer, neue_nach_nummer[1:]):
+            assert ({sp.team_id for sp in heats[erster]}.isdisjoint(
+                    {sp.team_id for sp in heats[zweiter]}))
 
 
 def test_naechste_runde_erneut_erzeugen_ersetzt_statt_zu_duplizieren(client, app):

@@ -122,10 +122,13 @@ def disziplin(disziplin_id: int):
             _startliste_automatisch(disziplin)
             flash("Startliste aus allen Mannschaften erzeugt.", "ok")
         elif aktion == "auslosen":
-            anzahl_heats = _vorrunde_auslosen(disziplin)
-            flash(f"Vorrunde neu ausgelost: {anzahl_heats} Läufe für alle "
-                  "Mannschaften (bisherige Startliste dieser Disziplin wurde "
-                  "ersetzt).", "ok")
+            try:
+                anzahl_heats = _vorrunde_auslosen(disziplin)
+                flash(f"Vorrunde neu ausgelost: {anzahl_heats} Läufe für alle "
+                      "Mannschaften (bisherige Startliste dieser Disziplin wurde "
+                      "ersetzt).", "ok")
+            except ValueError as e:
+                flash(str(e), "error")
         elif aktion == "hinzufuegen":
             _startplatz_hinzufuegen(disziplin)
             flash("Startplatz hinzugefügt.", "ok")
@@ -199,26 +202,31 @@ def _vorrunde_auslosen(disziplin: Disziplin, bahnen: int = BAHNEN,
     """Lost alle Mannschaften zufällig in Gruppen zu je `bahnen` Teams aus,
     jedes Team `runden`-mal (Standard: 2, passend zum Vorrunden-Format des
     Siloplanen-Race). Ersetzt eine vorhandene Startliste dieser Disziplin
-    komplett. Versucht (bestmöglich, nicht garantiert), dass kein Team in
-    beiden Runden auf dieselben Gegner trifft. Gibt die Anzahl erzeugter
-    Läufe zurück.
+    komplett. Zwischen zwei Einsaetzen desselben Teams liegt garantiert
+    mindestens ein anderer Lauf. Zusaetzlich wird bestmoeglich versucht,
+    wiederholte Gegner zu vermeiden. Gibt die Anzahl erzeugter Läufe zurück.
     """
     teams = Team.query.order_by(Team.startnummer, Team.name).all()
     if len(teams) < 2:
         return 0
 
-    Startplatz.query.filter_by(disziplin_id=disziplin.id).delete()
-
     bisherige_gegner = {t.id: set() for t in teams}
-    heat_nr = 0
+    geplante_gruppen: list[list[Team]] = []
+    vorherige_gruppe: list[Team] = []
 
     for _runde in range(runden):
         gruppen = None
-        for _versuch in range(50):
+        beste_konflikte = None
+        for _versuch in range(1000):
             gemischt = teams[:]
             random.shuffle(gemischt)
             kandidat = [gemischt[i:i + bahnen]
                        for i in range(0, len(gemischt), bahnen)]
+            # Harte Pausenregel an der Rundengrenze: Kein Team aus dem
+            # letzten Lauf darf gleich im ersten Lauf der neuen Runde sein.
+            if vorherige_gruppe and ({t.id for t in kandidat[0]} &
+                                     {t.id for t in vorherige_gruppe}):
+                continue
             konflikte = sum(
                 1
                 for gruppe in kandidat
@@ -226,23 +234,35 @@ def _vorrunde_auslosen(disziplin: Disziplin, bahnen: int = BAHNEN,
                 for t2 in gruppe[i + 1:]
                 if t2.id in bisherige_gegner[t1.id]
             )
-            if gruppen is None or konflikte == 0:
+            if beste_konflikte is None or konflikte < beste_konflikte:
                 gruppen = kandidat
+                beste_konflikte = konflikte
             if konflikte == 0:
                 break
 
+        if gruppen is None:
+            raise ValueError(
+                "Auslosung mit mindestens einem Lauf Pause ist bei dieser "
+                "Mannschafts-/Bahnenanzahl nicht möglich. Die bestehende "
+                "Startliste wurde nicht verändert.")
         for gruppe in gruppen:
             for t1 in gruppe:
                 bisherige_gegner[t1.id].update(
                     t2.id for t2 in gruppe if t2 is not t1)
-            heat_nr += 1
-            for lane, team in enumerate(gruppe, start=1):
-                db.session.add(Startplatz(
-                    team_id=team.id, disziplin_id=disziplin.id,
-                    startnummer=lane, heat=f"Vorrunde {heat_nr}"))
+            geplante_gruppen.append(gruppe)
+        vorherige_gruppe = gruppen[-1]
+
+    # Erst nach erfolgreicher Planung ersetzen, damit ein unloesbarer
+    # Pausenkonflikt niemals die vorhandene Startliste loescht.
+    Startplatz.query.filter_by(disziplin_id=disziplin.id).delete()
+    for heat_nr, gruppe in enumerate(geplante_gruppen, start=1):
+        for lane, team in enumerate(gruppe, start=1):
+            db.session.add(Startplatz(
+                team_id=team.id, disziplin_id=disziplin.id,
+                startnummer=lane, heat=f"Vorrunde {heat_nr}"))
 
     db.session.commit()
-    return heat_nr
+    return len(geplante_gruppen)
 
 
 # ── Automatischer Turnier-Fortschritt (Platzierungsläufe, Halbfinale, Finale) ─
@@ -263,9 +283,10 @@ def _naechste_lauf_nummer(disziplin: Disziplin) -> int:
 
 def _naechste_runde_erzeugen(disziplin: Disziplin) -> dict:
     """Erzeugt aus der Vorrunden-Gesamtrangliste automatisch die
-    Platzierungslaeufe (Plaetze 9..N, 4er-Gruppen von unten nach oben, damit
-    die schlechteste Gruppe zuerst laeuft) sowie die zwei zufaellig
-    ausgelosten Halbfinal-Laeufe (Plaetze 1-8). Ersetzt eine vorhandene
+    Platzierungslaeufe (Plaetze 9..N, 4er-Gruppen grundsaetzlich von unten
+    nach oben) sowie die zwei zufaellig ausgelosten Halbfinal-Laeufe
+    (Plaetze 1-8). Falls fuer die garantierte Pause noetig, wird eine andere
+    dieser Gruppen als erster Lauf angesetzt. Ersetzt eine vorhandene
     Platzierungs-/Halbfinale-Einteilung dieser Disziplin komplett."""
     rangliste = _rangliste_berechnen(disziplin, "Vorrunde")
     unvollstaendig = [e for e in rangliste if not e["vollstaendig"]]
@@ -279,12 +300,9 @@ def _naechste_runde_erzeugen(disziplin: Disziplin) -> dict:
             "Mindestens 8 Teams mit Vorrunden-Ergebnis noetig fuer "
             "Halbfinale/Platzierungslaeufe.")
 
-    for sp in list(disziplin.startplaetze):
-        if sp.heat and ("Platzierungslauf" in sp.heat or "Halbfinale" in sp.heat):
-            db.session.delete(sp)
-
     nr = _naechste_lauf_nummer(disziplin)
     platzierungslaeufe = 0
+    gruppen: list[tuple[str, list[Team]]] = []
 
     rest = rangliste[8:]                 # Plaetze 9..N, aufsteigend
     rest_schlechteste_zuerst = list(reversed(rest))
@@ -293,18 +311,43 @@ def _naechste_runde_erzeugen(disziplin: Disziplin) -> dict:
     for block in bloecke:
         block = list(reversed(block))    # innerhalb der Gruppe wieder bester zuerst
         von, bis = block[0]["rang"], block[-1]["rang"]
-        heat_name = f"{nr} Platzierungslauf Platz {von}-{bis}"
-        for lane, eintrag in enumerate(block, start=1):
-            db.session.add(Startplatz(
-                team_id=eintrag["team"].id, disziplin_id=disziplin.id,
-                startnummer=lane, heat=heat_name))
-        nr += 1
+        gruppen.append((f"Platzierungslauf Platz {von}-{bis}",
+                        [eintrag["team"] for eintrag in block]))
         platzierungslaeufe += 1
 
     top8 = [e["team"] for e in rangliste[:8]]
     random.shuffle(top8)
     for buchstabe, gruppe in zip("AB", (top8[:4], top8[4:])):
-        heat_name = f"{nr} Halbfinale {buchstabe}"
+        gruppen.append((f"Halbfinale {buchstabe}", gruppe))
+
+    vorrunden_heats = [heat for heat in _heats_in_reihenfolge(disziplin)
+                       if heat.startswith("Vorrunde")]
+    letzter_vorrunden_heat = vorrunden_heats[-1]
+    letzte_team_ids = {
+        sp.team_id for sp in disziplin.startplaetze
+        if sp.heat == letzter_vorrunden_heat
+    }
+    # Alle Teams treten in dieser neuen Runde nur einmal an. Daher reicht
+    # es, eine Gruppe ohne Ueberschneidung mit dem letzten Vorrunden-Lauf an
+    # die erste Stelle zu setzen; danach sind die Gruppen untereinander
+    # automatisch konfliktfrei.
+    erster_mit_pause = next(
+        (i for i, (_name, gruppe) in enumerate(gruppen)
+         if not ({team.id for team in gruppe} & letzte_team_ids)), None)
+    if erster_mit_pause is None:
+        raise ValueError(
+            "Die nächste Runde kann nicht mit mindestens einem Lauf Pause "
+            "angesetzt werden. Die bestehende Einteilung wurde nicht verändert.")
+    if erster_mit_pause:
+        gruppen[0], gruppen[erster_mit_pause] = (
+            gruppen[erster_mit_pause], gruppen[0])
+
+    for sp in list(disziplin.startplaetze):
+        if sp.heat and ("Platzierungslauf" in sp.heat or "Halbfinale" in sp.heat):
+            db.session.delete(sp)
+
+    for bezeichnung, gruppe in gruppen:
+        heat_name = f"{nr} {bezeichnung}"
         for lane, team in enumerate(gruppe, start=1):
             db.session.add(Startplatz(
                 team_id=team.id, disziplin_id=disziplin.id,
