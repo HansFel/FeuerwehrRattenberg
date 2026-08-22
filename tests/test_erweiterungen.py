@@ -1,8 +1,30 @@
 """Tests für CSV- und PDF-Export (öffentlich lesbar)."""
 import pytest
+import base64
+import re
+import zlib
 
 from app import create_app
-from app.models import db, Team, Disziplin, Ergebnis, WERTUNG_ZEIT
+from app.models import (db, Team, Disziplin, Ergebnis, Startplatz,
+                        WERTUNG_ZEIT)
+
+
+def _reportlab_text(pdf: bytes) -> str:
+    """Textfragmente aus den komprimierten ReportLab-Seitenströmen lesen.
+
+    Die Tabellenköpfe dürfen durch Paragraph-Umbruch auf mehrere Fragmente
+    verteilt sein; für Reihenfolgeprüfungen reicht die Zeichenfolge aller
+    ausgegebenen Textoperatoren.
+    """
+    fragmente = []
+    for roh in re.findall(rb"stream\r?\n(.*?)endstream", pdf, re.DOTALL):
+        try:
+            inhalt = zlib.decompress(base64.a85decode(
+                roh.strip().rstrip(b"~>"), adobe=False))
+        except (ValueError, zlib.error):
+            continue
+        fragmente.extend(re.findall(rb"\((.*?)\)\s*Tj", inhalt))
+    return " ".join(f.decode("latin-1") for f in fragmente)
 
 
 @pytest.fixture
@@ -64,16 +86,51 @@ def test_pdf_gesamtwertung_enthaelt_gemessene_zeit_und_strafen(app):
     r = client.get("/pdf/gesamtwertung.pdf")
     assert r.status_code == 200
 
-    # ReportLab komprimiert den Seiteninhalt (ASCII85 + Flate) - zum Prüfen
-    # der enthaltenen Spalten muss der Stream erst dekodiert werden.
-    import base64
-    import re
-    import zlib
-    match = re.search(rb"stream\r?\n(.*?)endstream", r.data, re.DOTALL)
-    roh = match.group(1).strip().rstrip(b"~>")
-    dekodiert = zlib.decompress(base64.a85decode(roh, adobe=False))
-    text = dekodiert.decode("latin-1")
+    text = _reportlab_text(r.data)
     # Getraenkepunkte sind seit Build 57 nur noch in der Team-Challenge-Wertung,
     # nicht mehr in der Siloplanen-Race-Gesamtwertung.
-    for stichwort in ("Rangpunkte", "Strafsek", "Gemessene Zeit", "Gesamtzeit"):
+    for stichwort in ("Rang", "punkte", "Strafsek", "Gemessene", "Gesamtzeit"):
         assert stichwort in text
+
+
+def test_pdf_tabellen_brechen_lange_namen_innerhalb_der_spalte_um():
+    """Lange Namen müssen die Zeile erhöhen statt Nachbarspalten zu
+    überdecken."""
+    from app.blueprints.pdf import _tabelle
+    from reportlab.lib.units import mm
+
+    kurz = _tabelle([["Rang", "Mannschaft", "Ort"],
+                     ["1", "Kurz", "Rattenberg"]],
+                    [18 * mm, 70 * mm, 70 * mm])
+    lang = _tabelle([["Rang", "Mannschaft", "Ort"],
+                     ["1", "Freiwillige Feuerwehr mit einem besonders langen Mannschaftsnamen",
+                      "Sehr langer Orts- und Abschnittsname"]],
+                    [18 * mm, 70 * mm, 70 * mm])
+
+    kurz.wrapOn(None, 174 * mm, 250 * mm)
+    lang.wrapOn(None, 174 * mm, 250 * mm)
+    assert lang._rowHeights[1] > kurz._rowHeights[1]
+
+
+def test_pdf_startliste_sortiert_lauf_numerisch_bahn_und_alphabetisch(app):
+    with app.app_context():
+        d = db.session.query(Disziplin).first()
+        disziplin_id = d.id
+        zulu = Team(name="Zulu mit langem Namen", wehr="Ort Z")
+        alpha = Team(name="Alpha", wehr="Ort A")
+        ohne = Team(name="Ohne Startnummer", wehr="Ort O")
+        db.session.add_all([zulu, alpha, ohne])
+        db.session.flush()
+        db.session.add_all([
+            Startplatz(team_id=zulu.id, disziplin_id=d.id, startnummer=2,
+                       heat="Vorrunde 2"),
+            Startplatz(team_id=alpha.id, disziplin_id=d.id, startnummer=2,
+                       heat="Vorrunde 2"),
+            Startplatz(team_id=ohne.id, disziplin_id=d.id, startnummer=1,
+                       heat="Vorrunde 10"),
+        ])
+        db.session.commit()
+
+    antwort = app.test_client().get(f"/pdf/startliste/{disziplin_id}.pdf")
+    text = _reportlab_text(antwort.data)
+    assert text.index("Alpha") < text.index("Zulu") < text.index("Ohne Startnummer")

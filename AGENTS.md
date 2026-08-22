@@ -784,6 +784,21 @@ Für die DMX-Bahnbeleuchtung zusätzlich `DMX_Zeitmessung/README.md`
 (Hardware/Verkabelung/Protokoll) sowie den Abschnitt "DMX-Bahnbeleuchtung"
 oben.
 
+## PDF-Listen und Wertungen (seit Build 80)
+
+Die vier Wettbewerbs-PDFs (`Gesamtwertung`, `Team Challenge`,
+Disziplin-Rangliste und Startliste) verwenden gemeinsam umbrechende
+ReportLab-Paragraph-Zellen. Lange Mannschafts-, Wehr-, Orts- und
+Sponsorennamen bleiben dadurch innerhalb ihrer Spalten. Ergebnislisten sind
+nach Rang sortiert und verwenden bei gleichem Wert Mannschaft/Wehr als
+alphabetischen Zweitschlüssel. Die Startliste ist nicht nach der früher als
+„Start-Nr.“ bezeichneten Bahn 1-4 gruppiert, sondern sachlich nach der
+numerischen Lauf-/Heat-Reihenfolge, innerhalb des Laufs nach Bahn und bei
+Gleichstand alphabetisch. Ihre Spalten heißen `Lauf`, `Startzeit`, `Bahn`,
+`Mannschaft`, `Wehr / Ort`. Visuell geprüft wurden alle Seiten aller vier
+PDF-Arten mit 40 Einträgen und langen realen Namensformen; Regressionstests
+liegen in `tests/test_erweiterungen.py`.
+
 ## Backup-Server und Failover (seit 2026-08-22)
 
 Der zweite Ubuntu-Server `ffrattenberg` läuft regulär unter `192.168.1.35`

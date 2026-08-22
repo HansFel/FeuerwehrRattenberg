@@ -4,13 +4,16 @@ Erzeugt echte, herunterladbare PDF-Dateien (reportlab) für Aushang und
 Siegerehrung.
 """
 import io
+import re
 from datetime import date
+from xml.sax.saxutils import escape
 
 from flask import Blueprint, Response
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import (SimpleDocTemplate, Table, TableStyle,
                                 Paragraph, Spacer)
@@ -53,16 +56,45 @@ def _dokument(titel: str, elemente: list, dateiname: str) -> Response:
     )
 
 
-def _tabelle(daten: list[list], breiten: list[float]) -> Table:
-    t = Table(daten, colWidths=breiten, repeatRows=1)
+def _tabelle(daten: list[list], breiten: list[float],
+              text_spalten: tuple[int, ...] = (1, 2)) -> Table:
+    kopf_stil = ParagraphStyle(
+        "Tabellenkopf", fontName="Helvetica-Bold", fontSize=8.5,
+        leading=10, textColor=colors.white, alignment=TA_CENTER,
+        splitLongWords=True,
+    )
+    text_stil = ParagraphStyle(
+        "Tabellentext", fontName="Helvetica", fontSize=8,
+        leading=9.5, textColor=colors.black, alignment=TA_LEFT,
+        splitLongWords=True,
+    )
+    zentriert_stil = ParagraphStyle(
+        "Tabellenwert", parent=text_stil, alignment=TA_CENTER,
+    )
+
+    # Paragraph statt nacktem String: lange Mannschafts-/Ortsnamen werden
+    # innerhalb ihrer Spalte umgebrochen und können nie in die Nachbarspalte
+    # hineinlaufen. Zahlen und kurze Werte werden mittig ausgerichtet.
+    aufbereitet = []
+    for zeilen_index, zeile in enumerate(daten):
+        neue_zeile = []
+        for spalten_index, wert in enumerate(zeile):
+            stil = kopf_stil if zeilen_index == 0 else (
+                text_stil if spalten_index in text_spalten else zentriert_stil)
+            text = escape(str(wert if wert is not None else ""))
+            neue_zeile.append(Paragraph(text, stil))
+        aufbereitet.append(neue_zeile)
+
+    t = Table(aufbereitet, colWidths=breiten, repeatRows=1,
+              hAlign="CENTER")
     t.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), GRAU),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 10),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f2f2f2")]),
         ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cccccc")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 3),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
         ("TOPPADDING", (0, 0), (-1, -1), 5),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
     ]))
@@ -82,8 +114,8 @@ def gesamt():
                       str(round(z["strafsekunden"])),
                       format_zeit(z["gemessene_zeit"]),
                       format_zeit(z["gesamtzeit"])])
-    tabelle = _tabelle(daten, [20 * mm, 32 * mm, 28 * mm, 20 * mm,
-                               18 * mm, 24 * mm, 24 * mm])
+    tabelle = _tabelle(daten, [18 * mm, 34 * mm, 30 * mm, 22 * mm,
+                               20 * mm, 25 * mm, 25 * mm])
     return _dokument("Gesamtwertung", [tabelle], "gesamtwertung.pdf")
 
 
@@ -96,18 +128,21 @@ def team_challenge():
         if pos.team_id and pos.punkte_gesamt:
             gp[pos.team_id] = gp.get(pos.team_id, 0) + pos.punkte_gesamt
     daten = [["Rang", "Mannschaft", "Wehr / Ort",
-              "Getraenkepunkte", "Fanpunkte", "Gesamt"]]
+              "Getränkepunkte", "Fanpunkte", "Gesamt"]]
     eintraege = []
     for t in teams:
         g = gp.get(t.id, 0)
         f = t.fanpunkte or 0
         eintraege.append((t, g, f, g + f))
-    eintraege.sort(key=lambda e: e[3], reverse=True)
+    eintraege.sort(key=lambda e: (
+        -e[3], (e[0].name or "").casefold(),
+        (e[0].wehr or "").casefold(),
+    ))
     for i, (t, g, f, ges) in enumerate(eintraege, start=1):
         daten.append([str(i), t.name, t.wehr or "",
                       str(g), str(f), str(ges)])
-    tabelle = _tabelle(daten, [18 * mm, 35 * mm, 30 * mm,
-                               25 * mm, 22 * mm, 20 * mm])
+    tabelle = _tabelle(daten, [18 * mm, 38 * mm, 34 * mm,
+                               28 * mm, 24 * mm, 22 * mm])
     return _dokument("Team Challenge", [tabelle], "team_challenge.pdf")
 
 
@@ -136,13 +171,21 @@ def disziplin(disziplin_id: int):
 @bp.route("/startliste/<int:disziplin_id>.pdf")
 def startliste(disziplin_id: int):
     d = db.get_or_404(Disziplin, disziplin_id)
-    startplaetze = (Startplatz.query.filter_by(disziplin_id=d.id)
-                    .order_by(Startplatz.startnummer).all())
-    daten = [["Start-Nr.", "Mannschaft", "Wehr / Ort", "Startzeit", "Heat"]]
+    startplaetze = Startplatz.query.filter_by(disziplin_id=d.id).all()
+
+    def sortierschluessel(sp):
+        zahlen = tuple(int(z) for z in re.findall(r"\d+", sp.heat or ""))
+        return (zahlen or (0,), sp.startnummer if sp.startnummer is not None else 999,
+                (sp.team.name or "").casefold(),
+                (sp.team.wehr or "").casefold())
+
+    startplaetze.sort(key=sortierschluessel)
+    daten = [["Lauf", "Startzeit", "Bahn", "Mannschaft", "Wehr / Ort"]]
     for sp in startplaetze:
-        daten.append([str(sp.startnummer if sp.startnummer is not None else ""),
-                      sp.team.name, sp.team.wehr or "", sp.startzeit or "",
-                      sp.heat or ""])
-    tabelle = _tabelle(daten, [20 * mm, 62 * mm, 50 * mm, 24 * mm, 18 * mm])
+        daten.append([sp.heat or "", sp.startzeit or "",
+                      str(sp.startnummer if sp.startnummer is not None else ""),
+                      sp.team.name, sp.team.wehr or ""])
+    tabelle = _tabelle(daten, [38 * mm, 22 * mm, 14 * mm, 58 * mm, 42 * mm],
+                       text_spalten=(3, 4))
     return _dokument(f"Startliste – {d.name}", [tabelle],
                      f"startliste_{disziplin_id}.pdf")

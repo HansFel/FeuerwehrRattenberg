@@ -32,11 +32,19 @@ def rangliste_disziplin(disziplin: Disziplin) -> list[Platzierung]:
                                      wert=wert, rang=None))
 
     gewertet = [e for e in eintraege if e.wert is not None]
-    gewertet.sort(key=lambda e: e.wert, reverse=not ist_zeit)
+    gewertet.sort(key=lambda e: (
+        e.wert if ist_zeit else -e.wert,
+        (e.team.name or "").casefold(),
+        (e.team.wehr or "").casefold(),
+    ))
     for i, e in enumerate(gewertet, start=1):
         e.rang = i
 
-    ohne = [e for e in eintraege if e.wert is None]
+    ohne = sorted(
+        (e for e in eintraege if e.wert is None),
+        key=lambda e: ((e.team.name or "").casefold(),
+                       (e.team.wehr or "").casefold()),
+    )
     return gewertet + ohne
 
 
@@ -55,7 +63,10 @@ def gesamtwertung(teams: list[Team],
             rangpunkte[p.team.id] += p.rang if p.rang is not None else strafe
 
     tabelle = [{"team": t, "punkte": rangpunkte[t.id]} for t in teams]
-    tabelle.sort(key=lambda z: z["punkte"])
+    tabelle.sort(key=lambda z: (
+        z["punkte"], (z["team"].name or "").casefold(),
+        (z["team"].wehr or "").casefold(),
+    ))
     for i, z in enumerate(tabelle, start=1):
         z["rang"] = i
     return tabelle
@@ -129,7 +140,10 @@ def team_challenge(teams: list[Team]) -> list[dict]:
             "team": t, "getraenkepunkte": getraenke,
             "fanpunkte": fan, "gesamt": getraenke + fan,
         })
-    eintraege.sort(key=lambda e: e["gesamt"], reverse=True)
+    eintraege.sort(key=lambda e: (
+        -e["gesamt"], (e["team"].name or "").casefold(),
+        (e["team"].wehr or "").casefold(),
+    ))
     for i, e in enumerate(eintraege, start=1):
         e["rang"] = i
     return eintraege
@@ -174,11 +188,13 @@ def gesamtwertung_vollstaendig(teams: list[Team],
         zeile["finaler_platz"] = finale_platzierung(zeile["team"], strafsekunden)
 
     def _sortier_schluessel(z):
+        alphabetisch = ((z["team"].name or "").casefold(),
+                        (z["team"].wehr or "").casefold())
         if z["finaler_platz"] is not None:
-            return (0, z["finaler_platz"])
+            return (0, z["finaler_platz"], *alphabetisch)
         if z["gesamtzeit"] is not None:
-            return (1, z["gesamtzeit"])
-        return (2, 0)
+            return (1, z["gesamtzeit"], *alphabetisch)
+        return (2, 0, *alphabetisch)
     tabelle.sort(key=_sortier_schluessel)
     for i, zeile in enumerate(tabelle, start=1):
         zeile["rang"] = zeile["finaler_platz"] if zeile["finaler_platz"] is not None else i
