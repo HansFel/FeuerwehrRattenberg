@@ -6,7 +6,8 @@ from flask_login import current_user
 
 from ..auth import rolle_noetig
 from ..models import db, Disziplin, ModeratorStatus, Nachricht, Startplatz, Team
-from ..wertung import gesamtwertung_vollstaendig, team_challenge
+from ..wertung import (gesamtwertung_vollstaendig, team_challenge,
+                       beste_einzelzeit)
 
 bp = Blueprint("moderator", __name__, url_prefix="/moderator")
 
@@ -104,6 +105,7 @@ def _live_daten(status: ModeratorStatus) -> dict:
         laufende_teams=_laufende_teams(status),
         siloplanen_tabelle=gesamtwertung_vollstaendig(teams, disziplinen),
         team_challenge_tabelle=team_challenge(teams),
+        beste_einzelzeit=beste_einzelzeit(),
         naechster=naechster,
         naechster_teams=_teams_fuer_heat(naechster) if naechster else [],
     )

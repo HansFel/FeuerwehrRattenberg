@@ -73,6 +73,12 @@ Optimierung verändert werden:
 
 ## Technische Wertungsregeln
 
+- Die „Beste Einzelzeit“ ist eine laufend aktualisierte, rein informative
+  Auszeichnung aus allen vollständig gemessenen Bahnen aller Läufe. Sie hat
+  keinerlei Einfluss auf Weiterkommen, Laufreihenfolge oder Gesamtplatzierung.
+- Angefangene oder abgebrochene Bahnen mit fehlenden beziehungsweise nicht
+  positiven Teilzeiten werden dafür nicht berücksichtigt.
+
 - Die automatische Vorrundenrangliste und die Auswahl der besten acht basiert
   derzeit auf der Summe von `Startplatz.ergebnis_sekunden` der beiden
   Vorrundenläufe.
@@ -96,4 +102,3 @@ Regeländerung und benötigt vor der Umsetzung eine ausdrückliche Freigabe.
 - Vor Änderungen an der Turnierlogik müssen Tests mindestens Vorrunde,
   Platzierungsläufe, Halbfinale, beide Finale, harte Reihenfolge und weiche
   Pausenregel abdecken.
-

@@ -7,7 +7,8 @@ reduziert fuer Gaeste am Handy)."""
 from flask import Blueprint, jsonify, render_template
 
 from ..models import Team, Disziplin, Startplatz, Strafe
-from ..wertung import gesamtwertung_vollstaendig, team_challenge
+from ..wertung import (gesamtwertung_vollstaendig, team_challenge,
+                       beste_einzelzeit)
 from .zeitplan import _startplaetze_numerisch_sortieren
 
 bp = Blueprint("besucher", __name__, url_prefix="/besucher")
@@ -38,6 +39,7 @@ def _besucher_daten() -> dict:
             zeitplan.append({"disziplin": d, "startplaetze": startplaetze})
 
     return dict(tabelle=tabelle, team_challenge_tabelle=challenge_tabelle,
+               beste_einzelzeit=beste_einzelzeit(),
                zeitplan=zeitplan, strafsekunden=strafsekunden)
 
 

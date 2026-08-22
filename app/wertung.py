@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 
 from .models import (Disziplin, Ergebnis, Team, WERTUNG_ZEIT, Startplatz,
-                     BestellPosition, Strafe)
+                     BestellPosition, Strafe, NotfallBahn)
 
 
 @dataclass
@@ -81,6 +81,39 @@ def format_zeit(sekunden: float | None) -> str:
     if minuten:
         return f"{minuten}:{rest:05.2f}".replace(".", ",")
     return f"{rest:.2f}".replace(".", ",") + " s"
+
+
+def beste_einzelzeit() -> dict | None:
+    """Schnellste positive Teilzeit aus allen vollständig gemessenen Bahnen.
+
+    Angefangene oder abgebrochene Bahnen werden ignoriert. Die Auszeichnung
+    ist rein informativ und beeinflusst weder Weiterkommen noch Platzierung.
+    """
+    beste = None
+    bahnen = (NotfallBahn.query
+              .order_by(NotfallBahn.lauf_id, NotfallBahn.bahn_nr,
+                        NotfallBahn.id).all())
+    for bahn in bahnen:
+        zeiten = [getattr(bahn, f"zeit_laeufer{i}") for i in range(1, 5)]
+        if any(zeit is None or zeit <= 0 for zeit in zeiten):
+            continue
+        mitglieder = {m.position: m for m in (bahn.team.mitglieder
+                                               if bahn.team else [])}
+        for laeufer_nr, zeit in enumerate(zeiten, start=1):
+            mitglied = mitglieder.get(laeufer_nr)
+            kandidat = {
+                "zeit": float(zeit),
+                "team": bahn.team,
+                "mitglied": mitglied,
+                "laeufer_name": (mitglied.anzeige() if mitglied
+                                  else f"Läufer {laeufer_nr}"),
+                "laeufer_nr": laeufer_nr,
+                "lauf": bahn.lauf,
+                "bahn_nr": bahn.bahn_nr,
+            }
+            if beste is None or kandidat["zeit"] < beste["zeit"]:
+                beste = kandidat
+    return beste
 
 
 _ZIEL_PLATZ_MUSTER = re.compile(r"Platz (\d+)-(\d+)")

@@ -15,6 +15,23 @@
     <a class="knopf klein grau" href="{{ url_for('export.ergebnisse') }}">⤓ Alle Ergebnisse CSV</a>
   </div>
 
+  <section class="dash-karte" style="margin:1rem 0">
+    <h2>⚡ Beste Einzelzeit</h2>
+    {% if beste_einzelzeit %}
+      <p style="font-size:1.15rem; margin-bottom:0.3rem">
+        <strong>{{ beste_einzelzeit.laeufer_name }}</strong> ·
+        {{ beste_einzelzeit.team.name }} ·
+        <strong>{{ beste_einzelzeit.zeit|zeit }}</strong>
+      </p>
+      <small class="leer">
+        {{ beste_einzelzeit.lauf.bezeichnung or ('Lauf ' ~ beste_einzelzeit.lauf.id) }} ·
+        Bahn {{ beste_einzelzeit.bahn_nr }} · Läufer {{ beste_einzelzeit.laeufer_nr }}
+      </small>
+    {% else %}
+      <p class="leer">Noch keine vollständig gemessene Bahn vorhanden.</p>
+    {% endif %}
+  </section>
+
   {% if tabelle %}
   <table>
     <thead>

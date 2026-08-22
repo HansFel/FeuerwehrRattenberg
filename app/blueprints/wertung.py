@@ -3,7 +3,8 @@ from flask import (Blueprint, flash, redirect, render_template, request,
                    url_for)
 
 from ..models import db, Team, Disziplin, Ergebnis, WERTUNG_ZEIT
-from ..wertung import rangliste_disziplin, gesamtwertung_vollstaendig, team_challenge
+from ..wertung import (rangliste_disziplin, gesamtwertung_vollstaendig,
+                       team_challenge, beste_einzelzeit)
 from ..auth import darf, rolle_noetig
 
 bp = Blueprint("wertung", __name__, url_prefix="/wertung")
@@ -30,7 +31,8 @@ def uebersicht():
 
     return render_template("wertung/uebersicht.html",
                            disziplinen=disziplinen, tabelle=tabelle,
-                           team_challenge=challenge_tabelle)
+                           team_challenge=challenge_tabelle,
+                           beste_einzelzeit=beste_einzelzeit())
 
 
 @bp.route("/disziplin/<int:disziplin_id>", methods=["GET", "POST"])

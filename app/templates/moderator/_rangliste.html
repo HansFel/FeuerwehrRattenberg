@@ -1,4 +1,21 @@
 <section class="dash-karte" style="margin-bottom:1rem;">
+  <h2>⚡ Beste Einzelzeit</h2>
+  {% if beste_einzelzeit %}
+    <p style="font-size:1.15rem; margin-bottom:0.3rem">
+      <strong>{{ beste_einzelzeit.laeufer_name }}</strong> ·
+      {{ beste_einzelzeit.team.name }} ·
+      <strong>{{ beste_einzelzeit.zeit|zeit }}</strong>
+    </p>
+    <small class="leer">
+      {{ beste_einzelzeit.lauf.bezeichnung or ('Lauf ' ~ beste_einzelzeit.lauf.id) }} ·
+      Bahn {{ beste_einzelzeit.bahn_nr }} · Läufer {{ beste_einzelzeit.laeufer_nr }}
+    </small>
+  {% else %}
+    <p class="leer">Noch keine vollständig gemessene Bahn vorhanden.</p>
+  {% endif %}
+</section>
+
+<section class="dash-karte" style="margin-bottom:1rem;">
   <h2>🏁 Siloplanen-Race Wertung</h2>
   {% if siloplanen_tabelle %}
   <table class="moderator-rangliste">

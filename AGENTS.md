@@ -117,6 +117,17 @@ Pfand zurück / Zu bezahlen. Dateien: `app/templates/ausschank_dashboard.html`,
 
 ## Produktions-Deployment
 
+**Beste Einzelzeit (vorbereitet für Build 84):** `app/wertung.py:
+beste_einzelzeit()` ermittelt rein lesend die schnellste positive Teilzeit aus
+allen vier Teilzeiten aller vollständig gemessenen `NotfallBahn`-Datensätze.
+Ausgegeben werden Läufername (über Mitgliedsposition 1–4), Mannschaft, Lauf,
+Bahn und Zeit in Webwertung, live gepollter Moderation, live gepollter
+Besucheransicht und Gesamtwertungs-PDF. Unvollständige/abgebrochene Bahnen
+werden ignoriert. Diese Auszeichnung ist rein informativ und verändert laut
+`TURNIERREGELN.md` weder Weiterkommen noch Platzierung. Die Besucheransicht
+zeigt damit als bewusst gewünschte Ausnahme den Namen des aktuell schnellsten
+Läufers; andere Mitgliedsnamen bleiben dort verborgen.
+
 **Strafenkatalog-Gnadenfenster für den vorherigen Lauf (Build 83,
 2026-08-22):** Bugfix, während des laufenden Wettkampfs entdeckt und (auf
 expliziten Wunsch des Users) erst in einer Pause deployt: Punkterichter

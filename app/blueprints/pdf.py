@@ -19,7 +19,8 @@ from reportlab.platypus import (SimpleDocTemplate, Table, TableStyle,
                                 Paragraph, Spacer)
 
 from ..models import db, Team, Disziplin, Startplatz, WERTUNG_ZEIT
-from ..wertung import rangliste_disziplin, gesamtwertung_vollstaendig, format_zeit
+from ..wertung import (rangliste_disziplin, gesamtwertung_vollstaendig,
+                       format_zeit, beste_einzelzeit)
 from ..models import BestellPosition
 
 bp = Blueprint("pdf", __name__, url_prefix="/pdf")
@@ -116,7 +117,24 @@ def gesamt():
                       format_zeit(z["gesamtzeit"])])
     tabelle = _tabelle(daten, [18 * mm, 34 * mm, 30 * mm, 22 * mm,
                                20 * mm, 25 * mm, 25 * mm])
-    return _dokument("Gesamtwertung", [tabelle], "gesamtwertung.pdf")
+    elemente = []
+    einzelzeit = beste_einzelzeit()
+    if einzelzeit:
+        normal = getSampleStyleSheet()["Normal"]
+        lauf_name = einzelzeit["lauf"].bezeichnung or (
+            "Lauf " + str(einzelzeit["lauf"].id))
+        elemente.extend([
+            Paragraph(
+                "<b>Beste Einzelzeit:</b> "
+                f"{escape(einzelzeit['laeufer_name'])} · "
+                f"{escape(einzelzeit['team'].name)} · "
+                f"<b>{escape(format_zeit(einzelzeit['zeit']))}</b><br/>"
+                f"{escape(lauf_name)} · Bahn {einzelzeit['bahn_nr']} · "
+                f"Läufer {einzelzeit['laeufer_nr']}", normal),
+            Spacer(1, 5 * mm),
+        ])
+    elemente.append(tabelle)
+    return _dokument("Gesamtwertung", elemente, "gesamtwertung.pdf")
 
 
 @bp.route("/team_challenge.pdf")
