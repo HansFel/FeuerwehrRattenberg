@@ -7,6 +7,10 @@ im Veranstaltungsnetz mit Flask und PostgreSQL in Docker; mehrere Geräte
 können gleichzeitig zugreifen. SQLite bleibt für isolierte Entwicklung und
 Tests unterstützt.
 
+Das verbindliche Turnierschema und die Regeln für Weiterkommen, Ausscheiden,
+Laufreihenfolge und Pausen sind in [`TURNIERREGELN.md`](TURNIERREGELN.md)
+dokumentiert. Änderungen an der Turnierlogik müssen damit kompatibel bleiben.
+
 ## Funktionen
 
 - **Mannschaften** anlegen/bearbeiten (Name, Wehr/Ort, Startnummer, Kontakt)

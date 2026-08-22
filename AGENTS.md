@@ -38,6 +38,16 @@ Hauptdisziplin (Staffel-Wettbewerb mit Planen). Repo: lokal unter
 `C:\dev\FeuerwehrRattenberg`, auf GitHub unter
 **`HansFel/FeuerwehrRattenberg`** (privat).
 
+## Verbindliches fachliches Regelwerk
+
+Das Turnierschema steht zentral in **`TURNIERREGELN.md`**. Diese Datei ist für
+alle Änderungen an Auslosung, Zeitplan, Moderation, Zeitmessungszuordnung,
+Wertung, Ranglisten und PDF-Ausgaben verbindlich. Jede Änderung in diesen
+Bereichen muss damit kompatibel sein. Bei einem Widerspruch nicht eigenständig
+eine fachliche Regel verändern, sondern zuerst die ausdrückliche Entscheidung
+der Veranstalter einholen und danach Regelwerk, Implementierung und Tests
+gemeinsam aktualisieren.
+
 ## Tech-Stack
 
 Flask + Flask-SQLAlchemy + Flask-Login, App-Factory-Pattern
