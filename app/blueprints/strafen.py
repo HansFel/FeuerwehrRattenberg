@@ -9,25 +9,49 @@ from flask_login import current_user
 
 from ..models import db, Team, Strafe, ModeratorStatus, Startplatz, STRAFKATALOG, STRAFKATALOG_NACH_NR
 from ..auth import rolle_noetig
+from .moderator import _heats_numerisch
 
 bp = Blueprint("strafen", __name__, url_prefix="/strafen")
 
 
-def _aktuelle_teams() -> list[Team]:
-    """Teams des aktuell im Moderator-Dashboard eingestellten Laufs
-    (Disziplin + Heat) - nur diese duerfen eine Strafe bekommen, damit
-    der Punkterichter nicht versehentlich ein Team eines anderen Laufs
-    trifft."""
-    status = db.session.get(ModeratorStatus, 1)
-    if status is None or not status.disziplin_id:
-        return []
-    query = Startplatz.query.filter_by(disziplin_id=status.disziplin_id)
-    if status.heat:
-        query = query.filter_by(heat=status.heat)
+def _teams_fuer_heat(disziplin_id: int, heat: str) -> list[Team]:
+    query = Startplatz.query.filter_by(disziplin_id=disziplin_id)
+    if heat:
+        query = query.filter_by(heat=heat)
     else:
         query = query.filter((Startplatz.heat == "") | (Startplatz.heat.is_(None)))
     startplaetze = query.order_by(Startplatz.startnummer, Startplatz.id).all()
     return [sp.team for sp in startplaetze if sp.team is not None]
+
+
+def _aktuelle_teams() -> list[Team]:
+    """Teams des aktuell im Moderator-Dashboard eingestellten Laufs
+    (Disziplin + Heat) PLUS Teams des unmittelbar VORHERIGEN Laufs - nur
+    diese duerfen eine Strafe bekommen, damit der Punkterichter nicht
+    versehentlich ein Team eines laengst zurueckliegenden Laufs trifft.
+
+    Der vorherige Lauf ist bewusst mit dabei (seit 2026-08-21): Sobald ein
+    Heat vollstaendig ist (alle Zeiten da), springt
+    moderator.py:_lauf_automatisch_weiterruecken() den Moderator-Status
+    SOFORT zum naechsten Heat weiter (bei jedem Dashboard-Poll, also
+    innerhalb weniger Sekunden). Ohne diese Erweiterung faellt das gerade
+    fertig gelaufene Team praktisch augenblicklich aus der erlaubten Liste
+    - genau dann, wenn ein Punkterichter am ehesten noch eine Strafe dafuer
+    nachtragen will."""
+    status = db.session.get(ModeratorStatus, 1)
+    if status is None or not status.disziplin_id:
+        return []
+    aktueller_heat = status.heat or ""
+    teams = _teams_fuer_heat(status.disziplin_id, aktueller_heat)
+
+    heats = _heats_numerisch(status.disziplin_id)
+    if aktueller_heat in heats:
+        idx = heats.index(aktueller_heat)
+        if idx > 0:
+            gesehen = {t.id for t in teams}
+            vorherige_teams = _teams_fuer_heat(status.disziplin_id, heats[idx - 1])
+            teams.extend(t for t in vorherige_teams if t.id not in gesehen)
+    return teams
 
 
 @bp.route("/")

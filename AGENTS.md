@@ -117,6 +117,33 @@ Pfand zurück / Zu bezahlen. Dateien: `app/templates/ausschank_dashboard.html`,
 
 ## Produktions-Deployment
 
+**Strafenkatalog-Gnadenfenster für den vorherigen Lauf (Build 83,
+2026-08-22):** Bugfix, während des laufenden Wettkampfs entdeckt und (auf
+expliziten Wunsch des Users) erst in einer Pause deployt: Punkterichter
+dürfen über `/strafen/` nur Teams aus dem aktuell im Moderator-Dashboard
+eingestellten Lauf (`ModeratorStatus`) bestrafen. Das automatische
+Weiterschalten des Moderator-Status
+(`moderator.py:_lauf_automatisch_weiterruecken`, läuft bei jedem
+Dashboard-Poll) springt aber SOFORT zum nächsten Heat, sobald alle Zeiten
+eines Laufs da sind - dadurch fiel das gerade fertig gelaufene Team
+praktisch augenblicklich (nur wenige Sekunden Fenster) aus der erlaubten
+Liste. `strafen.py:_aktuelle_teams()` erlaubt jetzt zusätzlich Teams des
+unmittelbar VORHERIGEN Heats (nicht beliebig weit zurück). Tests:
+`tests/test_strafen.py::
+test_strafe_fuer_team_des_unmittelbar_vorherigen_heats_erlaubt`,
+`test_strafe_fuer_team_zwei_heats_zurueck_bleibt_abgelehnt`.
+
+**Doppelte Disziplin bereinigt (2026-08-22, reine Datenkorrektur, kein
+Code):** Produktions-DB enthielt zwei fast identische Disziplinen
+("Siloplanen Race" ID 1 ohne Ergebnisse, "Siloplanenrace 22.08.2026" ID 2
+mit den echten Live-Ergebnissen) - Besucher-Zeitplan
+(`app/blueprints/besucher.py`) zeigt bewusst JEDE Disziplin mit
+Startplätzen, dadurch erschienen beide, die alte sogar zuerst
+(alphabetisch vor der neuen). ID 1 (84 Startplätze, 0 mit Ergebnis, keine
+Fremdschlüssel-Referenzen von `ergebnis`/`notfall_bahn`) wurde gelöscht.
+Bei künftigen Disziplin-Anlagen auf Duplikate achten, bevor Startlisten
+importiert/ausgelost werden.
+
 **Pausenregel bei automatischer Auslosung (ab Build 82):** Bei allen
 automatisch erzeugten Läufen außer kleinem/großem Finale wird bestmöglich
 versucht, zwischen zwei Einsätzen derselben Mannschaft mindestens einen

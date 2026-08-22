@@ -210,6 +210,64 @@ def test_strafe_loeschen(client, app):
     assert Strafe.query.count() == 0
 
 
+def test_strafe_fuer_team_des_unmittelbar_vorherigen_heats_erlaubt(client, app):
+    """Bugfix 2026-08-21: das automatische Weiterschalten des Moderator-
+    Status (moderator.py:_lauf_automatisch_weiterruecken) springt sofort
+    zum naechsten Heat, sobald alle Zeiten eines Laufs da sind - ohne
+    dieses Fenster wuerde ein Team fuer eine Strafe unerreichbar, kaum dass
+    sein eigener Lauf fertig ist. Team C (Vorrunde 2) muss also erlaubt
+    sein, wenn der Moderator-Status inzwischen auf 'Vorrunde 3' steht."""
+    with app.app_context():
+        team_c = Team.query.filter_by(name="Team C").first()
+        team_c_id = team_c.id
+        disziplin = Disziplin.query.first()
+        # Team D laeuft in einer dritten Runde - wird selbst zum aktuellen
+        # Heat, "Vorrunde 2" (Team C) ist dann das unmittelbar VORHERIGE.
+        team_d = Team(name="Team D", startnummer=4)
+        db.session.add(team_d)
+        db.session.flush()
+        db.session.add(Startplatz(team_id=team_d.id, disziplin_id=disziplin.id,
+                                  startnummer=1, heat="Vorrunde 3"))
+        status = db.session.get(ModeratorStatus, 1)
+        status.heat = "Vorrunde 3"
+        db.session.commit()
+
+    _login(client, "punkt1", "pw")
+    r = client.post("/strafen/vergeben", data={
+        "team_id": str(team_c_id),
+        "regel_nr": "1",
+    }, follow_redirects=True)
+    assert "Strafe(n) vergeben".encode() in r.data
+    with app.app_context():
+        assert Strafe.query.filter_by(team_id=team_c_id).count() == 1
+
+
+def test_strafe_fuer_team_zwei_heats_zurueck_bleibt_abgelehnt(client, app):
+    """Das Gnadenfenster gilt nur fuer den unmittelbar VORHERIGEN Lauf, nicht
+    beliebig weit zurueck - Team A (Vorrunde 1) darf keine Strafe mehr
+    bekommen, sobald 'Vorrunde 3' aktuell ist (Vorrunde 2 liegt dazwischen)."""
+    with app.app_context():
+        team_a = Team.query.filter_by(name="Team A").first()
+        team_a_id = team_a.id
+        disziplin = Disziplin.query.first()
+        team_d = Team(name="Team D", startnummer=4)
+        db.session.add(team_d)
+        db.session.flush()
+        db.session.add(Startplatz(team_id=team_d.id, disziplin_id=disziplin.id,
+                                  startnummer=1, heat="Vorrunde 3"))
+        status = db.session.get(ModeratorStatus, 1)
+        status.heat = "Vorrunde 3"
+        db.session.commit()
+
+    _login(client, "punkt1", "pw")
+    r = client.post("/strafen/vergeben", data={
+        "team_id": str(team_a_id),
+        "regel_nr": "1",
+    }, follow_redirects=True)
+    assert "nicht im aktuellen Lauf".encode() in r.data
+    assert Strafe.query.count() == 0
+
+
 def test_strafen_summe_je_team(client, app):
     _login(client, "punkt1", "pw")
     with app.app_context():
