@@ -100,24 +100,22 @@ def test_auslosen_erzeugt_zwei_laeufe_je_team(client, app):
                    for nrn in lauf_nr_je_team.values())
 
 
-def test_unmoegliche_pause_belaesst_bestehende_startliste(client, app):
+def test_unmoegliche_pause_blockiert_auslosung_nicht(client, app):
     with app.app_context():
         d = Disziplin.query.first()
         d_id = d.id
         # Mit nur zwei Teams und vier Bahnen gibt es pro Runde nur einen
         # Lauf; zwischen Runde 1 und 2 kann daher kein Pausenlauf liegen.
         Team.query.filter(Team.startnummer > 2).delete()
-        team = Team.query.order_by(Team.startnummer).first()
-        db.session.add(Startplatz(team_id=team.id, disziplin_id=d_id,
-                                  startnummer=1, heat="Bestehend"))
         db.session.commit()
-
     _login(client, "richter", "pw")
     r = client.post(f"/zeitplan/disziplin/{d_id}", data={"aktion": "auslosen"},
                     follow_redirects=True)
-    assert "nicht möglich".encode() in r.data
+    assert "neu ausgelost".encode() in r.data
     with app.app_context():
-        assert Startplatz.query.filter_by(heat="Bestehend").count() == 1
+        # Die feste Folge der zwei Runden bleibt bestehen, obwohl bei nur
+        # einem Lauf je Runde kein Pausenlauf möglich ist.
+        assert Startplatz.query.count() == 4
 
 
 def test_auslosen_ersetzt_vorhandene_startliste(client, app):
@@ -309,15 +307,23 @@ def test_naechste_runde_automatisch_erzeugt_platzierung_und_halbfinale(client, a
                                     for sp in eintraege)
         assert teams_halbfinale == {1, 2, 3, 4, 5, 6, 7, 8}
 
-        # Auch am Uebergang von der Vorrunde zur naechsten Runde darf kein
-        # Team direkt im folgenden Lauf wieder antreten.
+        # In diesem konstruierten Sonderfall sind die Teams des letzten
+        # Vorrundenlaufs zugleich die einzige Platzierungsgruppe. Die harte
+        # Reihenfolge bleibt bestehen, obwohl dadurch keine Pause möglich ist.
         letzter_vorrunden_heat = "Vorrunde 6"
         erste_neue_nr = min(int(n.split(" ", 1)[0]) for n in heats)
         erster_neuer_heat = next(n for n in heats
                                  if int(n.split(" ", 1)[0]) == erste_neue_nr)
         vorher = {sp.team_id for sp in alle if sp.heat == letzter_vorrunden_heat}
         nachher = {sp.team_id for sp in heats[erster_neuer_heat]}
-        assert vorher.isdisjoint(nachher)
+        assert vorher == nachher
+
+        # Fachliche Reihenfolge ist hart: schlechteste Platzierungslaeufe
+        # laufen vor den Halbfinalen, auch wenn eine Pause anders leichter
+        # erreichbar waere.
+        platz_nr = int(platzierung[0].split(" ", 1)[0])
+        halbfinale_nrn = [int(n.split(" ", 1)[0]) for n in halbfinale_namen]
+        assert platz_nr < min(halbfinale_nrn)
 
         # Innerhalb der erzeugten Runde tritt jedes Team genau einmal an;
         # damit sind auch dort direkte Doppeleinsaetze ausgeschlossen.

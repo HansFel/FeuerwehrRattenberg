@@ -108,14 +108,14 @@ Pfand zurück / Zu bezahlen. Dateien: `app/templates/ausschank_dashboard.html`,
 ## Produktions-Deployment
 
 **Pausenregel bei automatischer Auslosung (ab Build 82):** Bei allen
-automatisch erzeugten Läufen außer kleinem/großem Finale muss zwischen zwei
-Einsätzen derselben Mannschaft mindestens ein vollständiger anderer Lauf
-liegen. Das gilt sowohl innerhalb der Vorrunde als auch am Übergang zur
-automatisch erzeugten nächsten Runde (Platzierungsläufe/Halbfinale). Kann die
-Regel mit der vorhandenen Mannschafts-/Bahnenanzahl nicht erfüllt werden,
-bricht die Erzeugung mit einer verständlichen Meldung ab und lässt die
-bestehende Startliste unverändert. Bereits gespeicherte Zeitpläne werden durch
-das Update nicht nachträglich verändert. Implementierung und Tests:
+automatisch erzeugten Läufen außer kleinem/großem Finale wird bestmöglich
+versucht, zwischen zwei Einsätzen derselben Mannschaft mindestens einen
+vollständigen anderen Lauf einzuplanen. Die fachliche Reihenfolge ist jedoch
+hart und hat Vorrang: schlechteste Platzierungsläufe zuerst, danach die
+Halbfinale. Ist eine Pause innerhalb dieser Reihenfolge nicht möglich, wird
+die Runde trotzdem erzeugt und niemals umsortiert oder blockiert. Bereits
+gespeicherte Zeitpläne werden durch das Update nicht nachträglich verändert.
+Implementierung und Tests:
 `app/blueprints/zeitplan.py`, `tests/test_zeitplan.py`.
 
 **Manuelles Neuladen der Web-Worker (seit Build 81):** Im nur für
