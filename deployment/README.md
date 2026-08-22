@@ -1,5 +1,8 @@
 # Deployment auf dem eigenen Server "ffrattenberg" (Ubuntu, Traefik, eigene Domain)
 
+Der vorbereitete zweite Server und die Notfallumschaltung sind in
+[`FAILOVER.md`](FAILOVER.md) beschrieben.
+
 Produktiv-Instanz ab August 2026: eigener Ubuntu-Server (Hostname/SSH-Alias
 `ffrattenberg`, siehe `~/.ssh/config` am Windows-PC), eigener Traefik, eigene
 DuckDNS-Domain **ffrattenberg.duckdns.org** (kein Pfad-Präfix, im Unterschied

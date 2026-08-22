@@ -783,3 +783,14 @@ App-Neustart mit beiden offenen Ports verifiziert.
 Für die DMX-Bahnbeleuchtung zusätzlich `DMX_Zeitmessung/README.md`
 (Hardware/Verkabelung/Protokoll) sowie den Abschnitt "DMX-Bahnbeleuchtung"
 oben.
+
+## Backup-Server und Failover (seit 2026-08-22)
+
+Der zweite Ubuntu-Server `ffrattenberg` läuft regulär unter `192.168.1.35`
+(Tailscale `100.78.100.82`). Er hält den aktuellen FeuerwehrRattenberg-Stack
+mit vier App-/PostgreSQL-Instanzen als warmes Backup vor. Ein Cronjob spiegelt
+alle vier produktiven Datenbanken alle fünf Minuten ausschließlich lesend vom
+aktiven ThinkPad `.34`; das genaue Verfahren, Prüfkommandos, Umschaltung auf
+`.34` und Rückkehr sind verbindlich in `deployment/FAILOVER.md` dokumentiert.
+Nie beide Server gleichzeitig mit `.34` betreiben. Nextcloud auf Port 81 ist
+ein eigener Dienst und nicht Teil dieser automatischen Datenspiegelung.
