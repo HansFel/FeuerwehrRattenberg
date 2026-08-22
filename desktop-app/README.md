@@ -153,6 +153,22 @@ markiert.
   Beleuchtung schaltete wie vorgesehen. Vom User anschließend als
   funktionierend bestätigt.
 
+**2026-08-22, stabile serielle Portzuordnung auf `felferlinuxlab`:** Beide
+Arduinos verwenden identische CH341-USB-Seriell-Chips ohne individuelle
+Seriennummer. `/dev/ttyUSB0` und `/dev/ttyUSB1` hängen daher von der
+Ansteckreihenfolge ab und dürfen nicht dauerhaft konfiguriert werden. Die
+produktive Konfiguration verwendet stattdessen Linux-`by-path`-Namen:
+
+- Mega/Zeitmessung (115200 Baud):
+  `/dev/serial/by-path/pci-0000:00:1d.0-usb-0:1.5:1.0-port0`
+- DMX-Uno/Licht (9600 Baud):
+  `/dev/serial/by-path/pci-0000:04:00.0-usb-0:1:1.0-port0`
+
+Diese Zuordnung bleibt unabhängig von der Erkennungsreihenfolge stabil, aber
+nur solange die Geräte in denselben physischen USB-Buchsen bleiben. Zur
+Identifikation Geräte einzeln anstecken; der Mega sendet bei 115200 Baud
+`READY;mega2560-zeitmessung-1`, der DMX-Uno nicht.
+
 ## Vor-Ort-Prüfungen
 
 - Manueller Offline-Modus noch nicht mit echten Mega-Kontaktauslösungen vor

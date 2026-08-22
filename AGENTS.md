@@ -768,6 +768,18 @@ Der User hat anschließend produktiv **20 Sekunden** eingestellt; dieser Wert
 steht in `/home/hans/.zeitmessung_desktop/einstellungen.json` und wurde nach
 dem Neustart remote über `laden().buzzer_sperrzeit_s == 20` verifiziert.
 
+**Stabile Arduino-Portzuordnung auf `felferlinuxlab` (2026-08-22):** Mega
+und DMX-Uno haben beide CH341 (`1a86:7523`) ohne eindeutige Seriennummer;
+`ttyUSB0/1` vertauschen sich je nach Ansteckreihenfolge. Deshalb produktiv
+keine `ttyUSB`-Namen verwenden, sondern die physischen `by-path`-Symlinks:
+Mega (115200 Baud) =
+`/dev/serial/by-path/pci-0000:00:1d.0-usb-0:1.5:1.0-port0`, DMX (9600 Baud) =
+`/dev/serial/by-path/pci-0000:04:00.0-usb-0:1:1.0-port0`. Die Geräte müssen
+dafür in denselben USB-Buchsen bleiben. Bei Unklarheit einzeln anstecken und
+Mega an seiner Ausgabe `READY;mega2560-zeitmessung-1` erkennen. Diese Werte
+sind aktuell in `~/.zeitmessung_desktop/einstellungen.json` gesetzt und nach
+App-Neustart mit beiden offenen Ports verifiziert.
+
 Für die DMX-Bahnbeleuchtung zusätzlich `DMX_Zeitmessung/README.md`
 (Hardware/Verkabelung/Protokoll) sowie den Abschnitt "DMX-Bahnbeleuchtung"
 oben.
