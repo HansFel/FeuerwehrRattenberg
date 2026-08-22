@@ -324,6 +324,9 @@ class Startplatz(db.Model):
     # (z.B. Vorrunde-Gesamtzeit = Summe über die 2 Vorrunden-Läufe eines
     # Teams), aus der die nächste Runde ausgelost werden kann.
     ergebnis_sekunden = db.Column(db.Float)
+    # Ausdrücklich freigegebene offizielle Platzkorrektur. Die Laufdaten und
+    # der ursprüngliche Rangblock bleiben dabei zur Nachvollziehbarkeit stehen.
+    platz_override = db.Column(db.Integer)
 
     team = db.relationship("Team", back_populates="startplaetze")
     disziplin = db.relationship("Disziplin", back_populates="startplaetze")

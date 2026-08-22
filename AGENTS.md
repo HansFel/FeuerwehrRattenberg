@@ -117,6 +117,14 @@ Pfand zurück / Zu bezahlen. Dateien: `app/templates/ausschank_dashboard.html`,
 
 ## Produktions-Deployment
 
+**Offizielle Platzkorrektur (Build 87):** Für ausdrücklich vom Veranstalter
+freigegebene Korrekturen besitzt `Startplatz` das nullable Feld
+`platz_override`. `finale_platzierung()` verwendet dieses am letzten
+absolvierten Ziellauf vorrangig, ohne Heat, Messzeit oder Strafen zu verändern.
+Mehrere Verschiebungen immer in einer Transaktion setzen und anschließend auf
+eindeutige Plätze prüfen. Freigegebene Korrektur vom 22.08.2026: FF Götzendorf
+auf Platz 10; bisherige Plätze 10–22 auf 11–23; bisherige Plätze 24–42 bleiben.
+
 **Drei beste Einzelzeiten (Build 86, vorbereitet, noch nicht deployt):**
 `app/wertung.py:beste_einzelzeit()` ermittelt rein lesend die drei schnellsten
 plausiblen Teilzeiten ab einschließlich 35,000 Sekunden aus

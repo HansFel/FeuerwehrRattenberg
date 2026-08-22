@@ -240,6 +240,7 @@ def _schema_migrieren() -> None:
     })
     _spalten_ergaenzen("startplatz", {
         "ergebnis_sekunden": gleitkomma,
+        "platz_override": "INTEGER",
     })
     _spalten_ergaenzen("bestellposition", {
         "pfand_pro_einheit": f"{gleitkomma} NOT NULL DEFAULT 0.0",

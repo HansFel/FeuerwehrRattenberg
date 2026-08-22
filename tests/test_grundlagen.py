@@ -336,6 +336,16 @@ def test_gesamtwertung_definitive_platzierung_aus_platzierungslauf(app):
         assert finale_platzierung(team_h, strafsekunden) == 11
         assert finale_platzierung(team_f, strafsekunden) == 12   # Strafe wirft es ans Ende
 
+        # Eine ausdrückliche Korrektur ändert nur den offiziellen Platz;
+        # Laufzuordnung, Messzeit und Strafen bleiben unverändert erhalten.
+        sp_g = Startplatz.query.filter_by(team_id=team_g.id, heat=heat).one()
+        alte_zeit = sp_g.ergebnis_sekunden
+        sp_g.platz_override = 15
+        db.session.commit()
+        assert finale_platzierung(team_g, strafsekunden) == 15
+        assert sp_g.heat == heat
+        assert sp_g.ergebnis_sekunden == alte_zeit
+
 
 def test_gesamtwertung_ohne_ziellauf_bleibt_vorlaeufig(app):
     with app.app_context():

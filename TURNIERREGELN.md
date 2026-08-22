@@ -107,3 +107,13 @@ Regeländerung und benötigt vor der Umsetzung eine ausdrückliche Freigabe.
 - Vor Änderungen an der Turnierlogik müssen Tests mindestens Vorrunde,
   Platzierungsläufe, Halbfinale, beide Finale, harte Reihenfolge und weiche
   Pausenregel abdecken.
+
+## Nachvollziehbare Platzkorrekturen
+
+- Eine vom Veranstalter ausdrücklich freigegebene Korrektur eines offiziellen
+  Platzes wird als `Startplatz.platz_override` am absolvierten Ziellauf
+  gespeichert.
+- Dabei dürfen Laufzuordnung, Messzeit und Strafsekunden nicht umgeschrieben
+  werden. Das Override hat nur Vorrang bei der ausgegebenen Gesamtplatzierung.
+- Zusammengehörige Verschiebungen müssen atomar gespeichert und danach auf
+  eindeutige Plätze geprüft werden.

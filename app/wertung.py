@@ -174,6 +174,8 @@ def finale_platzierung(team: Team,
         return None
 
     letzter = max(ziel_eintraege, key=lambda sp: _lauf_nummer(sp.heat))
+    if letzter.platz_override is not None:
+        return letzter.platz_override
     von = int(_ZIEL_PLATZ_MUSTER.search(letzter.heat).group(1))
 
     teilnehmer = (Startplatz.query.filter_by(heat=letzter.heat)
