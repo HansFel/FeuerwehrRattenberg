@@ -462,6 +462,10 @@ class NotfallBahn(db.Model):
     zeit_laeufer2 = db.Column(db.Float)
     zeit_laeufer3 = db.Column(db.Float)
     zeit_laeufer4 = db.Column(db.Float)
+    # Bit 0..3 schliesst die jeweilige Teilzeit nur von der informativen
+    # Auszeichnung "Beste Einzelzeit" aus. Laufzeit und Mannschaftsergebnis
+    # bleiben bewusst unverändert (z.B. bei einer erkannten Fehlmessung).
+    einzelzeit_ausschluss_mask = db.Column(db.Integer, nullable=False, default=0)
 
     lauf = db.relationship("NotfallLauf", back_populates="bahnen")
     team = db.relationship("Team")

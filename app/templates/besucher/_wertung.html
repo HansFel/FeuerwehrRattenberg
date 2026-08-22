@@ -1,17 +1,20 @@
 <section class="dash-karte" style="margin-bottom:1rem">
-  <h2>⚡ Beste Einzelzeit</h2>
+  <h2>⚡ Die 3 besten Einzelzeiten</h2>
   {% if beste_einzelzeit %}
+    {% for einzelzeit in beste_einzelzeit %}
     <p style="font-size:1.15rem; margin-bottom:0.3rem">
-      <strong>{{ beste_einzelzeit.laeufer_name }}</strong> ·
-      {{ beste_einzelzeit.team.name }} ·
-      <strong>{{ beste_einzelzeit.zeit|zeit }}</strong>
+      <strong>{{ loop.index }}. {{ einzelzeit.laeufer_name }}</strong> ·
+      {{ einzelzeit.team.name }} ·
+      <strong>{{ einzelzeit.zeit|zeit }}</strong>
     </p>
+    {% if loop.first %}<p><strong>Bestzeit aus {{ einzelzeit.rundenherkunft }}</strong></p>{% endif %}
     <small class="leer">
-      {{ beste_einzelzeit.lauf.bezeichnung or ('Lauf ' ~ beste_einzelzeit.lauf.id) }} ·
-      Bahn {{ beste_einzelzeit.bahn_nr }} · Läufer {{ beste_einzelzeit.laeufer_nr }}
+      {{ einzelzeit.lauf.bezeichnung or ('Lauf ' ~ einzelzeit.lauf.id) }} ·
+      Bahn {{ einzelzeit.bahn_nr }} · Läufer {{ einzelzeit.laeufer_nr }}
     </small>
+    {% endfor %}
   {% else %}
-    <p class="leer">Noch keine vollständig gemessene Bahn vorhanden.</p>
+    <p class="leer">Noch keine plausible Einzelzeit ab 35 Sekunden vorhanden.</p>
   {% endif %}
 </section>
 

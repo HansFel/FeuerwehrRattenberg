@@ -83,13 +83,13 @@ def format_zeit(sekunden: float | None) -> str:
     return f"{rest:.2f}".replace(".", ",") + " s"
 
 
-def beste_einzelzeit() -> dict | None:
-    """Schnellste positive Teilzeit aus allen vollständig gemessenen Bahnen.
+def beste_einzelzeit() -> list[dict]:
+    """Die drei schnellsten plausiblen Teilzeiten ab 35 Sekunden.
 
     Angefangene oder abgebrochene Bahnen werden ignoriert. Die Auszeichnung
     ist rein informativ und beeinflusst weder Weiterkommen noch Platzierung.
     """
-    beste = None
+    kandidaten = []
     bahnen = (NotfallBahn.query
               .order_by(NotfallBahn.lauf_id, NotfallBahn.bahn_nr,
                         NotfallBahn.id).all())
@@ -100,6 +100,10 @@ def beste_einzelzeit() -> dict | None:
         mitglieder = {m.position: m for m in (bahn.team.mitglieder
                                                if bahn.team else [])}
         for laeufer_nr, zeit in enumerate(zeiten, start=1):
+            if zeit < 35:
+                continue
+            if (bahn.einzelzeit_ausschluss_mask or 0) & (1 << (laeufer_nr - 1)):
+                continue
             mitglied = mitglieder.get(laeufer_nr)
             kandidat = {
                 "zeit": float(zeit),
@@ -110,10 +114,36 @@ def beste_einzelzeit() -> dict | None:
                 "laeufer_nr": laeufer_nr,
                 "lauf": bahn.lauf,
                 "bahn_nr": bahn.bahn_nr,
+                "runde": _rundenname(bahn.lauf.bezeichnung),
+                "rundenherkunft": _rundenherkunft(bahn.lauf.bezeichnung),
             }
-            if beste is None or kandidat["zeit"] < beste["zeit"]:
-                beste = kandidat
-    return beste
+            kandidaten.append(kandidat)
+    kandidaten.sort(key=lambda k: (
+        k["zeit"], k["laeufer_name"].casefold(),
+        (k["team"].name or "").casefold()))
+    return kandidaten[:3]
+
+
+def _rundenname(bezeichnung: str | None) -> str:
+    """Kurzer, besucherfreundlicher Name der Runde einer Einzelzeit."""
+    text = bezeichnung or ""
+    for name in ("Großes Finale", "Kleines Finale", "Halbfinale",
+                 "Platzierungslauf", "Vorrunde"):
+        if name in text:
+            return name
+    return text or "unbekanntem Lauf"
+
+
+def _rundenherkunft(bezeichnung: str | None) -> str:
+    """Rundenname mit passendem Artikel im Dativ für 'Bestzeit aus ...'."""
+    name = _rundenname(bezeichnung)
+    return {
+        "Großes Finale": "dem Großen Finale",
+        "Kleines Finale": "dem Kleinen Finale",
+        "Halbfinale": "dem Halbfinale",
+        "Platzierungslauf": "dem Platzierungslauf",
+        "Vorrunde": "der Vorrunde",
+    }.get(name, name)
 
 
 _ZIEL_PLATZ_MUSTER = re.compile(r"Platz (\d+)-(\d+)")

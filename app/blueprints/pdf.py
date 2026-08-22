@@ -118,19 +118,24 @@ def gesamt():
     tabelle = _tabelle(daten, [18 * mm, 34 * mm, 30 * mm, 22 * mm,
                                20 * mm, 25 * mm, 25 * mm])
     elemente = []
-    einzelzeit = beste_einzelzeit()
-    if einzelzeit:
+    einzelzeiten = beste_einzelzeit()
+    if einzelzeiten:
         normal = getSampleStyleSheet()["Normal"]
-        lauf_name = einzelzeit["lauf"].bezeichnung or (
-            "Lauf " + str(einzelzeit["lauf"].id))
-        elemente.extend([
-            Paragraph(
-                "<b>Beste Einzelzeit:</b> "
-                f"{escape(einzelzeit['laeufer_name'])} · "
+        zeilen = []
+        for rang, einzelzeit in enumerate(einzelzeiten, start=1):
+            lauf_name = einzelzeit["lauf"].bezeichnung or (
+                "Lauf " + str(einzelzeit["lauf"].id))
+            zeilen.append(
+                f"<b>{rang}.</b> {escape(einzelzeit['laeufer_name'])} · "
                 f"{escape(einzelzeit['team'].name)} · "
                 f"<b>{escape(format_zeit(einzelzeit['zeit']))}</b><br/>"
                 f"{escape(lauf_name)} · Bahn {einzelzeit['bahn_nr']} · "
-                f"Läufer {einzelzeit['laeufer_nr']}", normal),
+                f"Läufer {einzelzeit['laeufer_nr']}")
+        elemente.extend([
+            Paragraph(
+                "<b>Die 3 besten Einzelzeiten:</b><br/>"
+                f"<b>Bestzeit aus {escape(einzelzeiten[0]['rundenherkunft'])}</b><br/>" +
+                "<br/>".join(zeilen), normal),
             Spacer(1, 5 * mm),
         ])
     elemente.append(tabelle)

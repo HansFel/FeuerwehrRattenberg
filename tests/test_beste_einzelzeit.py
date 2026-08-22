@@ -23,16 +23,16 @@ def _app_mit_zeiten():
 
         lauf_1 = NotfallLauf(bezeichnung="Vorrunde 1")
         lauf_1.bahnen.append(NotfallBahn(
-            bahn_nr=1, team=team_a, zeit_laeufer1=5.0, zeit_laeufer2=4.8,
-            zeit_laeufer3=5.1, zeit_laeufer4=5.2))
-        # Schnellere 3,0 s in einer unvollständigen Bahn dürfen nicht zählen.
+            bahn_nr=1, team=team_a, zeit_laeufer1=50.0, zeit_laeufer2=48.0,
+            zeit_laeufer3=51.0, zeit_laeufer4=52.0))
+        # 30,0 s sind unplausibel und die Bahn ist zudem unvollständig.
         lauf_1.bahnen.append(NotfallBahn(
-            bahn_nr=2, team=team_b, zeit_laeufer1=3.0))
+            bahn_nr=2, team=team_b, zeit_laeufer1=30.0))
 
         lauf_2 = NotfallLauf(bezeichnung="Vorrunde 2")
         lauf_2.bahnen.append(NotfallBahn(
-            bahn_nr=3, team=team_b, zeit_laeufer1=4.7, zeit_laeufer2=4.6,
-            zeit_laeufer3=4.9, zeit_laeufer4=5.0))
+            bahn_nr=3, team=team_b, zeit_laeufer1=47.0, zeit_laeufer2=46.0,
+            zeit_laeufer3=49.0, zeit_laeufer4=50.0))
         db.session.add_all([team_a, team_b, lauf_1, lauf_2])
         db.session.commit()
     return app
@@ -54,12 +54,31 @@ def test_beste_einzelzeit_ueber_alle_vollstaendigen_laeufe():
     app = _app_mit_zeiten()
     with app.app_context():
         beste = beste_einzelzeit()
-        assert beste["zeit"] == 4.6
-        assert beste["laeufer_name"] == "Franz"
-        assert beste["team"].name == "Team B"
-        assert beste["lauf"].bezeichnung == "Vorrunde 2"
-        assert beste["bahn_nr"] == 3
-        assert beste["laeufer_nr"] == 2
+        assert [e["zeit"] for e in beste] == [46.0, 47.0, 48.0]
+        assert [e["laeufer_name"] for e in beste] == ["Franz", "Emil", "Berta"]
+        assert beste[0]["team"].name == "Team B"
+        assert beste[0]["lauf"].bezeichnung == "Vorrunde 2"
+        assert beste[0]["bahn_nr"] == 3
+        assert beste[0]["laeufer_nr"] == 2
+        assert beste[0]["runde"] == "Vorrunde"
+        assert beste[0]["rundenherkunft"] == "der Vorrunde"
+
+
+def test_fehlmessung_kann_nur_von_einzelzeit_ausgeschlossen_werden():
+    app = _app_mit_zeiten()
+    with app.app_context():
+        bahn = NotfallBahn.query.filter_by(bahn_nr=3).one()
+        vorherige_gesamtzeit = bahn.gesamtzeit
+        # Läufer 2 (Bit 1) ist die bisherige Bestzeit 46,0 s.
+        bahn.einzelzeit_ausschluss_mask = 1 << 1
+        db.session.commit()
+
+        beste = beste_einzelzeit()
+        assert beste[0]["zeit"] == 47.0
+        assert beste[0]["laeufer_name"] == "Emil"
+        # Gespeicherte Zeit und Mannschaftsergebnis bleiben unverändert.
+        assert bahn.zeit_laeufer2 == 46.0
+        assert bahn.gesamtzeit == vorherige_gesamtzeit
 
 
 def test_beste_einzelzeit_in_web_besucheransicht_und_pdf():
@@ -71,11 +90,17 @@ def test_beste_einzelzeit_in_web_besucheransicht_und_pdf():
         assert antwort.status_code == 200
         text = antwort.get_data(as_text=True)
         assert "Franz" in text
-        assert "4,60 s" in text
+        assert "46,00 s" in text
+        assert "47,00 s" in text
+        assert "48,00 s" in text
+        assert "Bestzeit aus der Vorrunde" in text
 
     pdf = client.get("/pdf/gesamtwertung.pdf")
     assert pdf.status_code == 200
     text = _pdf_text(pdf.data)
-    assert "Beste Einzelzeit" in text
+    assert "besten Einzelzeiten" in text
     assert "Franz" in text
-    assert "4,60 s" in text
+    assert "46,00 s" in text
+    assert "47,00 s" in text
+    assert "48,00 s" in text
+    assert "Bestzeit aus der Vorrunde" in text

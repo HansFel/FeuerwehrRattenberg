@@ -117,16 +117,33 @@ Pfand zurück / Zu bezahlen. Dateien: `app/templates/ausschank_dashboard.html`,
 
 ## Produktions-Deployment
 
-**Beste Einzelzeit (vorbereitet für Build 84):** `app/wertung.py:
-beste_einzelzeit()` ermittelt rein lesend die schnellste positive Teilzeit aus
+**Drei beste Einzelzeiten (Build 86, vorbereitet, noch nicht deployt):**
+`app/wertung.py:beste_einzelzeit()` ermittelt rein lesend die drei schnellsten
+plausiblen Teilzeiten ab einschließlich 35,000 Sekunden aus
 allen vier Teilzeiten aller vollständig gemessenen `NotfallBahn`-Datensätze.
 Ausgegeben werden Läufername (über Mitgliedsposition 1–4), Mannschaft, Lauf,
 Bahn und Zeit in Webwertung, live gepollter Moderation, live gepollter
-Besucheransicht und Gesamtwertungs-PDF. Unvollständige/abgebrochene Bahnen
-werden ignoriert. Diese Auszeichnung ist rein informativ und verändert laut
+Besucheransicht und Gesamtwertungs-PDF. Niedrigere Teilzeiten gelten für diese
+Anzeige als Fehlmessung; unvollständige/abgebrochene Bahnen werden ignoriert.
+Bei der erstplatzierten Zeit wird in allen vier Ausgaben die Herkunftsrunde
+ausdrücklich genannt (z.B. `Bestzeit aus dem Großen Finale`).
+Diese Auszeichnung ist rein informativ und verändert laut
 `TURNIERREGELN.md` weder Weiterkommen noch Platzierung. Die Besucheransicht
-zeigt damit als bewusst gewünschte Ausnahme den Namen des aktuell schnellsten
-Läufers; andere Mitgliedsnamen bleiben dort verborgen.
+zeigt damit als bewusst gewünschte Ausnahme die Namen dieser drei Läufer;
+andere Mitgliedsnamen bleiben dort verborgen.
+
+**Gezielter Ausschluss von Einzelzeit-Fehlmessungen (ab Build 86):**
+`NotfallBahn.einzelzeit_ausschluss_mask` verwendet Bit 0–3 für Läufer 1–4.
+Ein gesetztes Bit schließt ausschließlich diese Teilzeit aus
+`beste_einzelzeit()` aus; gespeicherte Teilzeiten, Gesamtzeit und das bereits
+zurückgeschriebene Mannschaftsergebnis bleiben unverändert. Additive Migration
+in `app/__init__.py`. Der allgemeine Plausibilitätsfilter unter 35 Sekunden
+entfernt Stefan Hofer (24,260 s) und Peter Vorraber (28,372 s) bereits ohne
+Datenänderung aus der Anzeige; die nächste plausible Zeit ist Martin Ressler
+mit 40,182 s. Zusätzlich wurde Michael Mader (NotfallBahn 372, Läufer 4,
+38,285 s) fachlich als Fehlmessung bestätigt. Beim späteren Deployment muss
+für diesen Datensatz Bit 3 der `einzelzeit_ausschluss_mask` gesetzt und die
+unveränderte offizielle Laufzeit danach kontrolliert werden.
 
 **Strafenkatalog-Gnadenfenster für den vorherigen Lauf (Build 83,
 2026-08-22):** Bugfix, während des laufenden Wettkampfs entdeckt und (auf

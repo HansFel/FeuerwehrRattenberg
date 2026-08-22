@@ -73,11 +73,16 @@ Optimierung verändert werden:
 
 ## Technische Wertungsregeln
 
-- Die „Beste Einzelzeit“ ist eine laufend aktualisierte, rein informative
-  Auszeichnung aus allen vollständig gemessenen Bahnen aller Läufe. Sie hat
+- Die „drei besten Einzelzeiten“ sind eine laufend aktualisierte, rein
+  informative Auszeichnung aus allen vollständig gemessenen Bahnen aller Läufe.
+  Es werden nur Teilzeiten ab einschließlich 35,000 Sekunden berücksichtigt;
+  niedrigere Werte gelten für diese Anzeige als unplausible Fehlmessung. Sie hat
   keinerlei Einfluss auf Weiterkommen, Laufreihenfolge oder Gesamtplatzierung.
 - Angefangene oder abgebrochene Bahnen mit fehlenden beziehungsweise nicht
   positiven Teilzeiten werden dafür nicht berücksichtigt.
+- Erkannte Fehlmessungen dürfen gezielt nur von dieser Auszeichnung
+  ausgeschlossen werden. Die gespeicherte Laufzeit und das offizielle
+  Mannschaftsergebnis werden dadurch nicht verändert.
 
 - Die automatische Vorrundenrangliste und die Auswahl der besten acht basiert
   derzeit auf der Summe von `Startplatz.ergebnis_sekunden` der beiden

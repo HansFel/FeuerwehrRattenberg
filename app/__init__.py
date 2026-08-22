@@ -258,6 +258,7 @@ def _schema_migrieren() -> None:
     })
     _spalten_ergaenzen("notfall_bahn", {
         "startplatz_id": "INTEGER",
+        "einzelzeit_ausschluss_mask": "INTEGER NOT NULL DEFAULT 0",
     })
 
 
