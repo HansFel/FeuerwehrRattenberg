@@ -164,7 +164,8 @@ def test_live_fragment_zeigt_neue_zeiten_ohne_seiten_reload(client, app):
     # Siloplanen-Race-Zwischenwertung: noch kein Ziellauf -> "vorläufig"
     assert "Siloplanen-Race".encode() in daten["rangliste_html"].encode()
     assert "vorläufig".encode() in daten["rangliste_html"].encode()
-    assert "39,10 s".encode() in daten["rangliste_html"].encode()
+    # Die Gesamtwertung zeigt bewusst nur Platz und Mannschaft.
+    assert "39,10 s".encode() not in daten["rangliste_html"].encode()
     # Team Challenge erscheint als eigene, unabhaengige Wertung daneben
     assert "Team Challenge".encode() in daten["rangliste_html"].encode()
 

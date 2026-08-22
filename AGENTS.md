@@ -117,6 +117,13 @@ Pfand zurück / Zu bezahlen. Dateien: `app/templates/ausschank_dashboard.html`,
 
 ## Produktions-Deployment
 
+**Reduzierte Siloplanen-Race-Gesamtwertung (Build 88):** In Webwertung,
+Besucher-Livefragment, Moderation und `gesamtwertung.pdf` werden nur Rang und
+Mannschaft ausgegeben. Messzeiten, Strafsekunden, Gesamtzeiten und Rangpunkte
+bleiben interne Berechnungsdaten. Die Top-3-Einzelzeiten behalten Namen, Team,
+Zeit und Herkunftsrunde. Team Challenge, Zeitplan, CSV-Exporte und einzelne
+Disziplinwertungen sind ausdrücklich nicht betroffen.
+
 **Offizielle Platzkorrektur (Build 87):** Für ausdrücklich vom Veranstalter
 freigegebene Korrekturen besitzt `Startplatz` das nullable Feld
 `platz_override`. `finale_platzierung()` verwendet dieses am letzten

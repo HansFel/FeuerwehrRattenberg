@@ -73,6 +73,13 @@ Optimierung verändert werden:
 
 ## Technische Wertungsregeln
 
+- Die veröffentlichte Siloplanen-Race-Gesamtwertung zeigt in Webansicht,
+  Besucheransicht, Moderation und Gesamtwertungs-PDF nur Platz und Mannschaft.
+  Zeiten und Strafsekunden bleiben intern Berechnungsgrundlage, werden dort
+  aber nicht ausgegeben. Ausgenommen sind die drei besten Einzelzeiten, die
+  weiterhin jeweils mit ihrer Zeit und Herkunftsrunde angezeigt werden.
+- Die Team Challenge und ihre eigene PDF-Ausgabe bleiben davon unberührt.
+
 - Die „drei besten Einzelzeiten“ sind eine laufend aktualisierte, rein
   informative Auszeichnung aus allen vollständig gemessenen Bahnen aller Läufe.
   Es werden nur Teilzeiten ab einschließlich 35,000 Sekunden berücksichtigt;

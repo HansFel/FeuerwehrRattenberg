@@ -67,10 +67,7 @@ def test_pdf_export(client):
         assert antwort.data[:4] == b"%PDF"
 
 
-def test_pdf_gesamtwertung_enthaelt_gemessene_zeit_und_strafen(app):
-    """Der PDF-Export der Gesamtwertung muss dieselben Spalten wie die
-    normale Web-Ansicht enthalten (Getraenkepunkte/Strafsekunden/gemessene
-    Zeit/Gesamtzeit), nicht nur die alten Rangpunkte."""
+def test_pdf_gesamtwertung_enthaelt_nur_platz_und_mannschaft(app):
     from app.models import db, Disziplin, Team, Startplatz
     with app.app_context():
         d = Disziplin(name="Siloplanen-Race")
@@ -87,10 +84,11 @@ def test_pdf_gesamtwertung_enthaelt_gemessene_zeit_und_strafen(app):
     assert r.status_code == 200
 
     text = _reportlab_text(r.data)
-    # Getraenkepunkte sind seit Build 57 nur noch in der Team-Challenge-Wertung,
-    # nicht mehr in der Siloplanen-Race-Gesamtwertung.
-    for stichwort in ("Rang", "punkte", "Strafsek", "Gemessene", "Gesamtzeit"):
-        assert stichwort in text
+    assert "Rang" in text
+    assert "Mannschaft" in text
+    assert "PDF-Test-Team" in text
+    for stichwort in ("Rangpunkte", "Strafsek", "Gemessene", "Gesamtzeit"):
+        assert stichwort not in text
 
 
 def test_pdf_tabellen_brechen_lange_namen_innerhalb_der_spalte_um():

@@ -47,7 +47,7 @@ def test_besucheransicht_zeigt_gesamtwertung_und_zeitplan(client, app):
     assert "10:00" in text
 
 
-def test_besucheransicht_zeigt_rennzeit_strafen_und_gesamtzeit(client, app):
+def test_besucherwertung_zeigt_nur_platz_und_mannschaft(client, app):
     with app.app_context():
         d = Disziplin(name="Siloplanen-Race")
         team = Team(name="Strafteam")
@@ -60,13 +60,14 @@ def test_besucheransicht_zeigt_rennzeit_strafen_und_gesamtzeit(client, app):
                               regel_text="Frühstart", sekunden=5.0))
         db.session.commit()
 
-    r = client.get("/besucher/")
-    text = r.data.decode("utf-8")
-    assert "Rennzeit" in text
-    assert "Strafsekunden" in text
-    # Rennzeit 40s, Strafe 5s -> Gesamtzeit 45s = "45,00 s"
-    assert "40,00 s" in text
-    assert "45,00 s" in text
+    r = client.get("/besucher/live-fragment")
+    text = r.get_json()["wertung_html"]
+    assert "Strafteam" in text
+    assert "Rennzeit" not in text
+    assert "Strafsekunden" not in text
+    assert "Gesamtzeit" not in text
+    assert "40,00 s" not in text
+    assert "45,00 s" not in text
 
 
 def test_besucheransicht_ohne_daten_zeigt_leer_meldung(client):
@@ -163,7 +164,7 @@ def test_besucher_live_fragment_ohne_login_und_ohne_personendaten(client, app):
 
     r = client.get("/besucher/live-fragment")
     daten = r.get_json()
-    assert "33,50 s" in daten["wertung_html"]
+    assert "33,50 s" not in daten["wertung_html"]
     assert "33,50 s" in daten["zeitplan_html"]
 
     hauptseite = client.get("/besucher/")

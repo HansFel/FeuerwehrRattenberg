@@ -26,9 +26,6 @@
       <tr>
         <th class="rang">Rang</th>
         <th>Mannschaft</th>
-        <th>📋 Strafsek.</th>
-        <th>⏱ Zeit gesamt</th>
-        <th>⏱ Gesamtzeit</th>
       </tr>
     </thead>
     <tbody>
@@ -36,9 +33,6 @@
       <tr>
         <td class="rang">{{ zeile.rang }}{% if zeile.finaler_platz is none %} <small>(vorläufig)</small>{% endif %}</td>
         <td>{{ zeile.team.name }}</td>
-        <td>{{ zeile.strafsekunden|round(0) }}</td>
-        <td>{{ zeile.gemessene_zeit|zeit }}</td>
-        <td><strong>{{ zeile.gesamtzeit|zeit }}</strong></td>
       </tr>
       {% endfor %}
     </tbody>

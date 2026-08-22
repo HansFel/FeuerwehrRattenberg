@@ -106,17 +106,11 @@ def _tabelle(daten: list[list], breiten: list[float],
 def gesamt():
     teams = Team.query.all()
     disziplinen = Disziplin.query.order_by(Disziplin.reihenfolge).all()
-    daten = [["Rang", "Mannschaft", "Wehr / Ort", "Rangpunkte",
-             "Strafsek.", "Gemessene Zeit", "Gesamtzeit"]]
+    daten = [["Rang", "Mannschaft"]]
     for z in gesamtwertung_vollstaendig(teams, disziplinen):
         rang = str(z["rang"]) + (" (vorl.)" if z["finaler_platz"] is None else "")
-        daten.append([rang, z["team"].name, z["team"].wehr or "",
-                      str(z["punkte"]),
-                      str(round(z["strafsekunden"])),
-                      format_zeit(z["gemessene_zeit"]),
-                      format_zeit(z["gesamtzeit"])])
-    tabelle = _tabelle(daten, [18 * mm, 34 * mm, 30 * mm, 22 * mm,
-                               20 * mm, 25 * mm, 25 * mm])
+        daten.append([rang, z["team"].name])
+    tabelle = _tabelle(daten, [25 * mm, 145 * mm])
     elemente = []
     einzelzeiten = beste_einzelzeit()
     if einzelzeiten:

@@ -231,10 +231,8 @@ def test_gesamtwertung_summiert_rangpunkte(app):
         assert {z["punkte"] for z in tabelle} == {3}
 
 
-def test_wertungsuebersicht_zeigt_gemessene_zeit_und_gesamtzeit(client, app):
-    """Gesamtwertung soll die Summe der über die Zeitmessung gemessenen
-    Laufzeiten (Startplatz.ergebnis_sekunden, z.B. beide Vorrunden-Läufe)
-    plus Strafsekunden als Gesamtzeit ausweisen."""
+def test_wertungsuebersicht_verbirgt_zeiten_und_strafen(client, app):
+    """Die Siloplanen-Race-Webwertung zeigt nur Platz und Mannschaft."""
     with app.app_context():
         d = Disziplin(name="Siloplanen-Race")
         team_a = Team(name="Team A")
@@ -255,9 +253,10 @@ def test_wertungsuebersicht_zeigt_gemessene_zeit_und_gesamtzeit(client, app):
 
     r = client.get("/wertung/")
     assert r.status_code == 200
-    # Team A: 55s gemessen + 5s Strafe = 60s = "1:00,00"
-    assert "55,00 s".encode() in r.data
-    assert "1:00,00".encode() in r.data
+    assert "Team A".encode() in r.data
+    assert "55,00 s".encode() not in r.data
+    assert "1:00,00".encode() not in r.data
+    assert "Strafsekunden".encode() not in r.data
 
 
 def test_gesamtwertung_gereiht_nach_gesamtzeit(app):
